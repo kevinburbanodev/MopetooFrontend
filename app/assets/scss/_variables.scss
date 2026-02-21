@@ -1,0 +1,34 @@
+// ============================================================
+// Mopetoo – Bootstrap 5 variable overrides
+// These are set BEFORE Bootstrap imports its defaults,
+// so Bootstrap uses these values throughout the design system.
+// ============================================================
+
+// Brand palette
+$primary:   #4CAF82;   // Verde Mopetoo
+$secondary: #F5A623;   // Naranja cálido
+$success:   #28a745;
+$info:      #5bc0de;
+$warning:   #ffc107;
+$danger:    #dc3545;
+$light:     #f8f9fa;
+$dark:      #1e2a38;
+
+// Typography
+$font-family-sans-serif: 'Segoe UI', system-ui, -apple-system, sans-serif;
+$font-size-base:         1rem;
+$headings-font-weight:   700;
+
+// Spacing
+$spacer: 1rem;
+
+// Border radius
+$border-radius:    0.5rem;
+$border-radius-lg: 0.75rem;
+
+// Shadows
+$box-shadow:    0 2px 12px rgba(0, 0, 0, 0.08);
+$box-shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.12);
+
+// Navbar
+$navbar-padding-y: 0.875rem;

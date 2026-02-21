@@ -1,0 +1,40 @@
+// ============================================================
+// Mopetoo – Main SCSS entry point
+// 1. Variable overrides (must come first)
+// 2. Bootstrap full import
+// 3. Global custom styles
+// ============================================================
+
+// 1. Override Bootstrap variables before they are used
+// Must use @import to stay consistent with Bootstrap's own @import-based system.
+// Mixing @use and @import in the same file is not allowed in Sass.
+@import 'variables';
+
+// 2. Import all of Bootstrap
+@import 'bootstrap/scss/bootstrap';
+
+// 3. Global custom styles
+html,
+body {
+  min-height: 100vh;
+}
+
+// Smooth scroll
+html {
+  scroll-behavior: smooth;
+}
+
+// Custom utility: pet avatar circle
+.avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.avatar-lg {
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  object-fit: cover;
+}
