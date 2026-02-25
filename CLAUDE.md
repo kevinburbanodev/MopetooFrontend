@@ -11,7 +11,15 @@ npm run generate     # Static site generation
 npm run preview      # Preview production build locally
 ```
 
-No linter or test runner is configured yet. After adding them, update this file.
+```bash
+npm test                 # Run all tests in watch mode (Vitest)
+npm run test:coverage    # Single run with coverage report
+```
+
+**Test stack:** Vitest + `@nuxt/test-utils` + `@pinia/testing`
+**Config:** `vitest.config.ts` at project root (environment: `nuxt`, `globals: true`)
+**Colocation rule:** test files live next to the source file inside the feature slice.
+**Status:** Auth feature slice (RF-001–RF-009) has full test coverage: store, composable, auth & guest middleware. 85 tests total.
 
 ## Architecture
 
@@ -139,7 +147,11 @@ Sub-agents are invoked automatically via the Task tool. Each has persistent memo
 - Review `runtimeConfig` to check for secret leakage into the client bundle
 - Add or evaluate `npm audit` findings
 
-**Known project-specific concern:** JWT is currently stored in `localStorage` (`mopetoo_token`). Any change to token storage or auth flow warrants a security review.
+**Known project-specific concerns:**
+- JWT is currently stored in `localStorage` (`mopetoo_token`) — accepted trade-off; XSS vectors minimized via no `v-html` usage. Consider `HttpOnly` cookie migration in future.
+- CSP not yet implemented — planned sprint work. Currently protected by `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy` headers.
+- Devtools disabled in production.
+Any change to token storage or auth flow warrants a security review.
 
 ---
 
@@ -169,7 +181,12 @@ Sub-agents are invoked automatically via the Task tool. Each has persistent memo
 
 **Test colocation rule:** Test files must live next to the code they test inside the feature slice (e.g., `features/auth/composables/useAuth.test.ts`). Never in a top-level `/tests` folder.
 
-**Current project state:** No tests configured yet. Invoke this agent when setting up Vitest or writing the first test suite.
+**Current project state:** Vitest is configured with `happy-dom`. The auth feature slice is fully tested:
+- `app/features/auth/stores/auth.store.test.ts` — 41 tests
+- `app/features/auth/composables/useAuth.test.ts` — 36 tests
+- `app/middleware/auth.test.ts` — 4 tests
+- `app/middleware/guest.test.ts` — 4 tests
+Invoke this agent for any new feature slice tests.
 
 ---
 

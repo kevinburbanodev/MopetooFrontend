@@ -1,10 +1,10 @@
 <script setup lang="ts">
-useHead({ title: 'Iniciar sesión — Mopetoo' })
-definePageMeta({ layout: 'default' })
+// Permanent redirect — the canonical login route is now /login
+// This page is kept to avoid broken links from old emails/bookmarks.
+definePageMeta({ middleware: 'guest' })
+await navigateTo('/login', { redirectCode: 301 })
 </script>
 
 <template>
-  <div class="container py-5">
-    <LoginForm />
-  </div>
+  <div />
 </template>

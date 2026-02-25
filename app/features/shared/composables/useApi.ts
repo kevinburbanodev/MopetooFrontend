@@ -46,6 +46,18 @@ export function useApi() {
   }
 
   /**
+   * Authenticated PATCH request
+   */
+  async function patch<T>(path: string, body: unknown): Promise<T> {
+    const token = getToken()
+    return await $fetch<T>(`${baseURL}${path}`, {
+      method: 'PATCH',
+      headers: buildHeaders(token),
+      body,
+    })
+  }
+
+  /**
    * Authenticated DELETE request
    */
   async function del<T>(path: string): Promise<T> {
@@ -56,7 +68,7 @@ export function useApi() {
     })
   }
 
-  return { get, post, put, del }
+  return { get, post, put, patch, del }
 }
 
 // ── Helpers ─────────────────────────────────────────────────

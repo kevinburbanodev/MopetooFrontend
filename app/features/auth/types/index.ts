@@ -15,6 +15,7 @@ export interface User {
   profile_picture_url?: string
   birth_date?: string
   is_pro: boolean
+  is_admin: boolean
   created_at: string
   updated_at: string
 }
@@ -39,6 +40,20 @@ export interface RegisterPayload {
   phone_country_code: string
   phone: string
   birth_date?: string
+}
+
+// Used for PATCH /api/me — all fields optional
+export interface UpdateProfileDTO {
+  name?: string
+  last_name?: string
+  email?: string
+  country?: string
+  city?: string
+  phone_country_code?: string
+  phone?: string
+  birth_date?: string
+  current_password?: string
+  new_password?: string
 }
 
 export interface ForgotPasswordPayload {

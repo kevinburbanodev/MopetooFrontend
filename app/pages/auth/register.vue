@@ -1,10 +1,9 @@
 <script setup lang="ts">
-useHead({ title: 'Crear cuenta — Mopetoo' })
-definePageMeta({ layout: 'default' })
+// Permanent redirect — the canonical register route is now /register
+definePageMeta({ middleware: 'guest' })
+await navigateTo('/register', { redirectCode: 301 })
 </script>
 
 <template>
-  <div class="container py-5">
-    <RegisterForm />
-  </div>
+  <div />
 </template>
