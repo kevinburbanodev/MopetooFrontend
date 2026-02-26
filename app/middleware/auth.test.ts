@@ -24,7 +24,7 @@ import { mockNuxtImport } from '@nuxt/test-utils/runtime'
 
 // navigateTo must be mocked BEFORE importing the middleware so the
 // module-level reference inside the middleware captures the mock.
-const navigateToMock = vi.fn((path: string) => ({ path }))
+const navigateToMock = vi.hoisted(() => vi.fn((path: string) => ({ path })))
 mockNuxtImport('navigateTo', () => navigateToMock)
 
 // defineNuxtRouteMiddleware passes the handler through unchanged in

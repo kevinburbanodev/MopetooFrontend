@@ -26,18 +26,16 @@ import PetForm from './PetForm.vue'
 import type { Pet } from '../types'
 
 // ── URL API stubs ────────────────────────────────────────────
-// jsdom does not implement URL.createObjectURL. Stub it so that
-// the onPhotoChange handler does not throw during photo upload tests.
+// happy-dom does not implement URL.createObjectURL. Spy on the static
+// methods so the real URL constructor remains callable (isSafeImageUrl
+// inside PetForm calls `new URL(url)` and must not be broken).
 beforeEach(() => {
-  vi.stubGlobal('URL', {
-    ...URL,
-    createObjectURL: vi.fn(() => 'blob:http://localhost/fake-object-url'),
-    revokeObjectURL: vi.fn(),
-  })
+  vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:http://localhost/fake-object-url')
+  vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {})
 })
 
 afterEach(() => {
-  vi.unstubAllGlobals()
+  vi.restoreAllMocks()
 })
 
 // ── Fixtures ────────────────────────────────────────────────

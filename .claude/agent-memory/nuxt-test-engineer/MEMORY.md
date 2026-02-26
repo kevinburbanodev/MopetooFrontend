@@ -18,6 +18,8 @@ Never in a top-level `/tests` folder.
 - `useApi` is a project composable (not a Nuxt built-in) — mock with `vi.mock('../../shared/composables/useApi')`, NOT `mockNuxtImport`
 - `navigateTo`, `useRouter`, `defineNuxtRouteMiddleware` — mock with `mockNuxtImport`
 - `useRuntimeConfig` — DO NOT mock with `mockNuxtImport` in composable tests. Set `NUXT_PUBLIC_API_BASE` via `vitest.config.ts env` instead. Mocking it at module level breaks `@nuxt/test-utils` router init (`useRouter().afterEach` becomes undefined).
+- `useRouter` via `mockNuxtImport` — MUST include ALL router guard methods (`afterEach`, `beforeEach`, `beforeResolve`, `onError`) in the stub. A stub returning only `{ push }` causes `useRouter().afterEach is not a function` during `@nuxt/test-utils` setup.
+- `vi.mock` paths for `useApi` in composable tests: from `app/features/auth/composables/`, the correct relative path is `../../shared/composables/useApi` (NOT `../../../shared/...`). Wrong path = 0 mock calls silently.
 - `$fetch` global — stub with `vi.stubGlobal('$fetch', fetchMock)` for multipart paths
 - `localStorage` — stub with `vi.stubGlobal('localStorage', localStorageMock)` in `beforeEach`
 
@@ -32,7 +34,9 @@ Never in a top-level `/tests` folder.
 - `useAuth.ts`: login (success/failure/pending), register (json/multipart), logout, forgotPassword, resetPassword, fetchCurrentUser (success/401/other error), updateProfile (json/multipart/auth-header), deleteAccount
 - `auth.ts` middleware: authenticated pass-through, unauthenticated redirect to /login
 - `guest.ts` middleware: authenticated redirect to /dashboard, unauthenticated pass-through
-- NOTE: auth.test.ts, guest.test.ts, useAuth.test.ts currently FAIL due to pre-existing hoisting issue with `const navigateToMock = vi.fn()` + `mockNuxtImport` — not caused by pets test work.
+- All auth tests now PASS (328 total across 12 files). Hoisting fix applied: `navigateToMock` wrapped in `vi.hoisted(() => vi.fn(...))`.
+- `mockNuxtImport` factory hoisting pattern: any variable referenced inside a `mockNuxtImport` factory MUST be declared with `vi.hoisted(() => vi.fn())`, not plain `vi.fn()`.
+- `updateProfile` auth-header test: `authStore.token` must be set directly (`authStore.token = 'stored.jwt'`) before calling the composable — `localStorage` stubs do NOT retroactively populate the store state.
 
 ## Pets Feature Coverage (completed — RF-100 to RF-109)
 - `pets.store.ts`: 44 tests — initial state, setPets, addPet, updatePet (selectedPet sync), removePet (selectedPet clear), setSelectedPet, clearSelectedPet, setLoading, hasPets getter, getPetById getter
