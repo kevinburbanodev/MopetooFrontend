@@ -20,7 +20,7 @@
 //   - The SCSS / Bootstrap layer — not relevant to composable logic.
 // ============================================================
 
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { setActivePinia } from 'pinia'
 import { createTestingPinia } from '@pinia/testing'
 import { mockNuxtImport } from '@nuxt/test-utils/runtime'
@@ -30,17 +30,37 @@ import type { LoginResponse, User } from '../types'
 
 // navigateTo is used by logout, resetPassword, deleteAccount.
 // We need a stable mock reference to assert calls against.
-const navigateToMock = vi.fn()
+const navigateToMock = vi.hoisted(() => vi.fn())
 mockNuxtImport('navigateTo', () => navigateToMock)
 
-// useRouter is used by login and logout (router.push).
-const routerPushMock = vi.fn()
-mockNuxtImport('useRouter', () => () => ({ push: routerPushMock }))
-
-// useRuntimeConfig provides the base API URL.
-mockNuxtImport('useRuntimeConfig', () => () => ({
-  public: { apiBase: 'http://localhost:4000' },
+// useRouter is used by login, logout, resetPassword, deleteAccount (router.push).
+// The mock must include afterEach (and other navigation guards) because
+// @nuxt/test-utils calls useRouter().afterEach() during its own setup.
+// A stub that returns only { push } causes "afterEach is not a function".
+const routerPushMock = vi.hoisted(() => vi.fn())
+mockNuxtImport('useRouter', () => () => ({
+  push: routerPushMock,
+  replace: vi.fn(),
+  go: vi.fn(),
+  back: vi.fn(),
+  forward: vi.fn(),
+  beforeEach: vi.fn(() => vi.fn()),
+  afterEach: vi.fn(() => vi.fn()),
+  beforeResolve: vi.fn(() => vi.fn()),
+  onError: vi.fn(() => vi.fn()),
+  resolve: vi.fn(),
+  addRoute: vi.fn(),
+  removeRoute: vi.fn(),
+  hasRoute: vi.fn(),
+  getRoutes: vi.fn(() => []),
+  currentRoute: { value: { path: '/', params: {}, query: {}, hash: '' } },
+  options: {},
 }))
+
+// NOTE: useRuntimeConfig is NOT mocked here. NUXT_PUBLIC_API_BASE is fed
+// via vitest.config.ts env so the real useRuntimeConfig works correctly.
+// Mocking useRuntimeConfig via mockNuxtImport breaks @nuxt/test-utils
+// internal router initialisation (useRouter().afterEach becomes undefined).
 
 // ── useApi mock ──────────────────────────────────────────────
 // useApi is NOT a Nuxt built-in, so we mock it with vi.mock.
@@ -51,7 +71,7 @@ const apiGetMock = vi.fn()
 const apiPatchMock = vi.fn()
 const apiDelMock = vi.fn()
 
-vi.mock('../../../shared/composables/useApi', () => ({
+vi.mock('../../shared/composables/useApi', () => ({
   useApi: () => ({
     post: apiPostMock,
     get: apiGetMock,
@@ -136,6 +156,10 @@ describe('useAuth', () => {
       setItem: vi.fn(),
       removeItem: vi.fn(),
     })
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
   })
 
   // ── login ──────────────────────────────────────────────────
@@ -501,6 +525,9 @@ describe('useAuth', () => {
     it('attaches Authorization header when a stored token exists during photo upload', async () => {
       const updatedUser: User = { ...mockUser }
       fetchMock.mockResolvedValueOnce(updatedUser)
+      // Seed a token into the store so authStore.token is non-null when
+      // updateProfile reads it for the Authorization header.
+      authStore.token = 'stored.jwt'
       const { useAuth } = await import('./useAuth')
       const { updateProfile } = useAuth()
 

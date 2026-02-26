@@ -17,9 +17,11 @@ npm run test:coverage    # Single run with coverage report
 ```
 
 **Test stack:** Vitest + `@nuxt/test-utils` + `@pinia/testing`
-**Config:** `vitest.config.ts` at project root (environment: `nuxt`, `globals: true`)
+**Config:** `vitest.config.ts` at project root (environment: `nuxt`, `globals: true`, `env.NUXT_PUBLIC_API_BASE` set to avoid `useRuntimeConfig` mock pitfalls)
 **Colocation rule:** test files live next to the source file inside the feature slice.
-**Status:** Auth feature slice (RF-001–RF-009) has full test coverage: store, composable, auth & guest middleware. 85 tests total.
+**Status:**
+- Auth feature slice (RF-001–RF-009): 85 tests (store 41, composable 36, auth middleware 4, guest middleware 4)
+- Pets feature slice (RF-100–RF-109): 232 tests (store 44, usePets 51, usePetAge 17, PetAvatar 21, PetCard 22, PetList 16, PetForm 32, PetDetail 29)
 
 ## Architecture
 
@@ -64,9 +66,11 @@ This means `useApi()`, `useAuth()`, `useAuthStore()`, etc. are available in any 
 | Store | State |
 |---|---|
 | `useAuthStore` | `currentUser`, `token`, `isAuthenticated`, `isPro` |
-| `usePetsStore` | `pets[]`, `selectedPet` |
+| `usePetsStore` | `pets[]`, `selectedPet`, `isLoading` |
 
-Token is persisted to `localStorage` under key `mopetoo_token`. The store exposes `setSession()`, `clearSession()`, and `restoreFromStorage()`.
+Token is persisted to `localStorage` under key `mopetoo_token`. The auth store exposes `setSession()`, `clearSession()`, and `restoreFromStorage()`.
+
+**Cross-store cleanup rule:** `clearSession()` in `auth.store.ts` MUST clear every user-specific store. Currently clears `petsStore`. When adding new feature slices with user-specific data (reminders, medical, etc.), add their store reset calls to `clearSession()` to prevent data leakage on shared devices.
 
 ### HTTP Client
 
@@ -181,11 +185,15 @@ Any change to token storage or auth flow warrants a security review.
 
 **Test colocation rule:** Test files must live next to the code they test inside the feature slice (e.g., `features/auth/composables/useAuth.test.ts`). Never in a top-level `/tests` folder.
 
-**Current project state:** Vitest is configured with `happy-dom`. The auth feature slice is fully tested:
-- `app/features/auth/stores/auth.store.test.ts` — 41 tests
-- `app/features/auth/composables/useAuth.test.ts` — 36 tests
-- `app/middleware/auth.test.ts` — 4 tests
-- `app/middleware/guest.test.ts` — 4 tests
+**Current project state:** Vitest is configured with `happy-dom`. Fully tested slices:
+- **Auth (RF-001–RF-009):** `auth.store.test.ts` (41), `useAuth.test.ts` (36), `auth.test.ts` (4), `guest.test.ts` (4)
+- **Pets (RF-100–RF-109):** `pets.store.test.ts` (44), `usePets.test.ts` (51), `usePetAge.test.ts` (17), `PetAvatar.test.ts` (21), `PetCard.test.ts` (22), `PetList.test.ts` (16), `PetForm.test.ts` (32), `PetDetail.test.ts` (29)
+
+**Mocking notes for pets slice:**
+- `useApi` is a project composable — mock via `vi.mock('../../shared/composables/useApi', ...)`, NOT `mockNuxtImport`
+- `useRuntimeConfig` is fed via `vitest.config.ts` `env.NUXT_PUBLIC_API_BASE` (not mocked) to avoid Vue Router init errors
+- `URL.createObjectURL` must be stubbed globally in `happy-dom` (not implemented natively)
+
 Invoke this agent for any new feature slice tests.
 
 ---

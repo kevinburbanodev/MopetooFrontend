@@ -16,7 +16,7 @@ import { mockNuxtImport } from '@nuxt/test-utils/runtime'
 
 // ── Nuxt auto-import mocks ───────────────────────────────────
 
-const navigateToMock = vi.fn((path: string) => ({ path }))
+const navigateToMock = vi.hoisted(() => vi.fn((path: string) => ({ path })))
 mockNuxtImport('navigateTo', () => navigateToMock)
 
 mockNuxtImport(

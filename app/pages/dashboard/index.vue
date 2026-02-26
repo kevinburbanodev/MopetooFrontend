@@ -22,6 +22,7 @@ useSeoMeta({
     </div>
 
     <div class="row g-4">
+      <!-- Mi perfil -->
       <div class="col-sm-6 col-lg-4">
         <NuxtLink to="/dashboard/profile" class="card text-decoration-none dashboard-card border-0 shadow-sm h-100">
           <div class="card-body d-flex align-items-center gap-3 p-4">
@@ -29,6 +30,19 @@ useSeoMeta({
             <div>
               <h2 class="h6 fw-bold mb-0 text-dark">Mi perfil</h2>
               <p class="text-muted small mb-0">Ver y editar tu información</p>
+            </div>
+          </div>
+        </NuxtLink>
+      </div>
+
+      <!-- Mis Mascotas -->
+      <div class="col-sm-6 col-lg-4">
+        <NuxtLink to="/dashboard/pets" class="card text-decoration-none dashboard-card border-0 shadow-sm h-100">
+          <div class="card-body d-flex align-items-center gap-3 p-4">
+            <span class="dashboard-card__icon" aria-hidden="true">🐾</span>
+            <div>
+              <h2 class="h6 fw-bold mb-0 text-dark">Mis Mascotas</h2>
+              <p class="text-muted small mb-0">Gestiona los perfiles de tus compañeros</p>
             </div>
           </div>
         </NuxtLink>

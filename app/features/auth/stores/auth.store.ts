@@ -35,12 +35,20 @@ export const useAuthStore = defineStore('auth', () => {
 
   /**
    * Clear all session state and remove token from localStorage.
+   * Also resets any feature stores that hold user-specific data so that
+   * a subsequent user on the same device never sees stale data.
    */
   function clearSession(): void {
     token.value = null
     currentUser.value = null
     if (import.meta.client) {
       localStorage.removeItem(TOKEN_KEY)
+      // Clear feature stores that cache user-specific data.
+      // Each store must be imported lazily here (not at module level) to avoid
+      // circular dependency issues between store files.
+      const petsStore = usePetsStore()
+      petsStore.setPets([])
+      petsStore.clearSelectedPet()
     }
   }
 

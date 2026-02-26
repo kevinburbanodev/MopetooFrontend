@@ -409,88 +409,60 @@ export const useAuthStore = defineStore('auth', () => {
 
 ---
 
-### 5.2. Gestión de Mascotas (RF-100 a RF-109)
+### 5.2. Gestión de Mascotas (RF-100 a RF-109) — ✅ IMPLEMENTADO
 
-**Funcionalidades:**
-- CRUD completo de mascotas
-- Foto de mascota (upload multipart)
-- Listado con filtros
-- Detalle con historial ligero
-- Vinculación a veterinario
+**Funcionalidades:** ✅ Todas implementadas
+- ✅ CRUD completo de mascotas
+- ✅ Foto de mascota (upload multipart con validación MIME + tamaño)
+- ✅ Listado responsive con estado vacío y skeleton de carga
+- ✅ Detalle completo de mascota con eliminación confirmada en 2 pasos
+- ✅ Vinculación a veterinario (`veterinarian_id`)
+- ✅ Cálculo de edad en español desde `birth_date`
+- ✅ Avatar con fallback a emoji de especie por color
 
-**Componentes Frontend:**
-- `PetCard` — tarjeta resumen de mascota
-- `PetList` — listado grid/tabla
-- `PetForm` — crear/editar (con upload de foto)
-- `PetDetail` — perfil completo de mascota
-- `PetStats` — gráficos de edad, último chequeo, etc.
+**Componentes Frontend:** ✅ Todos implementados
+| Componente | Ubicación | Descripción |
+|---|---|---|
+| `PetAvatar` | `app/features/pets/components/PetAvatar.vue` | Avatar circular con `photo_url` o emoji de especie, tamaños sm/md/lg |
+| `PetCard` | `app/features/pets/components/PetCard.vue` | Tarjeta con foto, nombre, especie, raza, edad. Acciones: ver, editar, eliminar |
+| `PetList` | `app/features/pets/components/PetList.vue` | Grid responsive. Skeleton loading, empty state con CTA |
+| `PetForm` | `app/features/pets/components/PetForm.vue` | Crear/editar con photo upload (validación MIME+size), Bootstrap `was-validated` |
+| `PetDetail` | `app/features/pets/components/PetDetail.vue` | Perfil completo con eliminación en 2 pasos (sin modal) |
 
 **Composables:**
-```typescript
-// features/pets/composables/usePets.ts
-export const usePets = () => {
-  const petsStore = usePetsStore()
-  const api = useApi()
-
-  const fetchPets = async () => {
-    const response = await api.get('/api/pets')
-    petsStore.setPets(response.data)
-  }
-
-  const createPet = async (data: CreatePetDTO, photo?: File) => {
-    const formData = new FormData()
-    formData.append('name', data.name)
-    formData.append('species', data.species)
-    formData.append('breed', data.breed)
-    formData.append('birth_date', data.birth_date)
-    if (photo) formData.append('photo', photo)
-
-    // Usar axios directo para FormData (o wrapper en useApi)
-    const response = await $fetch('/api/pets', {
-      method: 'POST',
-      body: formData,
-      headers: {
-        'Authorization': `Bearer ${petsStore.token}`
-      }
-    })
-
-    petsStore.addPet(response)
-  }
-
-  const updatePet = async (id: string, data: UpdatePetDTO, photo?: File) => {
-    // PATCH /api/pets/:id con FormData si hay foto
-  }
-
-  const deletePet = async (id: string) => {
-    // DELETE /api/pets/:id
-    await api.delete(`/api/pets/${id}`)
-    petsStore.removePet(id)
-  }
-
-  return { fetchPets, createPet, updatePet, deletePet }
-}
-```
+- `features/pets/composables/usePets.ts` — CRUD completo, manejo de errores, estado de carga
+- `features/pets/composables/usePetAge.ts` — Calcula edad en español ("2 años y 3 meses", "8 meses", "Recién nacido")
 
 **Store:**
-```typescript
-// features/pets/stores/pets.store.ts
-export const usePetsStore = defineStore('pets', () => {
-  const pets = ref<Pet[]>([])
-  const selectedPet = ref<Pet | null>(null)
+- `features/pets/stores/pets.store.ts` — `pets[]`, `selectedPet`, `isLoading`. Acciones: `setPets`, `addPet`, `updatePet`, `removePet`, `setSelectedPet`, `clearSelectedPet`, `setLoading`
 
-  const setPets = (data: Pet[]) => { pets.value = data }
-  const addPet = (pet: Pet) => { pets.value.push(pet) }
-  const updatePet = (id: string, updates: Partial<Pet>) => {
-    const idx = pets.value.findIndex(p => p.id === id)
-    if (idx >= 0) Object.assign(pets.value[idx], updates)
-  }
-  const removePet = (id: string) => {
-    pets.value = pets.value.filter(p => p.id !== id)
-  }
+**Páginas:** ✅ Todas implementadas (thin wrappers con `auth` middleware)
+| Ruta | Archivo | Descripción |
+|---|---|---|
+| `/dashboard/pets` | `app/pages/dashboard/pets/index.vue` | Listado de mascotas |
+| `/dashboard/pets/new` | `app/pages/dashboard/pets/new.vue` | Crear mascota |
+| `/dashboard/pets/[id]` | `app/pages/dashboard/pets/[id].vue` | Detalle de mascota |
+| `/dashboard/pets/[id]/edit` | `app/pages/dashboard/pets/[id]/edit.vue` | Editar mascota |
 
-  return { pets, selectedPet, setPets, addPet, updatePet, removePet }
-})
-```
+**Security review:** ✅ Completado — rating HIGH resuelto a MEDIUM
+- ✅ Fijo: Validación de scheme en URLs de foto (`isSafeImageUrl`) en `PetAvatar` y `PetForm`
+- ✅ Fijo: Validación MIME type y tamaño máximo (5 MB) en upload de foto
+- ✅ Fijo: `clearSession()` en auth.store ahora limpia `petsStore` (previene data leakage en dispositivos compartidos)
+- 📋 Reportado: Mensajes de error del backend expuestos directamente (MEDIUM — validar en backend)
+- 📋 Reportado: `useApi.ts` lee `localStorage` directamente vs. `authStore.token` en multipart (LOW)
+- 🟢 Aceptado: Sin validación IDOR en cliente (responsabilidad del backend)
+
+**Test coverage:** ✅ 232 tests
+| Archivo | Tests |
+|---|---|
+| `pets.store.test.ts` | 44 |
+| `usePets.test.ts` | 51 |
+| `usePetAge.test.ts` | 17 |
+| `PetAvatar.test.ts` | 21 |
+| `PetCard.test.ts` | 22 |
+| `PetList.test.ts` | 16 |
+| `PetForm.test.ts` | 32 |
+| `PetDetail.test.ts` | 29 |
 
 ---
 
@@ -1284,7 +1256,7 @@ routeRules: {
   - Security review: 3 fixes aplicados, rating MEDIUM
 
 ### Próximas implementaciones
-- [ ] RF-100 a RF-109 — Gestión de mascotas (pets slice)
+- [x] RF-100 a RF-109 — Gestión de mascotas (pets slice) ✅
 - [ ] RF-200 a RF-209 — Recordatorios (reminders slice)
 - [ ] RF-300 a RF-309 — Historial médico (medical slice)
 - [ ] RF-500 a RF-509 — Refugios y adopciones (shelters slice)

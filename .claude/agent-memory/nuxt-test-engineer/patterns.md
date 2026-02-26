@@ -69,20 +69,41 @@ is cached and picks up the wrong pinia instance.
 
 ## 5. localStorage Mock
 
-Create a closure-based mock at the top of the test file. Recreate it per test by calling
-`.mockClear()` and `.clear()` in `beforeEach`:
+**CRITICAL**: In the `nuxt` test environment, the `auth.client.ts` plugin runs during Nuxt
+app initialisation — BEFORE any `beforeEach` hook fires. If `localStorage` is not stubbed
+at module level, the plugin throws `localStorage.getItem is not a function` and all tests
+in the file fail before they even start.
+
+The fix: use `vi.hoisted()` to create the mock, then call `vi.stubGlobal` at the top level:
 
 ```ts
-const localStorageMock = (() => {
+// CORRECT — stubbed at module level, available during Nuxt app init
+const localStorageMock = vi.hoisted(() => {
   let store: Record<string, string> = {}
   return {
     getItem: vi.fn((key: string) => store[key] ?? null),
     setItem: vi.fn((key: string, value: string) => { store[key] = value }),
     removeItem: vi.fn((key: string) => { delete store[key] }),
     clear: vi.fn(() => { store = {} }),
+    key: vi.fn((_index: number) => null),
+    get length() { return Object.keys(store).length },
   }
-})()
+})
+vi.stubGlobal('localStorage', localStorageMock)
+
+// Then reset in beforeEach (not re-stub — it's already in place):
+beforeEach(() => {
+  localStorageMock.clear()
+  localStorageMock.getItem.mockClear()
+  localStorageMock.setItem.mockClear()
+  localStorageMock.removeItem.mockClear()
+})
 ```
+
+The older pattern (stubbing in `beforeEach`) works ONLY for test files where the Nuxt
+plugin layer doesn't trigger during init — e.g., pure store tests that use `createPinia()`
+directly and don't boot the full Nuxt app. For composable tests in the `nuxt` environment,
+always use the module-level pattern above.
 
 ## 6. $fetch Global Stub for Multipart Paths
 
@@ -130,6 +151,93 @@ apiPostMock.mockRejectedValueOnce({ data: { error: 'Credenciales inválidas' } }
 
 | Target | Tool |
 |---|---|
-| `navigateTo`, `useRouter`, `useRuntimeConfig`, `defineNuxtRouteMiddleware`, `useFetch`, `useAsyncData` | `mockNuxtImport` |
-| `useApi`, `useAuth`, `useAuthStore` (project composables) | `vi.mock` with relative path |
+| `navigateTo`, `useRouter`, `defineNuxtRouteMiddleware`, `useFetch`, `useAsyncData` | `mockNuxtImport` |
+| `useRuntimeConfig` | Set via `vitest.config.ts env` (e.g. `NUXT_PUBLIC_API_BASE`) — do NOT use `mockNuxtImport` in composable tests; it breaks `@nuxt/test-utils` router init |
+| `useApi`, `useAuth`, `useAuthStore`, `usePets`, `usePetsStore` (project composables) | `vi.mock` with relative path |
 | `$fetch`, `localStorage`, `window.*` (globals) | `vi.stubGlobal` |
+
+## 10. URL API in Component Tests (PetForm photo upload)
+
+`URL.createObjectURL` is not implemented in happy-dom. Use `vi.spyOn` — NOT `vi.stubGlobal('URL', {...URL, ...})`.
+
+**Why:** `{...URL}` creates a plain object, NOT a constructor. Any code calling `new URL(url)` (e.g. `isSafeImageUrl`) will throw, the catch returns `false`, and photo previews are never rendered.
+
+```ts
+beforeEach(() => {
+  vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:http://localhost/fake-object-url')
+  vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {})
+})
+afterEach(() => { vi.restoreAllMocks() })
+```
+
+## 11. Component Tests — useApi mock path from pets
+
+From `app/features/pets/composables/usePets.test.ts`, the relative path to `useApi` is:
+
+```ts
+vi.mock('../../shared/composables/useApi', () => ({ ... }))
+```
+
+(two levels up from `pets/composables/`, not three as in `auth/composables/`)
+
+## 12. vitest.config.ts env for stable runtime config
+
+Rather than mocking `useRuntimeConfig` per-test (which interferes with `@nuxt/test-utils` router), set the env var globally:
+
+```ts
+// vitest.config.ts
+test: {
+  env: { NUXT_PUBLIC_API_BASE: 'http://localhost:4000' },
+}
+```
+
+This makes the real `useRuntimeConfig()` return the correct value in all tests without any mocking.
+
+## 13. vi.hoisted() for mockNuxtImport factory variables
+
+Any variable referenced inside a `mockNuxtImport` factory MUST be declared with `vi.hoisted()`:
+
+```ts
+// WRONG — ReferenceError: Cannot access 'navigateToMock' before initialization
+const navigateToMock = vi.fn((path: string) => ({ path }))
+mockNuxtImport('navigateTo', () => navigateToMock)
+
+// CORRECT — vi.hoisted() ensures the variable is available at hoist time
+const navigateToMock = vi.hoisted(() => vi.fn((path: string) => ({ path })))
+mockNuxtImport('navigateTo', () => navigateToMock)
+```
+
+Same rule applies to `routerPushMock` if referenced in a `mockNuxtImport('useRouter', ...)` factory.
+
+## 14. useRouter mock must include ALL guard methods
+
+`mockNuxtImport('useRouter', ...)` must return a router-like object with all guard hooks:
+
+```ts
+const routerPushMock = vi.hoisted(() => vi.fn())
+mockNuxtImport('useRouter', () => () => ({
+  push: routerPushMock,
+  replace: vi.fn(), go: vi.fn(), back: vi.fn(), forward: vi.fn(),
+  beforeEach: vi.fn(() => vi.fn()),
+  afterEach: vi.fn(() => vi.fn()),   // REQUIRED — @nuxt/test-utils calls this in setup
+  beforeResolve: vi.fn(() => vi.fn()),
+  onError: vi.fn(() => vi.fn()),
+  resolve: vi.fn(), addRoute: vi.fn(), removeRoute: vi.fn(),
+  hasRoute: vi.fn(), getRoutes: vi.fn(() => []),
+  currentRoute: { value: { path: '/', params: {}, query: {}, hash: '' } },
+  options: {},
+}))
+```
+
+Omitting `afterEach` causes: `TypeError: useRouter(...).afterEach is not a function`.
+
+## 15. useApi vi.mock path from auth composables
+
+From `app/features/auth/composables/useAuth.test.ts`, the correct relative path is TWO levels up:
+
+```ts
+vi.mock('../../shared/composables/useApi', () => ({ ... }))
+// NOT '../../../shared/...' (which resolves to app/ not app/features/)
+```
+
+If the path is wrong, vi.mock silently does nothing and all API mock assertions get 0 calls.
