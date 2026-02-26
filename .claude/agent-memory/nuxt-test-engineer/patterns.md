@@ -69,20 +69,41 @@ is cached and picks up the wrong pinia instance.
 
 ## 5. localStorage Mock
 
-Create a closure-based mock at the top of the test file. Recreate it per test by calling
-`.mockClear()` and `.clear()` in `beforeEach`:
+**CRITICAL**: In the `nuxt` test environment, the `auth.client.ts` plugin runs during Nuxt
+app initialisation — BEFORE any `beforeEach` hook fires. If `localStorage` is not stubbed
+at module level, the plugin throws `localStorage.getItem is not a function` and all tests
+in the file fail before they even start.
+
+The fix: use `vi.hoisted()` to create the mock, then call `vi.stubGlobal` at the top level:
 
 ```ts
-const localStorageMock = (() => {
+// CORRECT — stubbed at module level, available during Nuxt app init
+const localStorageMock = vi.hoisted(() => {
   let store: Record<string, string> = {}
   return {
     getItem: vi.fn((key: string) => store[key] ?? null),
     setItem: vi.fn((key: string, value: string) => { store[key] = value }),
     removeItem: vi.fn((key: string) => { delete store[key] }),
     clear: vi.fn(() => { store = {} }),
+    key: vi.fn((_index: number) => null),
+    get length() { return Object.keys(store).length },
   }
-})()
+})
+vi.stubGlobal('localStorage', localStorageMock)
+
+// Then reset in beforeEach (not re-stub — it's already in place):
+beforeEach(() => {
+  localStorageMock.clear()
+  localStorageMock.getItem.mockClear()
+  localStorageMock.setItem.mockClear()
+  localStorageMock.removeItem.mockClear()
+})
 ```
+
+The older pattern (stubbing in `beforeEach`) works ONLY for test files where the Nuxt
+plugin layer doesn't trigger during init — e.g., pure store tests that use `createPinia()`
+directly and don't boot the full Nuxt app. For composable tests in the `nuxt` environment,
+always use the module-level pattern above.
 
 ## 6. $fetch Global Stub for Multipart Paths
 

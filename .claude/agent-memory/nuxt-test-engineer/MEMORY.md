@@ -21,7 +21,7 @@ Never in a top-level `/tests` folder.
 - `useRouter` via `mockNuxtImport` — MUST include ALL router guard methods (`afterEach`, `beforeEach`, `beforeResolve`, `onError`) in the stub. A stub returning only `{ push }` causes `useRouter().afterEach is not a function` during `@nuxt/test-utils` setup.
 - `vi.mock` paths for `useApi` in composable tests: from `app/features/auth/composables/`, the correct relative path is `../../shared/composables/useApi` (NOT `../../../shared/...`). Wrong path = 0 mock calls silently.
 - `$fetch` global — stub with `vi.stubGlobal('$fetch', fetchMock)` for multipart paths
-- `localStorage` — stub with `vi.stubGlobal('localStorage', localStorageMock)` in `beforeEach`
+- `localStorage` — MUST be stubbed at MODULE LEVEL (not in `beforeEach`) when the test file targets the nuxt environment. `auth.client.ts` plugin runs during Nuxt app init before any `beforeEach` hook. Use `vi.hoisted()` to create the mock and `vi.stubGlobal` at the top level. Stubbing in `beforeEach` causes `localStorage.getItem is not a function` during plugin init.
 
 ## Key Patterns
 - Pinia isolation: `setActivePinia(createTestingPinia({ stubActions: false, createSpy: vi.fn }))` in `beforeEach`
@@ -37,6 +37,10 @@ Never in a top-level `/tests` folder.
 - All auth tests now PASS (328 total across 12 files). Hoisting fix applied: `navigateToMock` wrapped in `vi.hoisted(() => vi.fn(...))`.
 - `mockNuxtImport` factory hoisting pattern: any variable referenced inside a `mockNuxtImport` factory MUST be declared with `vi.hoisted(() => vi.fn())`, not plain `vi.fn()`.
 - `updateProfile` auth-header test: `authStore.token` must be set directly (`authStore.token = 'stored.jwt'`) before calling the composable — `localStorage` stubs do NOT retroactively populate the store state.
+
+## Shared Feature Coverage (completed)
+- `useApi.ts`: 45 tests (1 skipped) — URL construction (6), get/post/put/patch/del HTTP methods (4 each), headers without token (9), $fetch call shape (5), return value contract (5)
+- Token branch (`import.meta.client = true`) is unreachable in nuxt SSR test environment — explicitly skipped with `it.skip` and explanation. Covered indirectly by usePets and useAuth multipart tests.
 
 ## Pets Feature Coverage (completed — RF-100 to RF-109)
 - `pets.store.ts`: 44 tests — initial state, setPets, addPet, updatePet (selectedPet sync), removePet (selectedPet clear), setSelectedPet, clearSelectedPet, setLoading, hasPets getter, getPetById getter

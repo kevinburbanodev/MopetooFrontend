@@ -1,5 +1,17 @@
 name: Test Coverage
 
+# ─────────────────────────────────────────────────────────────
+# This workflow enforces a minimum 80% test coverage threshold.
+# It runs on every push and pull request targeting master or develop.
+#
+# To block merges when coverage is below 80%:
+#   1. Go to GitHub → Settings → Branches
+#   2. Add a branch protection rule for `master` (and `develop`)
+#   3. Enable "Require status checks to pass before merging"
+#   4. Search for and select the status check named: "coverage"
+#   5. Enable "Require branches to be up to date before merging"
+# ─────────────────────────────────────────────────────────────
+
 on:
   push:
     branches: [master, develop]
@@ -8,6 +20,7 @@ on:
 
 jobs:
   coverage:
+    name: coverage
     runs-on: ubuntu-latest
 
     steps:
@@ -22,7 +35,7 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Run tests with coverage
+      - name: Run tests with coverage (min 80%)
         run: npm run test:coverage
         env:
           NUXT_PUBLIC_API_BASE: http://localhost:4000

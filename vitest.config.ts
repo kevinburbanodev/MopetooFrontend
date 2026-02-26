@@ -21,6 +21,15 @@ export default defineVitestConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'lcov', 'json-summary'],
+      exclude: [
+        // Client-only plugins — run at browser boot, not unit-testable in happy-dom
+        '**/plugins/**',
+        // Pure TypeScript type declarations — zero runtime logic
+        '**/types/**',
+        // Root app shell and layouts — no business logic
+        'app/app.vue',
+        'app/layouts/**',
+      ],
       thresholds: {
         lines: 80,
         functions: 80,
