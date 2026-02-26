@@ -1,40 +1,59 @@
 // ============================================================
 // usePets — Pets feature composable
-// Handles CRUD operations for pet profiles.
-// The backend uses multipart/form-data for create/update (photo upload).
+// Central API surface for all pet CRUD operations.
+// Photo uploads bypass useApi() (which injects Content-Type: JSON)
+// and use $fetch directly with FormData and a manual Bearer header.
 // ============================================================
 
-import type { Pet, CreatePetPayload, UpdatePetPayload } from '../types'
+import type { Pet, CreatePetDTO, UpdatePetDTO } from '../types'
 
 export function usePets() {
   const { get, del } = useApi()
   const petsStore = usePetsStore()
+  const authStore = useAuthStore()
   const config = useRuntimeConfig()
+  const baseURL = (config.public.apiBase as string) ?? ''
 
-  const loading = ref(false)
+  const pending = ref(false)
   const error = ref<string | null>(null)
 
+  // ── Public API ──────────────────────────────────────────────
+
+  /**
+   * Fetch the authenticated user's full pet list and hydrate the store.
+   * Handles responses shaped as `{ pets: Pet[] }` or a bare `Pet[]`.
+   */
   async function fetchPets(): Promise<void> {
-    loading.value = true
+    petsStore.setLoading(true)
     error.value = null
     try {
-      const response = await get<{ pets?: Pet[], message?: string }>('/api/pets')
-      petsStore.setPets(response.pets ?? [])
+      // The backend may return { pets: Pet[] } or Pet[] — handle both shapes
+      const response = await get<{ pets?: Pet[] } | Pet[]>('/api/pets')
+      if (Array.isArray(response)) {
+        petsStore.setPets(response)
+      }
+      else {
+        petsStore.setPets(response.pets ?? [])
+      }
     }
     catch (err: unknown) {
       error.value = extractErrorMessage(err)
     }
     finally {
-      loading.value = false
+      petsStore.setLoading(false)
     }
   }
 
-  async function fetchPet(id: number): Promise<Pet | null> {
-    loading.value = true
+  /**
+   * Fetch a single pet by id and store it as the selectedPet.
+   * Returns the pet or null on failure.
+   */
+  async function fetchPetById(id: string): Promise<Pet | null> {
+    petsStore.setLoading(true)
     error.value = null
     try {
       const pet = await get<Pet>(`/api/pets/${id}`)
-      petsStore.selectPet(pet)
+      petsStore.setSelectedPet(pet)
       return pet
     }
     catch (err: unknown) {
@@ -42,16 +61,28 @@ export function usePets() {
       return null
     }
     finally {
-      loading.value = false
+      petsStore.setLoading(false)
     }
   }
 
-  async function createPet(payload: CreatePetPayload): Promise<Pet | null> {
-    loading.value = true
+  /**
+   * Create a new pet. If a photo is supplied it is sent as multipart/form-data;
+   * otherwise a JSON POST is used.
+   */
+  async function createPet(data: CreatePetDTO, photo?: File): Promise<Pet | null> {
+    petsStore.setLoading(true)
     error.value = null
     try {
-      const formData = toFormData(payload)
-      const pet = await postMultipart<Pet>('/api/pets', formData, config)
+      let pet: Pet
+      if (photo) {
+        const formData = buildPetFormData(data, photo)
+        pet = await multipartRequest<Pet>('POST', '/api/pets', formData, authStore.token, baseURL)
+      }
+      else {
+        // No photo — send plain JSON via useApi's post (already set up for JSON)
+        const { post } = useApi()
+        pet = await post<Pet>('/api/pets', data)
+      }
       petsStore.addPet(pet)
       return pet
     }
@@ -60,16 +91,26 @@ export function usePets() {
       return null
     }
     finally {
-      loading.value = false
+      petsStore.setLoading(false)
     }
   }
 
-  async function updatePet(id: number, payload: UpdatePetPayload): Promise<Pet | null> {
-    loading.value = true
+  /**
+   * Update an existing pet. Uses PATCH; upgrades to multipart if a new photo is provided.
+   */
+  async function updatePet(id: string, data: UpdatePetDTO, photo?: File): Promise<Pet | null> {
+    petsStore.setLoading(true)
     error.value = null
     try {
-      const formData = toFormData(payload)
-      const pet = await putMultipart<Pet>(`/api/pets/${id}`, formData, config)
+      let pet: Pet
+      if (photo) {
+        const formData = buildPetFormData(data, photo)
+        pet = await multipartRequest<Pet>('PATCH', `/api/pets/${id}`, formData, authStore.token, baseURL)
+      }
+      else {
+        const { patch } = useApi()
+        pet = await patch<Pet>(`/api/pets/${id}`, data)
+      }
       petsStore.updatePet(pet)
       return pet
     }
@@ -78,12 +119,16 @@ export function usePets() {
       return null
     }
     finally {
-      loading.value = false
+      petsStore.setLoading(false)
     }
   }
 
-  async function deletePet(id: number): Promise<boolean> {
-    loading.value = true
+  /**
+   * Delete a pet by id and remove it from the store.
+   * Returns true on success, false on failure.
+   */
+  async function deletePet(id: string): Promise<boolean> {
+    petsStore.setLoading(true)
     error.value = null
     try {
       await del<void>(`/api/pets/${id}`)
@@ -95,63 +140,71 @@ export function usePets() {
       return false
     }
     finally {
-      loading.value = false
+      petsStore.setLoading(false)
     }
   }
 
   return {
-    loading,
+    pending,
     error,
     fetchPets,
-    fetchPet,
+    fetchPetById,
     createPet,
     updatePet,
     deletePet,
+    petsStore,
   }
 }
 
 // ── Helpers ─────────────────────────────────────────────────
 
-function toFormData(payload: Record<string, unknown>): FormData {
+/**
+ * Build a FormData object from DTO fields + optional photo.
+ * Only appends keys whose values are not undefined/null.
+ */
+function buildPetFormData(data: Record<string, unknown>, photo?: File): FormData {
   const fd = new FormData()
-  for (const [key, value] of Object.entries(payload)) {
+  for (const [key, value] of Object.entries(data)) {
     if (value === undefined || value === null) continue
-    if (value instanceof File) {
-      fd.append(key, value)
-    }
-    else {
-      fd.append(key, String(value))
-    }
+    fd.append(key, String(value))
+  }
+  if (photo) {
+    fd.append('photo', photo)
   }
   return fd
 }
 
-async function postMultipart<T>(path: string, body: FormData, config: ReturnType<typeof useRuntimeConfig>): Promise<T> {
-  const baseURL = (config.public.apiBase as string) ?? ''
-  const token = import.meta.client ? localStorage.getItem('mopetoo_token') : null
+/**
+ * Send a multipart request directly via $fetch, bypassing the JSON wrapper.
+ * Token is read from the auth store (already reactive; avoids duplicate
+ * localStorage reads inconsistent with the store state).
+ */
+async function multipartRequest<T>(
+  method: 'POST' | 'PATCH' | 'PUT',
+  path: string,
+  body: FormData,
+  token: string | null,
+  baseURL: string,
+): Promise<T> {
   return await $fetch<T>(`${baseURL}${path}`, {
-    method: 'POST',
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
-    body,
-  })
-}
-
-async function putMultipart<T>(path: string, body: FormData, config: ReturnType<typeof useRuntimeConfig>): Promise<T> {
-  const baseURL = (config.public.apiBase as string) ?? ''
-  const token = import.meta.client ? localStorage.getItem('mopetoo_token') : null
-  return await $fetch<T>(`${baseURL}${path}`, {
-    method: 'PUT',
+    method,
     headers: token ? { Authorization: `Bearer ${token}` } : {},
     body,
   })
 }
 
 function extractErrorMessage(err: unknown): string {
-  if (typeof err === 'object' && err !== null && 'data' in err) {
-    const data = (err as { data: unknown }).data
-    if (typeof data === 'object' && data !== null && 'error' in data) {
-      return String((data as { error: unknown }).error)
+  if (typeof err === 'object' && err !== null) {
+    if ('data' in err) {
+      const data = (err as { data: unknown }).data
+      if (typeof data === 'object' && data !== null && 'error' in data) {
+        return String((data as { error: unknown }).error)
+      }
+      if (typeof data === 'string' && data.length > 0) return data
+    }
+    if ('message' in err && typeof (err as { message: unknown }).message === 'string') {
+      return (err as { message: string }).message
     }
   }
-  return 'Ocurrió un error inesperado.'
+  return 'Ocurrió un error inesperado. Intenta de nuevo.'
 }

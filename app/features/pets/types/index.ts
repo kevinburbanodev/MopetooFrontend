@@ -1,41 +1,52 @@
 // ============================================================
 // Pets feature — domain types
-// Aligned with Mopetoo backend API
+// Aligned with Mopetoo backend API (Go + Gin)
 // ============================================================
 
 export interface Pet {
-  id: number
-  user_id: number
+  id: string
+  user_id: string
   name: string
+  /** Backend enum values: 'dog' | 'cat' | 'bird' | 'rabbit' | 'other' */
   species: string
-  breed?: string
-  age?: number
+  breed: string
+  /** ISO date string, e.g. '2020-03-15' */
+  birth_date: string
+  /** 'male' | 'female' */
+  gender: string
   weight?: number
-  gender?: string
-  photo_url: string
+  color?: string
+  microchip?: string
+  photo_url?: string
   notes?: string
+  veterinarian_id?: string
   created_at: string
   updated_at: string
 }
 
-export interface CreatePetPayload {
+export interface CreatePetDTO {
   name: string
   species: string
-  breed?: string
-  age?: number
+  breed: string
+  birth_date: string
+  gender: string
   weight?: number
-  gender?: string
+  color?: string
+  microchip?: string
   notes?: string
-  photo: File
+  veterinarian_id?: string
 }
 
-export interface UpdatePetPayload {
-  name?: string
-  species?: string
-  breed?: string
-  age?: number
-  weight?: number
-  gender?: string
-  notes?: string
+export type UpdatePetDTO = Partial<CreatePetDTO>
+
+export interface PetsState {
+  pets: Pet[]
+  selectedPet: Pet | null
+  isLoading: boolean
+}
+
+/** Payload emitted by PetForm on submit */
+export interface PetFormSubmitPayload {
+  data: CreatePetDTO
   photo?: File
 }
