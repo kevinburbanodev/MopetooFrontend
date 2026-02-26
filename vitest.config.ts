@@ -18,5 +18,15 @@ export default defineVitestConfig({
     env: {
       NUXT_PUBLIC_API_BASE: 'http://localhost:4000',
     },
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'lcov', 'json-summary'],
+      thresholds: {
+        lines: 80,
+        functions: 80,
+        branches: 80,
+        statements: 80,
+      },
+    },
   },
 })
