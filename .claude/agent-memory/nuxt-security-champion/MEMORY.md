@@ -82,6 +82,21 @@
 - INFO: `authStore` and `proStore` are both exposed in `usePro()` return value — callers could mutate store state directly. Low risk (internal use only) but consider exposing only what callers need in a future cleanup.
 - INFO: `planId` passed to `createCheckoutSession` is a store-derived plan ID from API response — not user input; no validation needed.
 
+## Known Findings (from admin panel review 2026-02-27)
+- FIXED (MEDIUM): No self-demotion guard in `AdminUserManager.vue` — admin could accidentally remove their own `is_admin` flag or delete own account. Fixed: `isSelf(userId)` computed using `authStore.currentUser?.id`; "Quitar/Dar Admin" and "Eliminar" buttons are disabled (`:disabled`, `:title` tooltip) when the row matches the current user.
+- PASS: `admin.ts` middleware checks BOTH `isAuthenticated` AND `isAdmin` — no privilege escalation gap at the route level.
+- PASS: ALL 6 admin pages apply `middleware: 'admin'` in `definePageMeta` — full coverage confirmed.
+- PASS: `isAdmin` is a computed derived from `currentUser.is_admin` (JWT-sourced user object from backend) — not a client-controlled flag.
+- PASS: `useAdmin.ts` validates numeric user IDs (`typeof userId !== 'number' || userId <= 0`) and string IDs via `ID_PATTERN = /^[\w-]{1,64}$/` before ALL API path interpolations — path traversal mitigated across every operation.
+- PASS: No `v-html` anywhere in any admin component — all PII (name, email, phone, city, description) rendered via safe `{{ }}` interpolation.
+- PASS: `clearAdmin()` IS called inside `clearSession()` in `auth.store.ts` — admin data (users, transactions, PII) cleared on logout.
+- PASS: All `onMounted` lifecycle — no `window`/`document` access outside client guard. `Intl` formatters are SSR-safe.
+- PASS: `AdminTransactionLog` renders `tx.user_email` and `tx.user_name` via `{{ }}` — PII safe from XSS.
+- PASS: `adminStore` is exposed in `useAdmin()` return — same accepted pattern as pro/other slices; internal use only.
+- INFO (BACKEND): Toggle operations (`is_pro`, `is_admin`, `is_verified`, `is_featured`) are optimistic updates — backend must enforce that only admins can call `/api/admin/**`. Frontend enforces this at middleware level only; IDOR on toggle APIs is entirely a backend concern.
+- INFO (BACKEND): No transaction filter/search — only pagination. If the backend leaks transactions from other tenants, the frontend would display them. Backend must scope `/api/admin/transactions` to the platform admin role.
+- INFO: `AdminTransactionLog` truncates transaction ID to first 8 chars — good PII hygiene, avoids exposing full UUIDs in the UI.
+
 ## Files to Always Re-check
 - `app/features/shared/composables/useApi.ts` — token handling, header construction
 - `app/features/auth/stores/auth.store.ts` — logout completeness (clearSession must clear ALL feature stores)
@@ -91,3 +106,4 @@
 - `app/features/shelters/components/ShelterDetail.vue` — `safeWebsiteUrl` computed (HIGH fix needed), `tel:`/`mailto:` format validation
 - `app/pages/blog/[slug].vue` — slug format validation before `fetchPostBySlug` (LOW, pending)
 - `app/features/pro/composables/usePro.ts` — `shelter_id` path param guard (FIXED), `checkout_url` HTTPS guard
+- `app/features/admin/components/AdminUserManager.vue` — `isSelf()` guard on admin-toggle and delete buttons (FIXED)

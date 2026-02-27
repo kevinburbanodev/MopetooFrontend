@@ -168,8 +168,28 @@
 - `window.location.origin` access always guarded by `import.meta.client`
 - Function returns null + sets error.value if URL is not HTTPS (prevents open redirect)
 
+## Admin slice — confirmed file locations (RF-1000 to RF-1009 complete)
+- `app/features/admin/types/index.ts` — AdminStats, AdminUser, AdminUserFilters, AdminUsersResponse, AdminShelter, AdminSheltersResponse, AdminPetshop, AdminPetshopsResponse, AdminClinic, AdminClinicsResponse, TransactionType, TransactionStatus, AdminTransaction, AdminTransactionsResponse, AdminFilters
+- `app/features/admin/stores/admin.store.ts` — useAdminStore: stats, users[], selectedUser, shelters[], petshops[], clinics[], transactions[], isLoading, totalUsers/Shelters/Petshops/Clinics/Transactions. Getters: hasStats, hasUsers. clearAdmin() CALLED from clearSession (admin data is role-gated, session-specific)
+- `app/features/admin/composables/useAdmin.ts` — error ref, adminStore ref, fetchStats(), fetchUsers(filters?), updateUser(id:number, data), deleteUser(id:number), fetchShelters(filters?), updateShelter(id:string, data), deleteShelter(id:string), fetchPetshops, updatePetshop, deletePetshop, fetchAdminClinics, updateAdminClinic, deleteAdminClinic, fetchTransactions(filters?). ID validation: number IDs → `typeof id === 'number' && id > 0`; string IDs → `/^[\w-]{1,64}$/`
+- `app/features/admin/components/AdminDashboard.vue` — 8 KPI cards (2 rows of 4), revenue COP section, quick-nav list-group, skeleton 8 cards, retry button on empty state
+- `app/features/admin/components/AdminUserManager.vue` — search+PRO/Admin checkboxes, paginated table, 2-step inline delete (confirmingDeleteId ref), Toggle PRO/Admin via updateUser, debounced search
+- `app/features/admin/components/AdminShelterManager.vue` — search, paginated table, Toggle Verificado/Destacado, 2-step delete, pets_count column
+- `app/features/admin/components/AdminStoreManager.vue` — same pattern as shelter but for petshops
+- `app/features/admin/components/AdminClinicManager.vue` — search, specialties column (max 2 + overflow), Toggle Verificado/Destacado, 2-step delete
+- `app/features/admin/components/AdminTransactionLog.vue` — fetches on mount, type badges (bg-primary/bg-success), status badges (completed/pending/failed/refunded), COP currency, pagination
+- `app/middleware/admin.ts` — checks BOTH isAuthenticated AND isAdmin; !isAuthenticated→/login; !isAdmin→/
+- Pages: `/admin` (AdminDashboard), `/admin/users`, `/admin/shelters`, `/admin/stores`, `/admin/clinics`, `/admin/stats` (all `middleware: 'admin'`)
+- AppNavbar: admin link `v-if="authStore.isAdmin"` added to auth actions area (before PRO badge), `btn-outline-light btn-sm`
+
+## Admin security notes
+- Admin middleware checks BOTH isAuthenticated AND isAdmin (not just auth)
+- Number user IDs validated with `typeof id === 'number' && id > 0` before API interpolation
+- String entity IDs validated with `/^[\w-]{1,64}$/` before API interpolation
+- No v-html anywhere; all content as plain text bindings
+
 ## clearSession cross-store rule — current state
-`auth.store.clearSession()` now resets: petsStore (setPets+clearSelectedPet), remindersStore (clearReminders), medicalStore (clearMedicalRecords), sheltersStore (clearShelters), proStore (clearPro). Blog posts and petshops are public data — their clear actions exist but are NOT called from clearSession. Add new user-specific stores here when implementing new slices.
+`auth.store.clearSession()` now resets: petsStore (setPets+clearSelectedPet), remindersStore (clearReminders), medicalStore (clearMedicalRecords), sheltersStore (clearShelters), proStore (clearPro), adminStore (clearAdmin). Blog posts and petshops are public data — their clear actions exist but are NOT called from clearSession. Add new user-specific stores here when implementing new slices.
 
 ## MedicalRecordForm pattern difference vs ReminderForm
 - MedicalRecordForm calls the composable directly (no emit-to-parent pattern)

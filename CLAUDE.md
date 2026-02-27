@@ -30,6 +30,7 @@ npm run test:coverage    # Single run with coverage report
 - Petshops slice (RF-700–RF-709): 187 tests (store 44, usePetshops 60, PetshopCard 26, PetshopList 37, PetshopDetail 40) ✅
 - Pro/Monetización slice (RF-800–RF-809): 216 tests (store 44, usePro 60, ProBanner 22, PricingTable 30, ProUpgradeModal 26, DonationForm 34) ✅
 - Clinics slice (RF-900–RF-909): 178 tests (store 42, useClinics 37, ClinicCard 34, ClinicList 29, ClinicDetail 35) ✅
+- Admin slice (RF-1000–RF-1009): 327 tests (store 75, useAdmin 76, AdminDashboard 27, AdminUserManager 31, AdminShelterManager 27, AdminStoreManager 27, AdminClinicManager 29, AdminTransactionLog 28, admin middleware 7) ✅
 
 ## Architecture
 
@@ -51,7 +52,8 @@ app/features/
 ├── blog/            # Blog editorial (public: listing + article detail)
 ├── petshops/        # Pet-friendly stores directory (public: listing + detail)
 ├── pro/             # Monetización: PRO subscriptions, pricing table, donations (RF-800–RF-809)
-└── clinics/         # Veterinary clinics directory (public: listing + detail) (RF-900–RF-909)
+├── clinics/         # Veterinary clinics directory (public: listing + detail) (RF-900–RF-909)
+└── admin/           # Admin panel: stats, user/shelter/store/clinic management, transactions (RF-1000–RF-1009)
 ```
 
 Every slice follows the same internal structure:
@@ -87,10 +89,11 @@ This means `useApi()`, `useAuth()`, `useAuthStore()`, etc. are available in any 
 | `usePetshopsStore` | `petshops[]`, `selectedPetshop`, `isLoading` |
 | `useProStore` | `subscription`, `plans[]`, `isLoading`, `isSubscribed`, `getMonthlyPlan`, `getAnnualPlan` |
 | `useClinicsStore` | `clinics[]`, `selectedClinic`, `isLoading`, `hasClinics`, `getFeaturedClinics` |
+| `useAdminStore` | `stats`, `users[]`, `shelters[]`, `petshops[]`, `clinics[]`, `transactions[]`, `selectedUser`, `isLoading`, total-count refs, `hasStats`, `hasUsers` |
 
 Token is persisted to `localStorage` under key `mopetoo_token`. The auth store exposes `setSession()`, `clearSession()`, and `restoreFromStorage()`.
 
-**Cross-store cleanup rule:** `clearSession()` in `auth.store.ts` MUST clear every user-specific store. Currently clears `petsStore`, `remindersStore`, `medicalStore`, `sheltersStore`, and `proStore`. When adding new feature slices with user-specific data, add their store reset calls to `clearSession()` to prevent data leakage on shared devices.
+**Cross-store cleanup rule:** `clearSession()` in `auth.store.ts` MUST clear every user-specific store. Currently clears `petsStore`, `remindersStore`, `medicalStore`, `sheltersStore`, `proStore`, and `adminStore`. When adding new feature slices with user-specific data, add their store reset calls to `clearSession()` to prevent data leakage on shared devices.
 
 ### HTTP Client
 
@@ -230,6 +233,16 @@ Any change to token storage or auth flow warrants a security review.
 - **Mount-first, then set token:** Setting `useAuthStore().token` BEFORE `mountSuspended` does NOT work. Mount first, then set token, then `await nextTick()` to trigger re-render of auth-conditional DOM
 - **Form submit in happy-dom:** `wrapper.find('button[type="submit"]').trigger('click')` does NOT propagate to `@submit.prevent`. Use `await wrapper.find('form').trigger('submit')` instead
 - **NuxtLink href assertions:** `{ NuxtLink: false }` or `{ NuxtLink: true }` stubs do not produce plain `<a href>`. Use a custom stub: `{ NuxtLink: { template: '<a :href="to"><slot /></a>', props: ['to'] } }`
+
+**Mocking notes for admin slice:**
+- `useAdmin` composable: mock at module level with reactive refs (`mockStats`, `mockUsers`, `mockShelters`, `mockPetshops`, `mockClinics`, `mockTransactions`, `mockIsLoading`, `mockError`) — canonical pattern from clinics/petshops slices
+- `admin.ts` middleware test: same `vi.hoisted()` + `mockNuxtImport('navigateTo', ...)` + `vi.resetModules()` pattern as `auth.test.ts`
+- 2-step delete confirmation: `confirmingDeleteId` ref — first button click sets id, second click calls `deleteUser/deleteShelter/deletePetshop/deleteAdminClinic`. Test both steps independently.
+- Toggle PRO/Admin: click "Dar PRO" → `updateUser(id, { is_pro: true })`; click "Quitar PRO" → `updateUser(id, { is_pro: false })`. Same for Admin/Verificado/Destacado toggles.
+- Self-protection guard: "Quitar Admin" and "Eliminar" buttons are disabled when `user.id === authStore.currentUser.id`. Set `currentUser: { id: 1, is_admin: true }` in `createTestingPinia` and use `user.id = 1` to verify `disabled` attribute.
+- KPI card skeleton: 8 skeleton cards with `aria-busy="true"` visible when `isLoading=true` and no stats loaded yet.
+- Transaction type badges: `subscription` → `.bg-primary`; `donation` → `.bg-success`. Status badges: `completed` → `.bg-success`; `pending` → `.bg-warning`; `failed` → `.bg-danger`; `refunded` → `.bg-secondary`.
+- Transaction log is read-only: assert no Eliminar, Verificar, or Destacar buttons rendered.
 
 Invoke this agent for any new feature slice tests.
 
