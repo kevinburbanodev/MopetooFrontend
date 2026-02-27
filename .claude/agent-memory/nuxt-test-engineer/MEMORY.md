@@ -130,7 +130,26 @@ await nextTick()  // wait for any async submit handler to resolve
 - `AdoptionDetail.vue`: 39 tests — pet detail (name/species/breed/description/Vacunado/Sin vacuna/Esterilizado/Sin esterilizar/not-found state), adoption form authenticated (textarea/heading/submit button/char counter/min chars hint), login CTA unauthenticated (CTA text/no textarea/login link/register link), pending section (heading/no form when authenticated), adopted section (heading/no form when authenticated), validation (error div/#adoption-message-error/mentions 20/no submit call/is-invalid class), success state (alert/call shape/null result error alert), back navigation (text/shelter_id/fallback), fetch on mount (calls fetchAdoptionPetById/passes shelterId from query), error alert (shown/hidden), accessibility (section aria-label/textarea aria-required/status badge aria-label)
 - Composable mock path from components: `vi.mock('../composables/useShelters', ...)`
 
-## Project Test Total: 1189 passing, 1 skipped (30 test files)
+## Project Test Total: 1397 passing, 1 skipped (36 test files)
+
+## Blog Feature Coverage (completed — RF-600 to RF-609)
+- `blog.store.ts`: 44 tests — initial state (7), hasPosts getter (4), hasCategories getter (3), getPostBySlug factory getter (6), setPosts (5), appendPosts (5), setSelectedPost (4), clearSelectedPost (3), setCategories (4), setLoading (4), setPagination (5), clearBlog (9)
+- `useBlog.ts`: 60 tests — fetchPosts (16: no-filters/query params/pagination/envelope/bare array/append/isLoading/error shapes/reset/no store call on fail), fetchPostBySlug (12: cache hit/cache sets selectedPost/API call/setSelectedPost/return value/null on error/error set/isLoading/finally/reset/no setSelectedPost on fail), fetchCategories (12: GET call/envelope/bare array/missing key/non-critical failure/error set/no isLoading/reset/no setCategories on fail)
+- `BlogCategoryFilter.vue`: 18 tests — Todos button (always/btn-primary when null/btn-outline-secondary when non-null/emit null), category buttons (count/names/btn-primary active/btn-outline-secondary inactive/emit slug/different slug/empty array), post_count badge (show/hide/active contrast/inactive contrast), accessibility (role=tablist/role=tab count/aria-selected Todos true/Todos false/active/inactive)
+- `BlogCard.vue`: 24 tests — core content (title/excerpt/category badge/article aria-label), featured image (https/undefined/javascript:/data:/error fallback), author (avatar img/initial fallback/uppercase/error fallback), date formatting (Spanish format/datetime attr), reading time (show/hide/singular), tags (3 shown/no overflow <=3/+N overflow/>3/empty section), title NuxtLink (href /blog/:slug/text)
+- `BlogList.vue`: 28 tests — on mount (fetchCategories/fetchPosts/parallel), loading skeleton (6 cards/aria-busy/no empty/no BlogCard), empty state (heading/no skeleton/no BlogCard), posts loaded (BlogCard count/plural count/singular count/no empty state), BlogCategoryFilter (show/hide), client-side search (all/title/excerpt/author/tag/sin-resultados/not shown on results), Limpiar button (show/hide/click clears), Cargar más (show/hide/hide with search/click fetchPosts), error alert (shown/hidden), accessibility (section aria-label/input aria-label)
+- `BlogArticle.vue`: 28 tests — loading skeleton (shown/aria-busy/no article/no not-found), not-found state (heading/no article/no skeleton), article rendering (title/aria-label/Spanish date/category badge/reading time show/hide), hero image (https/undefined/javascript:/error fallback), author (avatar img/initial fallback/error fallback), content paragraphs (2 lines/3 lines/filter empty), tags (badges/empty section), updated-at (shown when differs/hidden when same), nav links (Volver href /blog/Ver más href /blog)
+
+## Vue Test Utils stub naming (critical for multi-word components)
+- `BlogCard: true` creates `<blog-card-stub>` (NOT `<blogcard-stub>`) — use `findAll('blog-card-stub')` OR use a custom template stub with a known CSS class (preferred): `{ template: '<div class="blog-card-stub" />' }`
+- `BlogCategoryFilter: true` creates `<blog-category-filter-stub>` (NOT `<blogcategoryfilter-stub>`)
+- `ShelterCard: true` creates `<shelter-card-stub>` (single-word compound — verified working in ShelterList tests)
+- Always use custom template stubs with CSS classes for count-based assertions: `{ BlogCard: { template: '<div class="blog-card-stub" />' } }`. This is the pattern established in ShelterList and now confirmed for BlogList.
+- NuxtLink slot content critical: ALWAYS use `{ NuxtLink: { template: '<a :href="to"><slot /></a>', props: ['to'] } }` when any test needs to see text that lives inside a NuxtLink element (e.g. category badges in BlogArticle, title links in BlogCard).
+
+## Composable mock path for blog feature
+- From `app/features/blog/components/`, mock `useBlog` as: `vi.mock('../composables/useBlog', ...)`
+- From `app/features/blog/composables/`, mock `useApi` as: `vi.mock('../../shared/composables/useApi', ...)`
 
 ## Details
 See `patterns.md` for full pattern documentation.

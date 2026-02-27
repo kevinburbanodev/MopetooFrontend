@@ -5,6 +5,7 @@ const authStore = useAuthStore()
 // Public nav links always visible
 const publicLinks = [
   { label: 'Inicio', to: '/' },
+  { label: 'Blog', to: '/blog' },
   { label: 'Adopciones', to: '/shelter' },
 ]
 

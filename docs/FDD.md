@@ -658,32 +658,58 @@ export const useAuthStore = defineStore('auth', () => {
 
 ---
 
-### 5.7. Blog Editorial (RF-600 a RF-609)
+### 5.7. Blog Editorial (RF-600 a RF-609) — ✅ IMPLEMENTADO
 
-**Funcionalidades:**
-- Listado público de artículos
-- Artículos individual (SSG ideal)
-- Búsqueda y filtro por categoría
-- Sistema de comentarios (optional)
-- SEO optimizado para cada artículo
+**Funcionalidades:** ✅ MVP público implementado
+- ✅ Listado público de artículos con paginación tipo "Cargar más"
+- ✅ Artículo individual con SEO dinámico (title, description, og:image)
+- ✅ Búsqueda client-side (título, extracto, autor, tags)
+- ✅ Filtro por categoría (server-side via query param)
+- ✅ Skeleton loading y estados vacíos contextuales
+- ✅ Imagen destacada con validación `isSafeImageUrl`, fallback SVG inline (pata de animal)
+- ✅ Tiempo de lectura, badges de tags (máximo 3 + overflow `+N`)
+- ✅ Breadcrumb en detalle de artículo
+- ✅ `onUnmounted` limpia `selectedPost` para evitar datos obsoletos al navegar entre artículos
+- 📋 Sistema de comentarios (post-MVP)
+- 📋 Panel admin para gestión de artículos (post-MVP)
 
-**Estrategia SSG (Static Site Generation):**
-```typescript
-// nuxt.config.ts
-export default defineNuxtConfig({
-  routeRules: {
-    // Pre-render blog articles at build time
-    '/blog/**': { prerender: true },
-    // Cache /blog at CDN for 60s, revalidate every 60s
-    '/blog': { cache: { maxAge: 60 * 60 } },
-  }
-})
-```
+**Componentes Frontend:** ✅ Todos implementados
+| Componente | Ubicación | Descripción |
+|---|---|---|
+| `BlogCategoryFilter` | `app/features/blog/components/BlogCategoryFilter.vue` | Pills horizontales scrollables, `role="tablist"`, "Todos" + una pill por categoría, activa con `btn-primary`, badge con `post_count` |
+| `BlogCard` | `app/features/blog/components/BlogCard.vue` | Imagen (con `isSafeImageUrl`) o SVG placeholder, badge categoría overlay, título 2-líneas clamp, extracto 3-líneas, avatar con fallback inicial, fecha en español, badge tiempo lectura, `stretched-link` |
+| `BlogList` | `app/features/blog/components/BlogList.vue` | Grid 1/2/3 columnas, filtro categoría (server-side) + búsqueda (client-side), skeleton 6 cards, 3 estados vacíos distintos, botón "Cargar más" (append pattern) |
+| `BlogArticle` | `app/features/blog/components/BlogArticle.vue` | Hero con `aspect-ratio: 2/1` (previene CLS), meta autor+fecha, contenido como texto plano (sin `v-html`), tags, CTA "Ver más artículos" |
 
-**Componentes:**
-- `BlogList` — listado con paginación
-- `BlogArticle` — artículo individual con sidebar
-- `BlogCategories` — filtros
+**Composable:** `features/blog/composables/useBlog.ts`
+— `fetchPosts(filters?, append)`: soporta ambas formas de respuesta (`BlogListResponse` envelope y array directo), controla `setPosts` vs `appendPosts`. `fetchPostBySlug(slug)`: consulta caché del store antes de llamar a la API. `fetchCategories()`: fallo no-crítico (no bloquea el listado).
+
+**Store:** `features/blog/stores/blog.store.ts` — `useBlogStore`
+— `posts[]`, `selectedPost`, `categories[]`, `isLoading`, `currentPage`, `totalPages`, `total`. Getters: `hasPosts`, `hasCategories`, `getPostBySlug` (factory computed). Acciones: `setPosts`, `appendPosts`, `setSelectedPost`, `clearSelectedPost`, `setCategories`, `setLoading`, `setPagination`, `clearBlog`.
+
+**Páginas:** ✅ Todas implementadas (thin wrappers públicos sin middleware)
+| Ruta | Archivo | Descripción |
+|---|---|---|
+| `/blog` | `app/pages/blog/index.vue` | Listado de artículos con SEO estático |
+| `/blog/[slug]` | `app/pages/blog/[slug].vue` | Detalle de artículo con SEO dinámico + breadcrumb |
+
+**Endpoints:** `GET /api/blog/posts`, `GET /api/blog/posts/:slug`, `GET /api/blog/categories`
+
+**AppNavbar:** ✅ Enlace "Blog" ya presente en `publicLinks` (visible sin autenticación)
+
+**Nota de seguridad:** Contenido del artículo renderizado como texto plano (NO `v-html`). Comentario en `BlogArticle.vue` documenta los requisitos para habilitar `v-html` en el futuro (DOMPurify en backend + flag explícito).
+
+**Cross-store cleanup:** No requerido — el blog es datos públicos sin contenido específico del usuario. `clearBlog()` está disponible para usos futuros.
+
+**Test coverage:** ✅ 208 tests
+| Archivo | Tests |
+|---|---|
+| `blog.store.test.ts` | 44 |
+| `useBlog.test.ts` | 60 |
+| `BlogCategoryFilter.test.ts` | 18 |
+| `BlogCard.test.ts` | 24 |
+| `BlogList.test.ts` | 28 |
+| `BlogArticle.test.ts` | 34 |
 
 ---
 
@@ -1308,7 +1334,7 @@ routeRules: {
 - [x] RF-300 a RF-309 — Historial médico (medical slice) ✅
 - [x] RF-400 a RF-409 — Exportación y PDF (export slice) ✅
 - [x] RF-500 a RF-509 — Refugios y adopciones (shelters slice) ✅
-- [ ] RF-600 a RF-609 — Blog editorial (blog slice)
+- [x] RF-600 a RF-609 — Blog editorial (blog slice) ✅
 - [ ] RF-700 a RF-709 — Directorio tiendas pet-friendly (stores slice)
 - [ ] RF-900 a RF-909 — Clínicas veterinarias (clinics slice)
 - [ ] RF-1000 a RF-1009 — Panel administrativo (admin slice)
