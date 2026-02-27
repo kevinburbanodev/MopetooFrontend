@@ -127,6 +127,33 @@ export function useReminders() {
     }
   }
 
+  /**
+   * Export reminders as a PDF blob and trigger a browser download.
+   * When petId is provided, exports reminders for that pet only.
+   * Client-only — guarded via import.meta.client inside useExportPDF.
+   *
+   * @param petId   - Optional pet ID to scope the export to a single pet
+   * @param petName - Optional pet name used to build a descriptive filename
+   */
+  async function exportRemindersPDF(petId?: number, petName?: string): Promise<void> {
+    remindersStore.setLoading(true)
+    error.value = null
+    try {
+      const { downloadPDF, slugify } = useExportPDF()
+      const endpoint = petId != null
+        ? `/api/pets/${petId}/reminders/export`
+        : '/api/reminders/export'
+      const nameSuffix = petName ? `-${slugify(petName)}` : ''
+      await downloadPDF(endpoint, `recordatorios${nameSuffix}.pdf`)
+    }
+    catch (err: unknown) {
+      error.value = extractErrorMessage(err)
+    }
+    finally {
+      remindersStore.setLoading(false)
+    }
+  }
+
   return {
     error,
     remindersStore,
@@ -135,6 +162,7 @@ export function useReminders() {
     createReminder,
     updateReminder,
     deleteReminder,
+    exportRemindersPDF,
   }
 }
 

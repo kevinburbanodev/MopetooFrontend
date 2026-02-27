@@ -44,6 +44,22 @@ vi.mock('../../shared/composables/useApi', () => ({
   }),
 }))
 
+// ── useExportPDF mock ─────────────────────────────────────────
+// useExportPDF is a shared project composable — mock via vi.mock so
+// exportProfilePDF tests assert the delegation contract, not the PDF
+// download mechanics (which are covered by useExportPDF.test.ts).
+// The mock is declared at module level; the spy handles are reset in
+// beforeEach to prevent bleed between tests.
+const downloadPDFMock = vi.fn()
+const slugifyMock = vi.fn()
+
+vi.mock('../../shared/composables/useExportPDF', () => ({
+  useExportPDF: () => ({
+    downloadPDF: downloadPDFMock,
+    slugify: slugifyMock,
+  }),
+}))
+
 // ── $fetch global stub ───────────────────────────────────────
 // Multipart (photo) paths bypass useApi and call $fetch directly.
 const fetchMock = vi.fn()
@@ -100,6 +116,12 @@ describe('usePets', () => {
     apiPatchMock.mockReset()
     apiDelMock.mockReset()
     fetchMock.mockReset()
+    downloadPDFMock.mockReset()
+    // slugifyMock is configured per-test — reset to a passthrough default
+    // so tests that do not care about slug transformation still get a
+    // predictable filename without needing to configure the mock themselves.
+    slugifyMock.mockReset()
+    slugifyMock.mockImplementation((name: string) => name.toLowerCase().replace(/\s+/g, '-'))
 
     // Inject the $fetch stub globally for multipart paths.
     vi.stubGlobal('$fetch', fetchMock)
@@ -700,6 +722,162 @@ describe('usePets', () => {
       await deletePet('pet-1')
 
       expect(error.value).toBe('Ocurrió un error inesperado. Intenta de nuevo.')
+    })
+  })
+
+  // ── exportProfilePDF ───────────────────────────────────────
+  //
+  // useExportPDF is mocked at the top of this file so these tests assert
+  // the delegation contract of exportProfilePDF, not the PDF download
+  // mechanics. The real downloadPDF and slugify implementations are
+  // covered by useExportPDF.test.ts.
+
+  describe('exportProfilePDF()', () => {
+    it('calls downloadPDF with the correct endpoint for the given petId', async () => {
+      downloadPDFMock.mockResolvedValueOnce(undefined)
+      const { usePets } = await import('./usePets')
+      const { exportProfilePDF } = usePets()
+
+      await exportProfilePDF('pet-42')
+
+      expect(downloadPDFMock).toHaveBeenCalledWith(
+        '/api/pets/pet-42/export',
+        expect.any(String),
+      )
+    })
+
+    it('slugifies petName and uses it in the filename when petName is provided', async () => {
+      // slugifyMock is configured in beforeEach as a passthrough that
+      // lowercases and hyphenates — so "Max Perro" → "max-perro".
+      downloadPDFMock.mockResolvedValueOnce(undefined)
+      const { usePets } = await import('./usePets')
+      const { exportProfilePDF } = usePets()
+
+      await exportProfilePDF('pet-1', 'Max Perro')
+
+      // slugify('Max Perro') → 'max-perro' via the mock passthrough.
+      expect(downloadPDFMock).toHaveBeenCalledWith(
+        '/api/pets/pet-1/export',
+        'perfil-max-perro.pdf',
+      )
+    })
+
+    it('falls back to petId in the filename when petName is undefined', async () => {
+      downloadPDFMock.mockResolvedValueOnce(undefined)
+      const { usePets } = await import('./usePets')
+      const { exportProfilePDF } = usePets()
+
+      await exportProfilePDF('pet-99')
+
+      // No petName → slug = petId; filename = 'perfil-pet-99.pdf'.
+      expect(downloadPDFMock).toHaveBeenCalledWith(
+        '/api/pets/pet-99/export',
+        'perfil-pet-99.pdf',
+      )
+    })
+
+    it('calls slugify with the petName when petName is provided', async () => {
+      downloadPDFMock.mockResolvedValueOnce(undefined)
+      const { usePets } = await import('./usePets')
+      const { exportProfilePDF } = usePets()
+
+      await exportProfilePDF('pet-1', 'Luna García')
+
+      expect(slugifyMock).toHaveBeenCalledWith('Luna García')
+    })
+
+    it('does NOT call slugify when petName is undefined', async () => {
+      downloadPDFMock.mockResolvedValueOnce(undefined)
+      const { usePets } = await import('./usePets')
+      const { exportProfilePDF } = usePets()
+
+      await exportProfilePDF('pet-1')
+
+      expect(slugifyMock).not.toHaveBeenCalled()
+    })
+
+    it('sets petsStore.isLoading to true during the export', async () => {
+      let loadingDuringCall = false
+      downloadPDFMock.mockImplementationOnce(async () => {
+        loadingDuringCall = petsStore.isLoading
+      })
+      const { usePets } = await import('./usePets')
+      const { exportProfilePDF } = usePets()
+
+      await exportProfilePDF('pet-1', 'Max')
+
+      expect(loadingDuringCall).toBe(true)
+    })
+
+    it('sets petsStore.isLoading to false after a successful export', async () => {
+      downloadPDFMock.mockResolvedValueOnce(undefined)
+      const { usePets } = await import('./usePets')
+      const { exportProfilePDF } = usePets()
+
+      await exportProfilePDF('pet-1', 'Max')
+
+      expect(petsStore.isLoading).toBe(false)
+    })
+
+    it('sets petsStore.isLoading to false even when downloadPDF throws', async () => {
+      downloadPDFMock.mockRejectedValueOnce(new Error('Network failure'))
+      const { usePets } = await import('./usePets')
+      const { exportProfilePDF } = usePets()
+
+      await exportProfilePDF('pet-1', 'Max')
+
+      expect(petsStore.isLoading).toBe(false)
+    })
+
+    it('clears error before starting the export', async () => {
+      downloadPDFMock.mockResolvedValueOnce(undefined)
+      const { usePets } = await import('./usePets')
+      const { exportProfilePDF, error } = usePets()
+
+      error.value = 'error previo'
+      await exportProfilePDF('pet-1', 'Max')
+
+      expect(error.value).toBeNull()
+    })
+
+    it('stores the error message when downloadPDF throws with { message }', async () => {
+      downloadPDFMock.mockRejectedValueOnce({ message: 'PDF generation failed' })
+      const { usePets } = await import('./usePets')
+      const { exportProfilePDF, error } = usePets()
+
+      await exportProfilePDF('pet-1', 'Max')
+
+      expect(error.value).toBe('PDF generation failed')
+    })
+
+    it('stores the error message when downloadPDF throws with { data: { error } }', async () => {
+      downloadPDFMock.mockRejectedValueOnce({ data: { error: 'Forbidden' } })
+      const { usePets } = await import('./usePets')
+      const { exportProfilePDF, error } = usePets()
+
+      await exportProfilePDF('pet-1', 'Max')
+
+      expect(error.value).toBe('Forbidden')
+    })
+
+    it('uses the generic fallback message for unexpected error shapes', async () => {
+      downloadPDFMock.mockRejectedValueOnce('unexpected string error')
+      const { usePets } = await import('./usePets')
+      const { exportProfilePDF, error } = usePets()
+
+      await exportProfilePDF('pet-1', 'Max')
+
+      expect(error.value).toBe('Ocurrió un error inesperado. Intenta de nuevo.')
+    })
+
+    it('leaves error as null after a successful export', async () => {
+      downloadPDFMock.mockResolvedValueOnce(undefined)
+      const { usePets } = await import('./usePets')
+      const { exportProfilePDF, error } = usePets()
+
+      await exportProfilePDF('pet-1', 'Max')
+
+      expect(error.value).toBeNull()
     })
   })
 })

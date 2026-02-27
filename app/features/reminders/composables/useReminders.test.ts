@@ -34,6 +34,21 @@ vi.mock('../../shared/composables/useApi', () => ({
   useApi: () => ({ get: mockGet, post: mockPost, put: mockPut, del: mockDel }),
 }))
 
+// ── useExportPDF mock ─────────────────────────────────────────
+// useExportPDF is a shared project composable — mock via vi.mock so
+// exportRemindersPDF tests assert the delegation contract, not the PDF
+// download mechanics (which are covered by useExportPDF.test.ts).
+// The spy handles are reset in beforeEach to prevent bleed between tests.
+const mockDownloadPDF = vi.fn()
+const mockSlugify = vi.fn()
+
+vi.mock('../../shared/composables/useExportPDF', () => ({
+  useExportPDF: () => ({
+    downloadPDF: mockDownloadPDF,
+    slugify: mockSlugify,
+  }),
+}))
+
 // ── Fixtures ─────────────────────────────────────────────────
 
 function makeReminder(overrides: Partial<Reminder> = {}): Reminder {
@@ -71,6 +86,12 @@ describe('useReminders', () => {
     mockPost.mockReset()
     mockPut.mockReset()
     mockDel.mockReset()
+    mockDownloadPDF.mockReset()
+    // mockSlugify defaults to a passthrough that lowercases and hyphenates,
+    // matching the real slugify for simple ASCII names. Tests that need
+    // specific slug output configure this mock themselves.
+    mockSlugify.mockReset()
+    mockSlugify.mockImplementation((name: string) => name.toLowerCase().replace(/\s+/g, '-'))
   })
 
   // ── fetchReminders (no petId) ──────────────────────────────
@@ -722,6 +743,222 @@ describe('useReminders', () => {
       await fetchReminders()
 
       expect(error.value).toBe('Error de red')
+    })
+  })
+
+  // ── exportRemindersPDF ──────────────────────────────────────
+  //
+  // useExportPDF is mocked at the top of this file so these tests assert
+  // the delegation contract of exportRemindersPDF, not the PDF download
+  // mechanics. The real downloadPDF and slugify implementations are
+  // covered by useExportPDF.test.ts.
+
+  describe('exportRemindersPDF()', () => {
+    describe('endpoint selection', () => {
+      it('uses /api/reminders/export when no petId is provided', async () => {
+        mockDownloadPDF.mockResolvedValueOnce(undefined)
+        const { useReminders } = await import('./useReminders')
+        const { exportRemindersPDF } = useReminders()
+
+        await exportRemindersPDF()
+
+        expect(mockDownloadPDF).toHaveBeenCalledWith(
+          '/api/reminders/export',
+          expect.any(String),
+        )
+      })
+
+      it('uses /api/pets/{petId}/reminders/export when petId is provided', async () => {
+        mockDownloadPDF.mockResolvedValueOnce(undefined)
+        const { useReminders } = await import('./useReminders')
+        const { exportRemindersPDF } = useReminders()
+
+        await exportRemindersPDF(42)
+
+        expect(mockDownloadPDF).toHaveBeenCalledWith(
+          '/api/pets/42/reminders/export',
+          expect.any(String),
+        )
+      })
+
+      it('uses the pet-specific endpoint for petId = 0 (falsy but non-null)', async () => {
+        // petId of 0 is falsy but not null/undefined — the condition is
+        // `petId != null`, so 0 IS a valid petId and uses the nested route.
+        mockDownloadPDF.mockResolvedValueOnce(undefined)
+        const { useReminders } = await import('./useReminders')
+        const { exportRemindersPDF } = useReminders()
+
+        await exportRemindersPDF(0)
+
+        expect(mockDownloadPDF).toHaveBeenCalledWith(
+          '/api/pets/0/reminders/export',
+          expect.any(String),
+        )
+      })
+    })
+
+    describe('filename construction', () => {
+      it('uses filename "recordatorios.pdf" when no petName is provided', async () => {
+        mockDownloadPDF.mockResolvedValueOnce(undefined)
+        const { useReminders } = await import('./useReminders')
+        const { exportRemindersPDF } = useReminders()
+
+        await exportRemindersPDF()
+
+        expect(mockDownloadPDF).toHaveBeenCalledWith(
+          expect.any(String),
+          'recordatorios.pdf',
+        )
+      })
+
+      it('appends the slugified petName suffix when petName is provided', async () => {
+        // mockSlugify defaults to lowercase-hyphenate passthrough in beforeEach.
+        mockDownloadPDF.mockResolvedValueOnce(undefined)
+        const { useReminders } = await import('./useReminders')
+        const { exportRemindersPDF } = useReminders()
+
+        await exportRemindersPDF(42, 'Max Perro')
+
+        // slugify('Max Perro') → 'max-perro'; suffix → '-max-perro'.
+        expect(mockDownloadPDF).toHaveBeenCalledWith(
+          expect.any(String),
+          'recordatorios-max-perro.pdf',
+        )
+      })
+
+      it('uses "recordatorios.pdf" when petId is provided but petName is undefined', async () => {
+        mockDownloadPDF.mockResolvedValueOnce(undefined)
+        const { useReminders } = await import('./useReminders')
+        const { exportRemindersPDF } = useReminders()
+
+        await exportRemindersPDF(42)
+
+        expect(mockDownloadPDF).toHaveBeenCalledWith(
+          '/api/pets/42/reminders/export',
+          'recordatorios.pdf',
+        )
+      })
+
+      it('calls slugify with the petName when petName is provided', async () => {
+        mockDownloadPDF.mockResolvedValueOnce(undefined)
+        const { useReminders } = await import('./useReminders')
+        const { exportRemindersPDF } = useReminders()
+
+        await exportRemindersPDF(42, 'Luna García')
+
+        expect(mockSlugify).toHaveBeenCalledWith('Luna García')
+      })
+
+      it('does NOT call slugify when petName is undefined', async () => {
+        mockDownloadPDF.mockResolvedValueOnce(undefined)
+        const { useReminders } = await import('./useReminders')
+        const { exportRemindersPDF } = useReminders()
+
+        await exportRemindersPDF(42)
+
+        expect(mockSlugify).not.toHaveBeenCalled()
+      })
+
+      it('combines pet-scoped endpoint and named filename correctly', async () => {
+        mockDownloadPDF.mockResolvedValueOnce(undefined)
+        const { useReminders } = await import('./useReminders')
+        const { exportRemindersPDF } = useReminders()
+
+        await exportRemindersPDF(7, 'Rex')
+
+        expect(mockDownloadPDF).toHaveBeenCalledWith(
+          '/api/pets/7/reminders/export',
+          'recordatorios-rex.pdf',
+        )
+      })
+    })
+
+    describe('loading state', () => {
+      it('sets remindersStore.isLoading to true during the export', async () => {
+        let loadingDuringCall = false
+        mockDownloadPDF.mockImplementationOnce(async () => {
+          loadingDuringCall = remindersStore.isLoading
+        })
+        const { useReminders } = await import('./useReminders')
+        const { exportRemindersPDF } = useReminders()
+
+        await exportRemindersPDF()
+
+        expect(loadingDuringCall).toBe(true)
+      })
+
+      it('sets remindersStore.isLoading to false after a successful export', async () => {
+        mockDownloadPDF.mockResolvedValueOnce(undefined)
+        const { useReminders } = await import('./useReminders')
+        const { exportRemindersPDF } = useReminders()
+
+        await exportRemindersPDF()
+
+        expect(remindersStore.isLoading).toBe(false)
+      })
+
+      it('sets remindersStore.isLoading to false even when downloadPDF throws', async () => {
+        mockDownloadPDF.mockRejectedValueOnce(new Error('Network failure'))
+        const { useReminders } = await import('./useReminders')
+        const { exportRemindersPDF } = useReminders()
+
+        await exportRemindersPDF()
+
+        expect(remindersStore.isLoading).toBe(false)
+      })
+    })
+
+    describe('error handling', () => {
+      it('clears any previous error before starting the export', async () => {
+        mockDownloadPDF.mockResolvedValueOnce(undefined)
+        const { useReminders } = await import('./useReminders')
+        const { exportRemindersPDF, error } = useReminders()
+
+        error.value = 'error previo'
+        await exportRemindersPDF()
+
+        expect(error.value).toBeNull()
+      })
+
+      it('leaves error as null after a successful export', async () => {
+        mockDownloadPDF.mockResolvedValueOnce(undefined)
+        const { useReminders } = await import('./useReminders')
+        const { exportRemindersPDF, error } = useReminders()
+
+        await exportRemindersPDF()
+
+        expect(error.value).toBeNull()
+      })
+
+      it('stores the error message when downloadPDF throws with { message }', async () => {
+        mockDownloadPDF.mockRejectedValueOnce({ message: 'PDF generation failed' })
+        const { useReminders } = await import('./useReminders')
+        const { exportRemindersPDF, error } = useReminders()
+
+        await exportRemindersPDF()
+
+        expect(error.value).toBe('PDF generation failed')
+      })
+
+      it('stores the error message when downloadPDF throws with { data: { error } }', async () => {
+        mockDownloadPDF.mockRejectedValueOnce({ data: { error: 'Forbidden' } })
+        const { useReminders } = await import('./useReminders')
+        const { exportRemindersPDF, error } = useReminders()
+
+        await exportRemindersPDF()
+
+        expect(error.value).toBe('Forbidden')
+      })
+
+      it('uses the generic fallback message for unexpected error shapes', async () => {
+        mockDownloadPDF.mockRejectedValueOnce('unexpected string error')
+        const { useReminders } = await import('./useReminders')
+        const { exportRemindersPDF, error } = useReminders()
+
+        await exportRemindersPDF()
+
+        expect(error.value).toBe('Ocurrió un error inesperado. Intenta de nuevo.')
+      })
     })
   })
 })

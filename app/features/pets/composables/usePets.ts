@@ -144,6 +144,29 @@ export function usePets() {
     }
   }
 
+  /**
+   * Export a pet's profile as a PDF blob and trigger a browser download.
+   * Client-only — guarded via import.meta.client inside useExportPDF.
+   *
+   * @param petId   - The pet's ID (used as a fallback filename slug)
+   * @param petName - Optional pet name used to build the filename
+   */
+  async function exportProfilePDF(petId: string, petName?: string): Promise<void> {
+    petsStore.setLoading(true)
+    error.value = null
+    try {
+      const { downloadPDF, slugify } = useExportPDF()
+      const slug = petName ? slugify(petName) : petId
+      await downloadPDF(`/api/pets/${petId}/export`, `perfil-${slug}.pdf`)
+    }
+    catch (err: unknown) {
+      error.value = extractErrorMessage(err)
+    }
+    finally {
+      petsStore.setLoading(false)
+    }
+  }
+
   return {
     pending,
     error,
@@ -152,6 +175,7 @@ export function usePets() {
     createPet,
     updatePet,
     deletePet,
+    exportProfilePDF,
     petsStore,
   }
 }

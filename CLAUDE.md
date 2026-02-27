@@ -21,9 +21,10 @@ npm run test:coverage    # Single run with coverage report
 **Colocation rule:** test files live next to the source file inside the feature slice.
 **Status:**
 - Auth feature slice (RF-001–RF-009): 85 tests (store 41, composable 36, auth middleware 4, guest middleware 4)
-- Pets feature slice (RF-100–RF-109): 232 tests (store 44, usePets 51, usePetAge 17, PetAvatar 21, PetCard 22, PetList 16, PetForm 32, PetDetail 29)
-- Reminders feature slice (RF-200–RF-209): 237 tests (store 44, useReminders 56, ReminderCard 26, ReminderList 29, ReminderForm 46) ✅
+- Pets feature slice (RF-100–RF-109): 244 tests (store 44, usePets 63, usePetAge 17, PetAvatar 21, PetCard 22, PetList 16, PetForm 32, PetDetail 29)
+- Reminders feature slice (RF-200–RF-209): 256 tests (store 44, useReminders 75, ReminderCard 26, ReminderList 29, ReminderForm 46) ✅
 - Medical feature slice (RF-300–RF-309): 273 tests (store 44, useMedical 65, MedicalRecordCard 38, MedicalHistory 31, MedicalRecordForm 86) ✅
+- Export/PDF slice (RF-400–RF-409): 24 tests (useExportPDF 24) ✅ — exportProfilePDF tests in usePets, exportRemindersPDF tests in useReminders
 
 ## Architecture
 
@@ -35,7 +36,7 @@ Each domain feature is self-contained under `app/features/<feature>/`:
 
 ```
 app/features/
-├── shared/          # Cross-feature kernel (useApi, AppNavbar, api.types)
+├── shared/          # Cross-feature kernel (useApi, useExportPDF, AppNavbar, api.types)
 ├── home/            # Landing page slice
 ├── auth/            # Login, register, password reset
 ├── pets/            # Pet profile CRUD
@@ -195,8 +196,9 @@ Any change to token storage or auth flow warrants a security review.
 
 **Mocking notes for pets and reminders slices:**
 - `useApi` is a project composable — mock via `vi.mock('../../shared/composables/useApi', ...)`, NOT `mockNuxtImport`
+- `useExportPDF` is a project composable — mock via `vi.mock('../../shared/composables/useExportPDF', ...)`, NOT `mockNuxtImport`
 - `useRuntimeConfig` is fed via `vitest.config.ts` `env.NUXT_PUBLIC_API_BASE` (not mocked) to avoid Vue Router init errors
-- `URL.createObjectURL` must be stubbed globally in `happy-dom` (not implemented natively)
+- `URL.createObjectURL` / `URL.revokeObjectURL` must be spied on via `vi.spyOn(URL, 'createObjectURL')` — do NOT replace the entire `URL` global or Nuxt internals break
 - `NuxtLink` should be stubbed via `global.stubs: { NuxtLink: true }` in component tests
 - Resetting select filters to null: use clearFilters button click, not `setValue(null)` (happy-dom limitation)
 - `Pet.id` is `string`; `Reminder.pet_id` is `number` — compare with `String(pet_id) === pet.id`

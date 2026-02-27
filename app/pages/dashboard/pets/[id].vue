@@ -8,7 +8,7 @@ definePageMeta({
 
 const route = useRoute()
 const router = useRouter()
-const { fetchPetById, deletePet, error } = usePets()
+const { fetchPetById, deletePet, exportProfilePDF, error } = usePets()
 const petsStore = usePetsStore()
 
 // The id param is always a string from the route
@@ -47,6 +47,10 @@ async function handleDelete(): Promise<void> {
   if (ok) {
     await router.push('/dashboard/pets')
   }
+}
+
+async function handleExportPDF(): Promise<void> {
+  await exportProfilePDF(petId.value, petsStore.selectedPet?.name)
 }
 </script>
 
@@ -101,6 +105,7 @@ async function handleDelete(): Promise<void> {
       :is-loading="petsStore.isLoading"
       @edit="handleEdit"
       @delete="handleDelete"
+      @export-pdf="handleExportPDF"
     />
   </div>
 </template>
