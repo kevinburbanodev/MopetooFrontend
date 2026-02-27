@@ -59,6 +59,8 @@ export const useAuthStore = defineStore('auth', () => {
       proStore.clearPro()
       const adminStore = useAdminStore()
       adminStore.clearAdmin()
+      const statsStore = useStatsStore()
+      statsStore.clearStats()
     }
   }
 

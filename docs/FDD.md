@@ -991,19 +991,58 @@ export default defineNuxtRouteMiddleware(() => {
 
 ---
 
-### 5.12. Estadísticas y Métricas (RF-1100 a RF-1109)
+### 5.12. Estadísticas y Métricas (RF-1100 a RF-1109) — ✅ IMPLEMENTADO
 
-**Funcionalidades:**
-- Dashboard general (usuarios, mascotas, adopciones)
-- Métricas de revenue (PRO, donaciones)
-- Actividad de usuarios
-- Gráficos y reportes
+**Funcionalidades:** ✅ Todas implementadas
+- ✅ Resumen general de KPIs: 10 métricas (usuarios, mascotas, refugios, clínicas, tiendas, adopciones, suscripciones PRO, donaciones, ingresos del mes, ingresos totales)
+- ✅ Métricas de revenue por fuente (PRO vs donaciones) en gráfico y tabla
+- ✅ Gráfico de ingresos por mes (CSS progress bars, sin dependencias externas, métrica seleccionable: total / suscripciones / donaciones)
+- ✅ Tabla de ingresos mensual con totales acumulados (COP formateado)
+- ✅ Log de actividad reciente (registros, mascotas, adopciones, suscripciones, donaciones) con badges por tipo
+- ✅ Skeleton loading en los 4 componentes
+- ✅ Empty states + retry en StatsOverview
+- ✅ Dual API response shape en los 3 endpoints (array directo y envelope)
+- ✅ SSR-safe: datos en `onMounted`, `Intl` formatters sin `window`
 
-**Componentes:**
-- `StatsOverview` — cards de KPIs
-- `StatsChart` — gráficos (Chart.js o similar)
-- `RevenueReport` — ingresos por fuente
-- `ActivityLog` — eventos recientes
+**Feature path:** `app/features/stats/`
+
+**Componentes Frontend:** ✅ Todos implementados
+| Componente | Ubicación | Descripción |
+|---|---|---|
+| `StatsOverview` | `app/features/stats/components/StatsOverview.vue` | 8 KPI cards de conteo + 2 cards de ingresos COP; skeleton 8+2; empty state con retry; auto-fetch en onMounted |
+| `StatsChart` | `app/features/stats/components/StatsChart.vue` | Gráfico de barras horizontal con CSS progress bars; métricas: total, suscripciones, donaciones; skeleton 6 filas |
+| `RevenueReport` | `app/features/stats/components/RevenueReport.vue` | Tabla mensual con badges (bg-info suscripciones, bg-success donaciones); fila de totales acumulados en tfoot; skeleton 6 filas |
+| `ActivityLog` | `app/features/stats/components/ActivityLog.vue` | Tabla de actividad reciente: 5 tipos con badge coloreado, descripción, email, fecha; skeleton 8 filas; contador de eventos singular/plural; auto-fetch en onMounted |
+
+**Composable:** `features/stats/composables/useStats.ts`
+— `fetchOverview()`: GET `/api/admin/stats`, dual API shape (`stats` envelope o directo), usa `statsStore.isLoading`. `fetchRevenueData(filters?)`: GET `/api/admin/stats/revenue?months=N`, dual API shape (`data` envelope o array directo), usa `revenueLoading` ref local (no store). `fetchActivityLog()`: GET `/api/admin/stats/activity`, dual API shape (`activities` envelope o array directo).
+
+**Store:** `features/stats/stores/stats.store.ts` — `useStatsStore`
+— `overview`, `revenueData[]`, `activityEntries[]`, `totalActivity`, `isLoading`. Getters: `hasOverview`, `hasRevenueData`, `hasActivity`. Acciones: `setOverview`, `setRevenueData`, `setActivityEntries`, `setLoading`, `clearStats`.
+
+**Página:** ✅ Actualizada (thin wrapper con `admin` middleware)
+| Ruta | Archivo | Descripción |
+|---|---|---|
+| `/admin/stats` | `app/pages/admin/stats.vue` | Orquesta los 4 componentes; fetcha revenue en onMounted y pasa como props a StatsChart y RevenueReport; StatsOverview y ActivityLog se auto-fetchen |
+
+**Endpoints:**
+- `GET /api/admin/stats` — overview KPIs (compartido con admin slice)
+- `GET /api/admin/stats/revenue` — time series mensual de ingresos (acepta `?months=N`)
+- `GET /api/admin/stats/activity` — log de actividad reciente
+
+**Cross-store cleanup:** ✅ `clearSession()` en `auth.store.ts` llama `statsStore.clearStats()` — datos admin son específicos de la sesión.
+
+**Security:** ✅ SSR-safe; sin `v-html`; sin ID del usuario en paths de API; datos de solo lectura (sin acciones destructivas).
+
+**Test coverage:** ✅ 165 tests
+| Archivo | Tests |
+|---|---|
+| `stats.store.test.ts` | 37 |
+| `useStats.test.ts` | 45 |
+| `StatsOverview.test.ts` | 27 |
+| `StatsChart.test.ts` | 22 |
+| `RevenueReport.test.ts` | 20 |
+| `ActivityLog.test.ts` | 34 |
 
 ---
 
@@ -1532,6 +1571,7 @@ routeRules: {
 - [x] RF-800 a RF-809 — Monetización / PRO subscriptions (pro slice) ✅
 - [x] RF-900 a RF-909 — Clínicas veterinarias (clinics slice) ✅
 - [x] RF-1000 a RF-1009 — Panel administrativo (admin slice) ✅
+- [x] RF-1100 a RF-1109 — Estadísticas y métricas (stats slice) ✅
 - [ ] Content Security Policy (CSP) implementation
 - [ ] Multi-language support (@nuxtjs/i18n)
 
