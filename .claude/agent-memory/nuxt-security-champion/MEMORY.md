@@ -28,11 +28,27 @@
 - ACCEPTED: No frontend IDOR protection — ownership is enforced by backend (GET/PATCH/DELETE /api/pets/:id returns 403/404 for other users' pets). Frontend correctly redirects on null response.
 - ACCEPTED: No v-html anywhere in the pets slice — all user content rendered via safe {{ }} interpolation.
 
+## Known Findings (from shelters review 2026-02-27)
+- OPEN (HIGH): `shelter.website` bound to `<a :href>` WITHOUT scheme validation in `ShelterDetail.vue:211` — javascript: URI XSS vector. `isSafeImageUrl` pattern was applied to all photo_url fields but missed the website href. Fix: add `safeWebsiteUrl` computed with URL() parser, allow only https:/http:.
+- OPEN (MEDIUM): `shelter.phone` and `shelter.email` interpolated into `tel:` and `mailto:` hrefs without format validation in `ShelterDetail.vue:185,199`. Low exploitability but inconsistent with validation posture.
+- OPEN (LOW): `shelterId` from `route.query` passed unvalidated into API path string in `AdoptionDetail.vue:159`. Add UUID/alphanumeric regex guard before use.
+- PASS: No v-html anywhere in shelters slice.
+- PASS: photo_url validated with `isSafeImageUrl()` in ShelterCard, ShelterDetail, AdoptionPetCard, AdoptionDetail.
+- PASS: `rel="noopener noreferrer"` present on website `target="_blank"` link.
+- PASS: `ClientOnly` wrapper correctly gates `authStore.isAuthenticated` check in AdoptionDetail form.
+- PASS: `submitAdoptionRequest` uses `post()` via `useApi()` — Bearer token attached, no token logged.
+- PASS: `clearSession()` in auth.store.ts calls `sheltersStore.clearShelters()` — correctly integrated.
+- PASS: `backLink` computed uses `pet.value.shelter_id` (API data) with hardcoded `/shelter/` prefix — no open redirect.
+- INFO: AppNavbar reads `authStore.isAuthenticated` in SSR template — pre-existing hydration mismatch, no token leak. Affects all nav items, not just the shelter link.
+- INFO: `extractErrorMessage` surfaces raw backend error strings — same accepted pattern as all previous slices.
+
 ## Recurring Patterns to Watch
-- Any new `v-html` usage requires DOMPurify — none in auth or pets slice; audit every PR
+- Any new `v-html` usage requires DOMPurify — none in auth, pets, reminders, medical, or shelters slice; audit every PR
 - Any composable doing multipart upload must read token from `authStore.token`, NOT `localStorage` directly
-- Any API field bound to `:src` or `:href` must pass `isSafeImageUrl()` / scheme validation first
+- Any API field bound to `:src` OR `:href` must pass scheme validation — photo_url uses `isSafeImageUrl()`; website/external URLs need URL() parser guard allowing only https:/http:
+- RECURRING MISS: `isSafeImageUrl` is consistently applied to `:src` but the same pattern was NOT applied to `:href="shelter.website"` in shelters. Watch every `<a :href>` that binds API data.
 - Any new feature store holding user data must be added to `clearSession()` in `auth.store.ts`
+- Route query params used in API path construction must be validated against a format regex before use
 - `runtimeConfig.public` contains `gaId` and `cdnBase` — intentionally public; no secrets there
 - The `/**` routeRules security headers baseline is in place; do not override in feature-specific rules
 
@@ -42,3 +58,4 @@
 - `nuxt.config.ts` — devtools flag, routeRules headers, runtimeConfig
 - `app/features/pets/components/PetAvatar.vue` — `isSafeImageUrl` guard on photo_url
 - `app/features/pets/components/PetForm.vue` — `isSafeImageUrl` guard on photo_url, MIME/size validation in onPhotoChange
+- `app/features/shelters/components/ShelterDetail.vue` — `safeWebsiteUrl` computed (HIGH fix needed), `tel:`/`mailto:` format validation

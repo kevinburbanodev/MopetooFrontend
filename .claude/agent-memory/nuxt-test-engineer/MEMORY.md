@@ -78,8 +78,9 @@ Never in a top-level `/tests` folder.
 
 ## NuxtLink in component tests
 - `{ NuxtLink: true }` — stubs as `<nuxtlink-stub>` with NO slot content. Text inside the link is invisible to `wrapper.text()`.
-- `{ NuxtLink: false }` — renders as real `<a>` with slot content. Use for `href` assertions and text-content assertions on links.
-- `{ NuxtLink: { template: '<a><slot /></a>' } }` — renders slot content without a real router. Use when text inside NuxtLink must be visible AND href precision is not needed (e.g. MedicalHistory "Agregar registro", "Volver a la mascota").
+- `{ NuxtLink: false }` — renders as a real router-link which does NOT produce a plain `<a href="...">` in happy-dom. Do NOT use for href assertions.
+- `{ NuxtLink: { template: '<a><slot /></a>' } }` — renders slot content without a real router. Use when text inside NuxtLink must be visible AND href precision is not needed.
+- `{ NuxtLink: { template: '<a :href="to"><slot /></a>', props: ['to'] } }` — renders as `<a>` with the `:to` prop forwarded to `href`. Use for ALL href assertions on NuxtLink elements (e.g. back links, login/register CTAs).
 
 ## Composable mock path for medical feature
 - From `app/features/medical/components/`, mock `useMedical` as: `vi.mock('../composables/useMedical', ...)`.
@@ -94,6 +95,42 @@ Never in a top-level `/tests` folder.
 
 ## localStorage TOKEN KEY
 `mopetoo_token` — used in store and useApi. Assertions must use this exact string.
+
+## Auth-conditional component tests (useAuthStore accessed directly in component)
+When a component reads `useAuthStore()` directly (not via a prop or composable), the Nuxt test env activates its own pinia. Two critical rules:
+1. **Set token AFTER `mountSuspended`**, then `await nextTick()`. Setting token BEFORE mount does not work because the Nuxt env pinia is activated at mount time, not before.
+   ```ts
+   const wrapper = await mountSuspended(MyComponent, { props, global })
+   const { useAuthStore } = await import('../../auth/stores/auth.store')
+   useAuthStore().token = 'test-jwt-token'
+   await nextTick()
+   // now auth-conditional DOM is rendered
+   ```
+2. **Reset token in `beforeEach`** using the same dynamic import pattern. `setActivePinia(createPinia())` does NOT reset the Nuxt env pinia's store state — token from a previous test persists into the next test. Always reset explicitly:
+   ```ts
+   beforeEach(async () => {
+     const { useAuthStore } = await import('../../auth/stores/auth.store')
+     useAuthStore().token = null
+   })
+   ```
+
+## Form submit in happy-dom: trigger 'submit' on the <form>, not click on the button
+`wrapper.find('button[type="submit"]').trigger('click')` does NOT fire the form's `@submit.prevent` handler in happy-dom. Always trigger `submit` directly on the form element:
+```ts
+await wrapper.find('form').trigger('submit')
+await nextTick()  // wait for any async submit handler to resolve
+```
+
+## Shelters Feature Coverage (completed — RF-500 to RF-509)
+- `shelters.store.ts`: 65 tests — initial state, hasShelters getter, hasAdoptionPets getter, getAvailablePets getter, setShelters, addShelter (prepend/unshift), setSelectedShelter, clearSelectedShelter, setAdoptionPets, addAdoptionPet (prepend/unshift), setSelectedAdoptionPet, clearSelectedAdoptionPet, setLoading, clearShelters
+- `useShelters.ts`: 67 tests — fetchShelters (success/array-only shape/missing key/error), fetchShelters with filters (query string construction), fetchShelterById (success/404/error), fetchAdoptionPets (success/array-only shape/missing key/error/petId nested route), fetchAdoptionPets with filters, fetchAdoptionPetById (success/404/error), submitAdoptionRequest (success/failure/null result/loading/call shape/error extraction), error ref contract
+- `ShelterCard.vue`: 21 tests — name/city/description, photo (https/http/undefined/data: URI/javascript: URI/alt text), verified badge (show/hide/aria-label), species badges (multiple/dogs/cats/rabbits/empty array), CTA (text/href/aria-label)
+- `ShelterList.vue`: 25 tests — on mount, loading skeleton (6 cards/aria-busy/no empty state), empty state, shelter grid (count/no empty state/result count plural/singular), search filter (name/city/description/no-results/Limpiar button), species filter (cats/dogs/Limpiar button), combined filters, clear filters (no button when inactive/reset query/reset from no-results panel), result count (filtered count/role="status")
+- `AdoptionPetCard.vue`: 35 tests — content (name/Perro/Gato/breed/aria-label on article), photo (https URL/dog fallback/cat fallback/reptile fallback/data: URI rejected), status badge (Disponible/En proceso/Adoptado/bg-success/bg-warning/bg-secondary), health chips (Vacunado/Sin vacuna/Esterilizado/Sin esterilizar), age display (0/1m/6m/12m/24m/18m/27m/undefined), CTA (available/pending shows link/adopted hides link/Ya fue adoptada/id in path/aria-label)
+- `AdoptionDetail.vue`: 39 tests — pet detail (name/species/breed/description/Vacunado/Sin vacuna/Esterilizado/Sin esterilizar/not-found state), adoption form authenticated (textarea/heading/submit button/char counter/min chars hint), login CTA unauthenticated (CTA text/no textarea/login link/register link), pending section (heading/no form when authenticated), adopted section (heading/no form when authenticated), validation (error div/#adoption-message-error/mentions 20/no submit call/is-invalid class), success state (alert/call shape/null result error alert), back navigation (text/shelter_id/fallback), fetch on mount (calls fetchAdoptionPetById/passes shelterId from query), error alert (shown/hidden), accessibility (section aria-label/textarea aria-required/status badge aria-label)
+- Composable mock path from components: `vi.mock('../composables/useShelters', ...)`
+
+## Project Test Total: 1189 passing, 1 skipped (30 test files)
 
 ## Details
 See `patterns.md` for full pattern documentation.

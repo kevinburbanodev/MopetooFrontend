@@ -76,8 +76,26 @@
 - `/dashboard/medical/[petId]/record/[recordId]/edit` → MedicalRecordForm edit (auth middleware)
 - Medical is accessed from PetDetail "Ver historial médico" button — no top-level navbar link
 
+## Shelters slice — confirmed file locations (RF-500 to RF-509 complete)
+- `app/features/shelters/types/index.ts` — Shelter, AdoptionPet (age_months: number|undefined), AdoptionRequest, ShelterFilters, AdoptionPetFilters
+- `app/features/shelters/stores/shelters.store.ts` — useSheltersStore: shelters[], selectedShelter, adoptionPets[], selectedAdoptionPet, isLoading, getAvailablePets (computed), clearShelters()
+- `app/features/shelters/composables/useShelters.ts` — fetchShelters(filters?), fetchShelterById(id), fetchAdoptionPets(shelterId, filters?), fetchAdoptionPetById(shelterId, petId), submitAdoptionRequest(shelterId, petId, message). Dual API shapes handled (array or wrapped object)
+- `app/features/shelters/components/ShelterCard.vue` — shelter prop, photo with isSafeImageUrl, species badges, verified badge, "Ver refugio" NuxtLink
+- `app/features/shelters/components/ShelterList.vue` — fetches on mount, client-side search+species filter, skeleton (6 cards), result count
+- `app/features/shelters/components/ShelterDetail.vue` — shelterId prop, fetches shelter + adoptionPets on mount, embeds AdoptionList
+- `app/features/shelters/components/AdoptionPetCard.vue` — age from age_months (inline math, not usePetAge), status badge overlay, "Ver detalles" hidden for adopted pets
+- `app/features/shelters/components/AdoptionList.vue` — reads from store (parent already fetched), 4 client-side filters, skeleton (3 cards)
+- `app/features/shelters/components/AdoptionDetail.vue` — petId prop, ClientOnly for adoption form, authStore check, 20-500 char textarea, success/error states
+- Pages: `app/pages/shelter/index.vue`, `[id].vue`, `adoptions/[id].vue` (all public, no middleware)
+
+## Shelters routes (public, no auth required)
+- `/shelter` → ShelterList (public)
+- `/shelter/[id]` → ShelterDetail (public)
+- `/shelter/adoptions/[id]` → AdoptionDetail (public; adoption form requires auth, shown client-side only)
+- AppNavbar: "Adopciones" added to publicLinks array → always visible
+
 ## clearSession cross-store rule — current state
-`auth.store.clearSession()` now resets: petsStore (setPets+clearSelectedPet), remindersStore (clearReminders), medicalStore (clearMedicalRecords). Add new user-specific stores here when implementing new slices.
+`auth.store.clearSession()` now resets: petsStore (setPets+clearSelectedPet), remindersStore (clearReminders), medicalStore (clearMedicalRecords), sheltersStore (clearShelters). Add new user-specific stores here when implementing new slices.
 
 ## MedicalRecordForm pattern difference vs ReminderForm
 - MedicalRecordForm calls the composable directly (no emit-to-parent pattern)
