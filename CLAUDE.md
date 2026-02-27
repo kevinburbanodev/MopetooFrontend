@@ -28,7 +28,7 @@ npm run test:coverage    # Single run with coverage report
 - Shelters slice (RF-500–RF-509): 252 tests (store 65, useShelters 67, ShelterCard 21, ShelterList 25, AdoptionPetCard 35, AdoptionDetail 39) ✅
 - Blog slice (RF-600–RF-609): 208 tests (store 44, useBlog 60, BlogCategoryFilter 18, BlogCard 24, BlogList 28, BlogArticle 34) ✅
 - Petshops slice (RF-700–RF-709): 187 tests (store 44, usePetshops 60, PetshopCard 26, PetshopList 37, PetshopDetail 40) ✅
-- Pro/Monetización slice (RF-800–RF-809): 219 tests (store 44, usePro 56, ProBanner 22, PricingTable 32, ProUpgradeModal 27, DonationForm 38) ✅
+- Pro/Monetización slice (RF-800–RF-809): 216 tests (store 44, usePro 60, ProBanner 22, PricingTable 30, ProUpgradeModal 26, DonationForm 34) ✅
 
 ## Architecture
 

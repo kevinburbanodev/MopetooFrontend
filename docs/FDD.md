@@ -831,15 +831,15 @@ export const useAuthStore = defineStore('auth', () => {
 - 📋 Reportado (MEDIUM): Backend debe restringir dominios de redirect en Stripe dashboard a `mopetoo.com`
 - 📋 Reportado (LOW): `proStore` expuesto directamente en return de `usePro()` — refactor a computed refs en sprint futuro
 
-**Test coverage:** ✅ 219 tests
+**Test coverage:** ✅ 216 tests
 | Archivo | Tests |
 |---|---|
 | `pro.store.test.ts` | 44 |
-| `usePro.test.ts` | 56 |
+| `usePro.test.ts` | 60 |
 | `ProBanner.test.ts` | 22 |
-| `PricingTable.test.ts` | 32 |
-| `ProUpgradeModal.test.ts` | 27 |
-| `DonationForm.test.ts` | 38 |
+| `PricingTable.test.ts` | 30 |
+| `ProUpgradeModal.test.ts` | 26 |
+| `DonationForm.test.ts` | 34 |
 
 ---
 

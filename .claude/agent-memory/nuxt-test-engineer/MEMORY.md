@@ -130,7 +130,7 @@ await nextTick()  // wait for any async submit handler to resolve
 - `AdoptionDetail.vue`: 39 tests — pet detail (name/species/breed/description/Vacunado/Sin vacuna/Esterilizado/Sin esterilizar/not-found state), adoption form authenticated (textarea/heading/submit button/char counter/min chars hint), login CTA unauthenticated (CTA text/no textarea/login link/register link), pending section (heading/no form when authenticated), adopted section (heading/no form when authenticated), validation (error div/#adoption-message-error/mentions 20/no submit call/is-invalid class), success state (alert/call shape/null result error alert), back navigation (text/shelter_id/fallback), fetch on mount (calls fetchAdoptionPetById/passes shelterId from query), error alert (shown/hidden), accessibility (section aria-label/textarea aria-required/status badge aria-label)
 - Composable mock path from components: `vi.mock('../composables/useShelters', ...)`
 
-## Project Test Total: 1584 passing, 1 skipped (41 test files)
+## Project Test Total: 1800 passing, 1 skipped (47 test files)
 
 ## Petshops Feature Coverage (completed — RF-700 to RF-709)
 - `petshops.store.ts`: 44 tests — initial state (5), hasPetshops getter (4), getFeaturedPetshops getter (7: empty/featured only/excludes non-featured/all featured/none featured/reactive update/cleared), setPetshops (5), addPetshop (4: unshift/prepend/hasPetshops/no mutate), setSelectedPetshop (4), clearSelectedPetshop (3), setLoading (4), clearPetshops (5)
@@ -189,6 +189,35 @@ beforeEach(() => {
 })
 ```
 Setting `mockItems.value = [...]` before mounting controls what the component sees. This pattern avoids Pinia symbol conflicts and vi.mocked type errors. Confirmed working in: ShelterList, PetshopList, PetshopDetail.
+
+## Pro Feature Coverage (completed — RF-800 to RF-809)
+- `pro.store.ts`: 44 tests — initial state (5), setSubscription (4: set/replace/null/fields), clearSubscription (3), setPlans (4), setLoading (4), clearPro (6: sub/plans/isLoading/hasPlans/isSubscribed/safe on initial), isSubscribed getter (6: active/canceled/past_due/inactive/null/transition), hasPlans getter (4), getMonthlyPlan getter (4), getAnnualPlan getter (5: +is_popular preservation)
+- `usePro.ts`: 60 tests — fetchPlans (13: GET call/bare array/envelope/undefined key/isLoading/error on fail/clear error/error null on success/string data/err.message/generic fallback/err.data.error), fetchSubscription (10: GET call/set on success/null on 404/no error on 404/statusCode 404/500 error/isLoading/finally 404/finally 500/clear prev error/null on success), createCheckoutSession (9: POST call/navigateTo on HTTPS/returns session/HTTP rejected/invalid URL rejected/API error/isLoading/finally on fail/clear prev error/success+cancel URL in body), cancelSubscription (8: DELETE call/returns true/optimistic cancel_at_period_end/no mutation when null sub/returns false on error/sets error/isLoading/finally on fail), donate (10: POST endpoint/returns response/amount in body/omit empty message/omit absent message/include message/null+error on fail/clear prev error/no store mutation/string data error/err.message fallback)
+- `ProBanner.vue`: 22 tests — PRO user (renders nothing), non-PRO authenticated (banner/PRO badge/featureName/default featureName/Ver planes button/upgrade emit/close button/close emit/aria-label/no login CTA/alert-warning class), compact (pro-banner--compact class/no close button/featureName visible), unauthenticated (login CTA/Inicia sesión heading/link to /login/link to /register/featureName/no upgrade banner/no close button)
+- `PricingTable.vue`: 30 tests — lifecycle (fetchPlans on mount/skip when loaded), loading (skeleton/3 skeleton cols/aria-label/no Free column while loading), plans loaded (Plan Gratuito/Comenzar gratis /register link/monthly name/annual name/no skeleton/no empty state), features (monthly features/annual extra feature), select-plan emit (monthly planId/annual planId), Más popular badge (show for annual/only one badge/aria-label), savings badge (show with %/hide when one plan), Plan activo badge (show for PRO user with active sub/hide for non-PRO), empty state (message when no plans/Free column still present), section structure (aria-label/heading)
+- `ProUpgradeModal.vue`: 26 tests — initial state (modal DOM present/no createCheckoutSession on render), plans loading (fetchPlans on open when no plans/no fetchPlans when already loaded — watcher fires on CHANGE not initial render, use setProps to trigger), plan cards (monthly name/annual name/monthly features/annual extra feature), default selection (popular plan pre-selected/first plan when no popular), plan switching (click monthly/click annual), Más popular badge, savings badge (show/hide), checkout (createCheckoutSession called with planId/Procesando... spinner text/spinner-border/error alert on null return/CTA disabled when no plan), close (btn-close emits update:modelValue=false/Cancelar emits same), loading skeleton (aria-busy/aria-label), no plans state (error message), header (PRO badge/title text)
+- `DonationForm.vue`: 35 tests — unauthenticated (login CTA/heading "Inicia sesión para donar"/link /login/link /register/shelter name/no donate call), authenticated (form shown/shelter name/4 preset buttons/custom amount input/message textarea/no login CTA), preset selection (btn-success on click/deactivate previous/aria-pressed true/false), custom amount (deselects preset on focus), validation (no donate on no amount/was-validated class/amount error div/0 amount guard/over limit guard/is-invalid class/message >200 text-danger/message error div), valid submit (correct shelterId+amount via preset/message included/message omitted when blank/message omitted when whitespace), success state (thank you heading/shelter name/hide form/reset button/"Hacer otra donación"/returns to form), error state (alert-danger when null return/no success state), message counter (200 chars display/decrement), section aria-label
+- Composable mock path from components: `vi.mock('../composables/usePro', ...)`
+
+## isPro via createTestingPinia initialState
+`useAuthStore.isPro` is a `computed` from `currentUser.is_pro` — it cannot be set via `createTestingPinia({ initialState: { auth: { isPro: true } } })`. To make `isPro === true` in a component test, set `currentUser` with `is_pro: true` in initialState:
+```ts
+createTestingPinia({
+  initialState: { auth: { token: 'test-jwt', currentUser: { id: '1', is_pro: true } } }
+})
+```
+
+## Bootstrap lazy-import in component tests
+When a component does `const { Modal } = await import('bootstrap')` inside a watcher or async function, mock the entire module with `vi.mock('bootstrap', () => ({ Modal: vi.fn(() => mockInstance) }))`. Vitest's `vi.mock` intercepts dynamic imports too.
+
+## Vue watcher (non-immediate) and setProps pattern
+A `watch(() => props.modelValue, handler)` WITHOUT `{ immediate: true }` does NOT fire on initial mount — only on subsequent prop changes. To test a watcher-driven behavior in tests: mount with the initial value, then call `await wrapper.setProps({ prop: newValue })`, then `await flushPromises()` to drain all async microtasks (especially if the watcher calls async functions with internal `await`).
+
+## input[type="number"] v-model coercion in happy-dom
+`wrapper.find('input[type="number"]').setValue('15000')` coerces the ref value to a number in happy-dom, breaking any `.replace()` calls on the string ref. Work around this by:
+1. Testing custom-input amount logic via preset buttons (which use a numeric ref directly) instead of `setValue` on the number input.
+2. OR: `el.value = '15000'; await input.trigger('input')` — but this also coerces.
+This is a known happy-dom limitation for `<input type="number">` bindings.
 
 ## Details
 See `patterns.md` for full pattern documentation.

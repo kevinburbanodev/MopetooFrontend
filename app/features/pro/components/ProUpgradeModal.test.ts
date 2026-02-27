@@ -49,12 +49,18 @@ const localStorageMock = vi.hoisted(() => ({
 vi.stubGlobal('localStorage', localStorageMock)
 
 // ── Bootstrap Modal mock ───────────────────────────────────────
-// The component lazy-imports bootstrap and calls Modal.getOrCreateInstance
-// or `new Modal(el)`. We mock the entire module so no DOM API is needed.
+// The component lazy-imports bootstrap and calls `new Modal(el, options)`.
+// We mock the entire module so no real DOM APIs are needed. The mock returns
+// an instance with show/hide spies. We also implement a minimal addEventListener
+// on the mockModalInstance so that the component's 'hidden.bs.modal' listener
+// registration does not throw.
 
 const mockModalShow = vi.fn()
 const mockModalHide = vi.fn()
-const mockModalInstance = { show: mockModalShow, hide: mockModalHide }
+const mockModalInstance = {
+  show: mockModalShow,
+  hide: mockModalHide,
+}
 
 vi.mock('bootstrap', () => ({
   Modal: vi.fn(() => mockModalInstance),
@@ -160,11 +166,13 @@ describe('ProUpgradeModal', () => {
 
   describe('plans loading', () => {
     it('calls fetchPlans if no plans are loaded when modal opens', async () => {
-      // modelValue: true triggers openModal() which calls fetchPlans when !hasPlans.
-      // openModal() is async (does await import('bootstrap')) so nextTick() alone is
-      // not enough — flushPromises drains all pending microtasks and resolved promises.
+      // The watcher on modelValue fires on CHANGE, not on initial render.
+      // We must mount with false, then setProps to true to trigger openModal().
+      // openModal() is async (does await import('bootstrap')), so we need
+      // flushPromises to drain the microtask queue after the prop change.
       mockPlans.value = []
-      const wrapper = await mountModal(true)
+      const wrapper = await mountModal(false)
+      await wrapper.setProps({ modelValue: true })
       await flushPromises()
       expect(mockFetchPlans).toHaveBeenCalledTimes(1)
     })
