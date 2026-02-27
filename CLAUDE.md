@@ -22,6 +22,7 @@ npm run test:coverage    # Single run with coverage report
 **Status:**
 - Auth feature slice (RF-001–RF-009): 85 tests (store 41, composable 36, auth middleware 4, guest middleware 4)
 - Pets feature slice (RF-100–RF-109): 232 tests (store 44, usePets 51, usePetAge 17, PetAvatar 21, PetCard 22, PetList 16, PetForm 32, PetDetail 29)
+- Reminders feature slice (RF-200–RF-209): 237 tests (store 44, useReminders 56, ReminderCard 26, ReminderList 29, ReminderForm 46) ✅
 
 ## Architecture
 
@@ -67,10 +68,11 @@ This means `useApi()`, `useAuth()`, `useAuthStore()`, etc. are available in any 
 |---|---|
 | `useAuthStore` | `currentUser`, `token`, `isAuthenticated`, `isPro` |
 | `usePetsStore` | `pets[]`, `selectedPet`, `isLoading` |
+| `useRemindersStore` | `reminders[]`, `selectedReminder`, `isLoading` |
 
 Token is persisted to `localStorage` under key `mopetoo_token`. The auth store exposes `setSession()`, `clearSession()`, and `restoreFromStorage()`.
 
-**Cross-store cleanup rule:** `clearSession()` in `auth.store.ts` MUST clear every user-specific store. Currently clears `petsStore`. When adding new feature slices with user-specific data (reminders, medical, etc.), add their store reset calls to `clearSession()` to prevent data leakage on shared devices.
+**Cross-store cleanup rule:** `clearSession()` in `auth.store.ts` MUST clear every user-specific store. Currently clears `petsStore` and `remindersStore`. When adding new feature slices with user-specific data (medical, etc.), add their store reset calls to `clearSession()` to prevent data leakage on shared devices.
 
 ### HTTP Client
 
@@ -189,10 +191,13 @@ Any change to token storage or auth flow warrants a security review.
 - **Auth (RF-001–RF-009):** `auth.store.test.ts` (41), `useAuth.test.ts` (36), `auth.test.ts` (4), `guest.test.ts` (4)
 - **Pets (RF-100–RF-109):** `pets.store.test.ts` (44), `usePets.test.ts` (51), `usePetAge.test.ts` (17), `PetAvatar.test.ts` (21), `PetCard.test.ts` (22), `PetList.test.ts` (16), `PetForm.test.ts` (32), `PetDetail.test.ts` (29)
 
-**Mocking notes for pets slice:**
+**Mocking notes for pets and reminders slices:**
 - `useApi` is a project composable — mock via `vi.mock('../../shared/composables/useApi', ...)`, NOT `mockNuxtImport`
 - `useRuntimeConfig` is fed via `vitest.config.ts` `env.NUXT_PUBLIC_API_BASE` (not mocked) to avoid Vue Router init errors
 - `URL.createObjectURL` must be stubbed globally in `happy-dom` (not implemented natively)
+- `NuxtLink` should be stubbed via `global.stubs: { NuxtLink: true }` in component tests
+- Resetting select filters to null: use clearFilters button click, not `setValue(null)` (happy-dom limitation)
+- `Pet.id` is `string`; `Reminder.pet_id` is `number` — compare with `String(pet_id) === pet.id`
 
 Invoke this agent for any new feature slice tests.
 

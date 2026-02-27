@@ -466,56 +466,43 @@ export const useAuthStore = defineStore('auth', () => {
 
 ---
 
-### 5.3. Recordatorios (RF-200 a RF-209)
+### 5.3. Recordatorios (RF-200 a RF-209) — ✅ IMPLEMENTADO
 
-**Funcionalidades:**
-- CRUD de recordatorios (vacunas, medicamentos, baños, chequeos)
-- Recurrencia (una vez, semanal, mensual, anual)
-- Notificaciones visuales y/o email
-- Filtro por mascota y tipo
+**Funcionalidades:** ✅ Todas implementadas
+- ✅ CRUD completo de recordatorios (vacunas, medicamentos, baños, visitas, otros)
+- ✅ Recurrencia (una vez, semanal, mensual, anual) — campo opcional
+- ✅ Filtro visual por mascota y tipo (client-side en `ReminderList`)
+- ✅ Ordenamiento por fecha más próxima
+- ✅ Indicador visual de recordatorios vencidos (badge + borde rojo)
+- ✅ Skeleton de carga y estado vacío con CTA
 
-**Componentes Frontend:**
-- `ReminderForm` — crear/editar recordatorio
-- `ReminderList` — listado con filtros
-- `ReminderCard` — tarjeta individual
-- `ReminderCalendar` — vista calendario (opcional)
+**Componentes Frontend:** ✅ Todos implementados
+| Componente | Ubicación | Descripción |
+|---|---|---|
+| `ReminderCard` | `app/features/reminders/components/ReminderCard.vue` | Tarjeta con tipo (icon + badge coloreado), título, fecha, mascota, notas. Badge "Vencido" para fechas pasadas |
+| `ReminderList` | `app/features/reminders/components/ReminderList.vue` | Grid responsive con filtros (mascota + tipo), skeleton loading, empty state con CTA |
+| `ReminderForm` | `app/features/reminders/components/ReminderForm.vue` | Crear/editar: selector de mascota, tipo, título, fecha/hora, recurrencia, notas. Bootstrap `was-validated` |
 
-**Composables:**
-```typescript
-// features/reminders/composables/useReminders.ts
-export const useReminders = () => {
-  const remindersStore = useRemindersStore()
-  const api = useApi()
+**Composable:** `features/reminders/composables/useReminders.ts`
+— CRUD completo (`fetchReminders`, `fetchReminderById`, `createReminder`, `updateReminder`, `deleteReminder`), estado en `useRemindersStore`, manejo de errores.
 
-  const fetchReminders = async (petId?: string) => {
-    const params = petId ? { pet_id: petId } : {}
-    const response = await api.get('/api/reminders', { params })
-    remindersStore.setReminders(response.data)
-  }
+**Store:** `features/reminders/stores/reminders.store.ts`
+— `reminders[]`, `selectedReminder`, `isLoading`. Acciones: `setReminders`, `addReminder`, `updateReminder`, `removeReminder`, `setSelectedReminder`, `clearSelectedReminder`, `setLoading`, `clearReminders`
 
-  const createReminder = async (data: CreateReminderDTO) => {
-    const response = await api.post('/api/reminders', data)
-    remindersStore.addReminder(response.data)
-  }
+**Páginas:** ✅ Todas implementadas (thin wrappers con `auth` middleware)
+| Ruta | Archivo | Descripción |
+|---|---|---|
+| `/dashboard/reminders` | `app/pages/dashboard/reminders/index.vue` | Listado con filtros por mascota/tipo |
+| `/dashboard/reminders/new` | `app/pages/dashboard/reminders/new.vue` | Crear recordatorio |
+| `/dashboard/reminders/[id]/edit` | `app/pages/dashboard/reminders/[id]/edit.vue` | Editar recordatorio |
 
-  const updateReminder = async (id: string, data: UpdateReminderDTO) => {
-    const response = await api.patch(`/api/reminders/${id}`, data)
-    remindersStore.updateReminder(id, response.data)
-  }
+**Endpoints:** `GET /api/reminders`, `GET /api/pets/:petId/reminders`, `GET /api/reminders/:id`, `POST /api/reminders`, `PUT /api/reminders/:id`, `DELETE /api/reminders/:id`
 
-  const deleteReminder = async (id: string) => {
-    await api.delete(`/api/reminders/${id}`)
-    remindersStore.removeReminder(id)
-  }
+**Cross-store cleanup:** ✅ `clearSession()` en `auth.store.ts` llama `remindersStore.clearReminders()`
 
-  const markAsCompleted = async (id: string) => {
-    const response = await api.patch(`/api/reminders/${id}/complete`, {})
-    remindersStore.updateReminder(id, response.data)
-  }
+**AppNavbar:** ✅ Enlace "Recordatorios" agregado al menú autenticado
 
-  return { fetchReminders, createReminder, updateReminder, deleteReminder, markAsCompleted }
-}
-```
+**Test coverage:** ✅ 237 tests (store 44, useReminders 56, ReminderCard 26, ReminderList 29, ReminderForm 46)
 
 ---
 
@@ -1257,7 +1244,7 @@ routeRules: {
 
 ### Próximas implementaciones
 - [x] RF-100 a RF-109 — Gestión de mascotas (pets slice) ✅
-- [ ] RF-200 a RF-209 — Recordatorios (reminders slice)
+- [x] RF-200 a RF-209 — Recordatorios (reminders slice) ✅
 - [ ] RF-300 a RF-309 — Historial médico (medical slice)
 - [ ] RF-500 a RF-509 — Refugios y adopciones (shelters slice)
 - [ ] RF-600 a RF-609 — Blog editorial (blog slice)

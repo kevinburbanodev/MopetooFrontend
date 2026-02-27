@@ -52,6 +52,19 @@ Never in a top-level `/tests` folder.
 - `PetForm.vue`: 32 tests — create/edit mode field rendering, validation, submit payload, cancel, isLoading, photo upload
 - `PetDetail.vue`: 29 tests — all fields, edit emit, two-step delete confirmation flow, fallback species
 
+## Reminders Feature Coverage (completed — RF-200 to RF-209)
+- `reminders.store.ts`: 44 tests — initial state, hasReminders, getReminderById, setReminders, addReminder, updateReminder (selectedReminder sync), removeReminder (selectedReminder clear), setSelectedReminder, clearSelectedReminder, setLoading, clearReminders
+- `useReminders.ts`: 56 tests — fetchReminders (array/object/missing key/error/petId nested route/petId=0 edge), fetchReminderById (success/404/no setSelectedReminder on error), createReminder (success/failure/loading), updateReminder (PUT/failure/no store call on error), deleteReminder (success/failure/loading/generic error), error ref contract (null start, cleared on success, shape extraction)
+- `ReminderCard.vue`: 26 tests — title/date/time element, petName show/hide, notes show/hide, type labels (5), type icons (5), recurrence labels (4) + hide when undefined, Vencido badge (past/future/CSS class), edit/delete emit, stopPropagation, a11y
+- `ReminderList.vue`: 29 tests — loading skeleton (6 cards/aria-busy/no filter bar), empty state (heading/CTA link/no skeleton), reminder grid (count/names/no empty state), filter bar (Todas/pet options/Todos/5 types/no Limpiar when inactive), pet filter (by pet/Limpiar clears/shows Limpiar when active), type filter (by type/Limpiar), filter no-results (message/no articles/Ver todos button/clear via Ver todos), sort ascending, petName lookup (match/unknown pet), event forwarding (edit/delete), accessibility (section aria-label)
+- `ReminderForm.vue`: 46 tests — create mode (all fields present/defaults/vacuna/first pet/no recurrence/Crear recordatorio), edit mode (pre-fill all fields/Guardar cambios), validation (no emit on empty/was-validated/is-invalid title/date/pet/short title), submit payload (required fields/pet_id as Number/trim title/omit recurrence when empty/include recurrence/omit notes when empty/include notes/trim notes/omit whitespace notes/different pet/different type), notes counter (0/500/count/edit prefill), cancel (emit/no submit), isLoading (disable submit/disable cancel/spinner/enabled when false/no spinner), no pets warning (show/hide), async pets (auto-select first/no override if already selected), type options (5 count/vacuna/medicina/visita), recurrence options (Sin recurrencia first/5 total)
+
+## Happy-dom select null option pitfall
+`setValue(null)` on a select bound to `:value="null"` does NOT work — happy-dom serializes it as `"null"` (string), not matching the `:value="null"` Vue binding. Use the "Limpiar filtros" button click or `setValue('')` instead of trying to reset a null-bound option via `setValue(null)`.
+
+## NuxtLink in component tests
+Stub via `global: { stubs: { NuxtLink: true } }` for most tests. For tests asserting `href` attributes on the rendered `<a>`, use `{ NuxtLink: false }` so the real NuxtLink resolves to `<a>` in the test environment.
+
 ## localStorage TOKEN KEY
 `mopetoo_token` — used in store and useApi. Assertions must use this exact string.
 

@@ -49,6 +49,8 @@ export const useAuthStore = defineStore('auth', () => {
       const petsStore = usePetsStore()
       petsStore.setPets([])
       petsStore.clearSelectedPet()
+      const remindersStore = useRemindersStore()
+      remindersStore.clearReminders()
     }
   }
 

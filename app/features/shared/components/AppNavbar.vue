@@ -11,6 +11,7 @@ const publicLinks = [
 const authLinks = [
   { label: 'Dashboard', to: '/dashboard' },
   { label: 'Mis Mascotas', to: '/dashboard/pets' },
+  { label: 'Recordatorios', to: '/dashboard/reminders' },
 ]
 
 function isActive(path: string): boolean {
