@@ -713,20 +713,62 @@ export const useAuthStore = defineStore('auth', () => {
 
 ---
 
-### 5.8. Directorio de Tiendas Pet-Friendly (RF-700 a RF-709)
+### 5.8. Directorio de Tiendas Pet-Friendly (RF-700 a RF-709) — ✅ IMPLEMENTADO
 
-**Funcionalidades:**
-- Directorio público de tiendas
-- Búsqueda y filtro (ubicación, categoría, horario)
-- Detalle de tienda (ubicación mapa, horario, contacto)
-- Tiendas destacadas (PRO)
+**Funcionalidades:** ✅ MVP público implementado
+- ✅ Directorio público de tiendas (searchable, filtro por categoría y ciudad)
+- ✅ Sección "Tiendas Destacadas" (is_featured) separada, oculta al filtrar
+- ✅ Detalle de tienda (horario por día, contacto seguro, placeholder de mapa)
+- ✅ Foto con validación `isSafeImageUrl`, fallback emoji 🏪
+- ✅ Badges de verificación y destaque
+- ✅ Skeleton loading y empty states en todas las vistas
+- ✅ Store-first lookup en `fetchPetshopById` (evita llamadas redundantes a la API)
+- 📋 Mapa interactivo (post-MVP — Google Maps / Leaflet)
+- 📋 Perfil editable para dueños de tiendas (PRO)
 
-**Componentes:**
-- `StoreCard` — tarjeta de tienda
-- `StoreList` — listado grid
-- `StoreFilters` — búsqueda avanzada
-- `StoreDetail` — perfil de tienda
-- `StoreMap` — ubicación en mapa (Google Maps?)
+**Feature path:** `app/features/petshops/` (nombre `petshops` para evitar conflicto con el concepto `stores` de Pinia)
+
+**Componentes Frontend:** ✅ Todos implementados
+| Componente | Ubicación | Descripción |
+|---|---|---|
+| `PetshopCard` | `app/features/petshops/components/PetshopCard.vue` | Foto/fallback 🏪, badges verificado/destacado, chips de categoría (max 3 + overflow), contacto seguro (tel:/mailto:/https:), `stretched-link` |
+| `PetshopList` | `app/features/petshops/components/PetshopList.vue` | Grid 1/2/3 col, búsqueda + filtro categoría + filtro ciudad, sección "Tiendas Destacadas" (oculta si filtros activos), skeleton 6 cards, empty states |
+| `PetshopDetail` | `app/features/petshops/components/PetshopDetail.vue` | Hero 16/9, tabla de horarios con "Cerrado", contacto sanitizado, placeholder mapa si lat+lng presente, back button |
+
+**Composable:** `features/petshops/composables/usePetshops.ts`
+— `fetchPetshops(filters?)`: GET `/api/stores` con query params opcionales, soporta ambas formas de respuesta. `fetchPetshopById(id)`: store-first lookup antes de llamar a la API.
+
+**Store:** `features/petshops/stores/petshops.store.ts` — `usePetshopsStore`
+— `petshops[]`, `selectedPetshop`, `isLoading`. Getters: `hasPetshops`, `getFeaturedPetshops`. Acciones: `setPetshops`, `addPetshop`, `setSelectedPetshop`, `clearSelectedPetshop`, `setLoading`, `clearPetshops`.
+
+**Páginas:** ✅ Todas implementadas (thin wrappers públicos sin middleware)
+| Ruta | Archivo | Descripción |
+|---|---|---|
+| `/stores` | `app/pages/stores/index.vue` | Directorio de tiendas pet-friendly |
+| `/stores/[id]` | `app/pages/stores/[id].vue` | Detalle de tienda |
+
+**Endpoints:** `GET /api/stores`, `GET /api/stores/:id`
+
+**AppNavbar:** ✅ Enlace "Tiendas" agregado a `publicLinks` (visible sin autenticación)
+
+**Security:** ✅ Completado — mismo patrón que shelters
+- `isSafeImageUrl` en todos los bindings de `photo_url`
+- `safeWebsiteUrl` computed restringe href a `http:`/`https:` (previene `javascript:` URI injection)
+- `safePhone` regex `/^[+\d\s\-().]{4,25}$/` guarda `tel:` hrefs
+- `safeEmail` regex guarda `mailto:` hrefs
+- `petshopId` del route param validado con `/^[\w-]{1,64}$/` antes de usar en path de API
+- Sin `v-html` en ningún componente
+
+**Cross-store cleanup:** No requerido — datos públicos sin contenido específico del usuario. `clearPetshops()` disponible para usos futuros.
+
+**Test coverage:** ✅ 187 tests
+| Archivo | Tests |
+|---|---|
+| `petshops.store.test.ts` | 44 |
+| `usePetshops.test.ts` | 60 |
+| `PetshopCard.test.ts` | 26 |
+| `PetshopList.test.ts` | 37 |
+| `PetshopDetail.test.ts` | 40 |
 
 ---
 
@@ -1335,7 +1377,7 @@ routeRules: {
 - [x] RF-400 a RF-409 — Exportación y PDF (export slice) ✅
 - [x] RF-500 a RF-509 — Refugios y adopciones (shelters slice) ✅
 - [x] RF-600 a RF-609 — Blog editorial (blog slice) ✅
-- [ ] RF-700 a RF-709 — Directorio tiendas pet-friendly (stores slice)
+- [x] RF-700 a RF-709 — Directorio tiendas pet-friendly (petshops slice) ✅
 - [ ] RF-900 a RF-909 — Clínicas veterinarias (clinics slice)
 - [ ] RF-1000 a RF-1009 — Panel administrativo (admin slice)
 - [ ] Content Security Policy (CSP) implementation

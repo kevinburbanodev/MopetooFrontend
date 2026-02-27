@@ -7,6 +7,7 @@ const publicLinks = [
   { label: 'Inicio', to: '/' },
   { label: 'Blog', to: '/blog' },
   { label: 'Adopciones', to: '/shelter' },
+  { label: 'Tiendas', to: '/stores' },
 ]
 
 // Authenticated nav links — shown only when logged in
