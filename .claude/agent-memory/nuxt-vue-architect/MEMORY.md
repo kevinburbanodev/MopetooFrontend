@@ -115,8 +115,31 @@
 - If future requirement needs HTML rendering, add DOMPurify as client-only guard first
 - `featured_image` and `author.avatar` both pass through isSafeImageUrl before binding
 
+## Petshops slice — confirmed file locations (RF-700 to RF-709 complete)
+- `app/features/petshops/types/index.ts` — PetshopCategory, PetshopHours, Petshop (categories:string[], hours?:PetshopHours, is_featured, is_verified, latitude?, longitude?), PetshopListFilters, PetshopListResponse
+- `app/features/petshops/stores/petshops.store.ts` — usePetshopsStore: petshops[], selectedPetshop, isLoading, hasPetshops (computed), getFeaturedPetshops (computed filter is_featured), clearPetshops()
+- `app/features/petshops/composables/usePetshops.ts` — error ref, petshopsStore ref, fetchPetshops(filters?), fetchPetshopById(id). Store-first lookup in fetchPetshopById. Dual API shapes (PetshopListResponse envelope or bare Petshop[])
+- `app/features/petshops/components/PetshopCard.vue` — petshop prop, isSafeImageUrl, safePhone/safeEmail/safeWebsiteUrl guards, max 3 category badges + "+N" overflow, verified/featured badges overlaid, stretched-link to /stores/:id
+- `app/features/petshops/components/PetshopList.vue` — fetches on mount, 3 client-side filters (search+category+city), "Tiendas Destacadas" section (hidden when filters active), skeleton (6 cards), two empty states, result counter
+- `app/features/petshops/components/PetshopDetail.vue` — petshopId prop, route param validated /^[\w-]{1,64}$/, store-first via fetchPetshopById, 16:9 hero banner, business hours table (PetshopHours → HOURS_ROWS), map placeholder card when lat/lng present, onUnmounted clears selectedPetshop
+- Pages: `app/pages/stores/index.vue`, `app/pages/stores/[id].vue` (both public, no middleware)
+- AppNavbar: "Tiendas" added to publicLinks array pointing to /stores
+
+## Petshops routes (public, no auth required)
+- `/stores` → PetshopList (public)
+- `/stores/[id]` → PetshopDetail (public)
+- AppNavbar: "Tiendas" added to publicLinks array after "Adopciones"
+
+## Petshops security patterns (same as shelters)
+- safeWebsiteUrl: restricts to http/https only (prevents javascript: URI injection)
+- safePhone: /^[+\d\s\-().]{4,25}$/ guard on tel: href
+- safeEmail: /^[^\s@]+@[^\s@]+\.[^\s@]+$/ guard on mailto: href
+- Route param guard: /^[\w-]{1,64}$/ on petshopId before API call
+- No v-html anywhere; description rendered with white-space: pre-line
+- clearPetshops() NOT called from clearSession (public data, same rule as blog/shelters)
+
 ## clearSession cross-store rule — current state
-`auth.store.clearSession()` now resets: petsStore (setPets+clearSelectedPet), remindersStore (clearReminders), medicalStore (clearMedicalRecords), sheltersStore (clearShelters). Blog posts are public data — useBlogStore.clearBlog() is exported but NOT called from clearSession (no user-specific data). Add new user-specific stores here when implementing new slices.
+`auth.store.clearSession()` now resets: petsStore (setPets+clearSelectedPet), remindersStore (clearReminders), medicalStore (clearMedicalRecords), sheltersStore (clearShelters). Blog posts and petshops are public data — their clear actions exist but are NOT called from clearSession. Add new user-specific stores here when implementing new slices.
 
 ## MedicalRecordForm pattern difference vs ReminderForm
 - MedicalRecordForm calls the composable directly (no emit-to-parent pattern)

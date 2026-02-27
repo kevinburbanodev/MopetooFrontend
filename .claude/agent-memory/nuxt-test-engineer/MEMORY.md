@@ -130,7 +130,15 @@ await nextTick()  // wait for any async submit handler to resolve
 - `AdoptionDetail.vue`: 39 tests — pet detail (name/species/breed/description/Vacunado/Sin vacuna/Esterilizado/Sin esterilizar/not-found state), adoption form authenticated (textarea/heading/submit button/char counter/min chars hint), login CTA unauthenticated (CTA text/no textarea/login link/register link), pending section (heading/no form when authenticated), adopted section (heading/no form when authenticated), validation (error div/#adoption-message-error/mentions 20/no submit call/is-invalid class), success state (alert/call shape/null result error alert), back navigation (text/shelter_id/fallback), fetch on mount (calls fetchAdoptionPetById/passes shelterId from query), error alert (shown/hidden), accessibility (section aria-label/textarea aria-required/status badge aria-label)
 - Composable mock path from components: `vi.mock('../composables/useShelters', ...)`
 
-## Project Test Total: 1397 passing, 1 skipped (36 test files)
+## Project Test Total: 1584 passing, 1 skipped (41 test files)
+
+## Petshops Feature Coverage (completed — RF-700 to RF-709)
+- `petshops.store.ts`: 44 tests — initial state (5), hasPetshops getter (4), getFeaturedPetshops getter (7: empty/featured only/excludes non-featured/all featured/none featured/reactive update/cleared), setPetshops (5), addPetshop (4: unshift/prepend/hasPetshops/no mutate), setSelectedPetshop (4), clearSelectedPetshop (3), setLoading (4), clearPetshops (5)
+- `usePetshops.ts`: 60 tests — fetchPetshops (array/envelope/missing key/undefined key/isLoading/error on fail/clear error/error null on success/generic fallback), fetchPetshops with filters (search/city/category/empty omitted/combined/empty object/undefined), fetchPetshopById (no-cache API call/store-first cache hit/cache setSelectedPetshop/API fallback/API setSelected/return value/null on fail/error on fail/no setSelected on fail/isLoading true/false/no isLoading on cache/different id/clear prev error), error ref contract (null start/fail-then-success/3 error shapes)
+- `PetshopCard.vue`: 26 tests — core content (name/city/article aria-label/address+city combined/city-only without address), photo (https/http/undefined fallback/data: URI/javascript: URI/alt text), verified badge (show/hide/aria-label), featured badge (show/hide/aria-label), category chips (<=3 all shown/max 3 when >3/+N overflow/no overflow at 3/hidden when empty), contact links (phone tel: href/phone null/phone unsafe injection/email mailto: href/email null/email invalid/website https/website javascript: blocked/website undefined), CTA (text/"Ver tienda"/href /stores/:id/aria-label with name)
+- `PetshopList.vue`: 37 tests — lifecycle (fetchPetshops on mount/no args), loading (skeleton/aria-busy/Cargando tiendas/6 cards/no PetshopCard/no empty state), empty state (No hay tiendas/no skeleton/no PetshopCard), results grid (PetshopCards rendered/no empty state/plural tiendas/singular tienda/correct count), featured section (show when featured+no filters/Tiendas Destacadas heading/hide when no featured/hide on search/hide on category/hide on city), search filter (by name/by city/by description/Limpiar shown/hidden when inactive), category filter (by category/Limpiar clears), city filter (by city), filtered no-results (Sin resultados/Limpiar in no-results/clears filters/no PetshopCard), error alert (shown/hidden), accessibility (section aria-label/role="status"/aria-live)
+- `PetshopDetail.vue`: 40 tests — lifecycle (fetchPetshopById called/once/path traversal rejected/empty string rejected/slash rejected/hyphen valid), loading (skeleton/aria-busy/Cargando tienda/no profile content), not-found (Tienda no encontrada/Volver link), profile (name/description/city/Verificado badge show/hide/all categories), contact (phone tel:/phone null/phone unsafe/email mailto:/email null/website https/website javascript: blocked/website undefined hidden), hours table (show with data/hide without/Cerrado for absent days/correct day text/Domingo row), map (show when lat+lng/coordinates toFixed(6)/hide when absent), back nav (Volver al directorio/href /stores), error alert (shown/hidden), accessibility (section aria-label)
+- Composable mock path from components: `vi.mock('../composables/usePetshops', ...)`
 
 ## Blog Feature Coverage (completed — RF-600 to RF-609)
 - `blog.store.ts`: 44 tests — initial state (7), hasPosts getter (4), hasCategories getter (3), getPostBySlug factory getter (6), setPosts (5), appendPosts (5), setSelectedPost (4), clearSelectedPost (3), setCategories (4), setLoading (4), setPagination (5), clearBlog (9)
@@ -150,6 +158,37 @@ await nextTick()  // wait for any async submit handler to resolve
 ## Composable mock path for blog feature
 - From `app/features/blog/components/`, mock `useBlog` as: `vi.mock('../composables/useBlog', ...)`
 - From `app/features/blog/composables/`, mock `useApi` as: `vi.mock('../../shared/composables/useApi', ...)`
+
+## Reactive-ref mock pattern for List/Detail components (canonical)
+The correct pattern for mocking a composable that returns a reactive store in component tests is module-level reactive refs — NOT `createTestingPinia` initialState and NOT `vi.mocked(...).mockReturnValueOnce` (which requires the mock factory to be a `vi.fn()`, not a plain arrow function).
+```ts
+// At module level (outside describe/beforeEach)
+const mockFetchItems = vi.fn()
+const mockError = ref<string | null>(null)
+const mockItems = ref<MyType[]>([])
+const mockIsLoading = ref(false)
+
+vi.mock('../composables/useMyFeature', () => ({
+  useMyFeature: () => ({
+    fetchItems: mockFetchItems,
+    error: mockError,
+    myStore: {
+      get items() { return mockItems.value },
+      get isLoading() { return mockIsLoading.value },
+      get getFilteredItems() { return mockItems.value.filter(...) }, // replicate getters
+    },
+  }),
+}))
+
+// In beforeEach: reset ALL reactive refs to clean state
+beforeEach(() => {
+  mockFetchItems.mockReset()
+  mockError.value = null
+  mockItems.value = []
+  mockIsLoading.value = false
+})
+```
+Setting `mockItems.value = [...]` before mounting controls what the component sees. This pattern avoids Pinia symbol conflicts and vi.mocked type errors. Confirmed working in: ShelterList, PetshopList, PetshopDetail.
 
 ## Details
 See `patterns.md` for full pattern documentation.

@@ -27,6 +27,7 @@ npm run test:coverage    # Single run with coverage report
 - Export/PDF slice (RF-400–RF-409): 24 tests (useExportPDF 24) ✅ — exportProfilePDF tests in usePets, exportRemindersPDF tests in useReminders
 - Shelters slice (RF-500–RF-509): 252 tests (store 65, useShelters 67, ShelterCard 21, ShelterList 25, AdoptionPetCard 35, AdoptionDetail 39) ✅
 - Blog slice (RF-600–RF-609): 208 tests (store 44, useBlog 60, BlogCategoryFilter 18, BlogCard 24, BlogList 28, BlogArticle 34) ✅
+- Petshops slice (RF-700–RF-709): 187 tests (store 44, usePetshops 60, PetshopCard 26, PetshopList 37, PetshopDetail 40) ✅
 
 ## Architecture
 
@@ -45,7 +46,8 @@ app/features/
 ├── reminders/       # Reminder CRUD
 ├── medical/         # Medical record CRUD
 ├── shelters/        # Shelter directory & adoption pets (public + auth)
-└── blog/            # Blog editorial (public: listing + article detail)
+├── blog/            # Blog editorial (public: listing + article detail)
+└── petshops/        # Pet-friendly stores directory (public: listing + detail)
 ```
 
 Every slice follows the same internal structure:
@@ -78,6 +80,7 @@ This means `useApi()`, `useAuth()`, `useAuthStore()`, etc. are available in any 
 | `useMedicalStore` | `records[]`, `selectedRecord`, `isLoading` |
 | `useSheltersStore` | `shelters[]`, `selectedShelter`, `adoptionPets[]`, `selectedAdoptionPet`, `isLoading` |
 | `useBlogStore` | `posts[]`, `selectedPost`, `categories[]`, `isLoading`, `currentPage`, `totalPages`, `total` |
+| `usePetshopsStore` | `petshops[]`, `selectedPetshop`, `isLoading` |
 
 Token is persisted to `localStorage` under key `mopetoo_token`. The auth store exposes `setSession()`, `clearSession()`, and `restoreFromStorage()`.
 
