@@ -42,15 +42,29 @@
 - INFO: AppNavbar reads `authStore.isAuthenticated` in SSR template — pre-existing hydration mismatch, no token leak. Affects all nav items, not just the shelter link.
 - INFO: `extractErrorMessage` surfaces raw backend error strings — same accepted pattern as all previous slices.
 
+## Known Findings (from blog review 2026-02-27)
+- OPEN (LOW): `route.params.slug` passed unvalidated into API path `/api/blog/posts/${slug}` in `[slug].vue` + `useBlog.ts:100`. Add `SLUG_RE = /^[\w-]{1,100}$/` guard in `[slug].vue` `onMounted` before calling `fetchPostBySlug`. Same pattern as shelters `shelterId` finding.
+- OPEN (LOW/TECH DEBT): `isSafeImageUrl` is now duplicated in 11 files (BlogCard.vue, BlogArticle.vue, ShelterCard.vue, ShelterDetail.vue, AdoptionPetCard.vue, AdoptionDetail.vue, PetForm.vue, PetAvatar.vue + test files). Extract to `app/features/shared/utils/url.ts` and add `features/shared/utils` to `nuxt.config.ts` imports.dirs. Dedicated refactor PR.
+- PASS: No v-html anywhere in blog slice — article body rendered via `{{ paragraph }}` safe interpolation (content.split('\n') loop).
+- PASS: `featured_image` and `author.avatar` guarded by local `isSafeImageUrl()` in both BlogCard.vue and BlogArticle.vue.
+- PASS: `ogImage` in `useSeoMeta` validated via `new URL()` parser, http/https only — correctly handles SSR meta injection.
+- PASS: `useSeoMeta` title/description/ogTitle/ogDescription use `{{ }}` equivalents — Nuxt/unhead escapes attribute values; no reflected XSS in meta tags.
+- PASS: `searchQuery` is client-side only filter — never sent to backend; no server-side injection concern.
+- PASS: `blogStore` holds public data only — correctly NOT added to `clearSession()`.
+- PASS: `<time :datetime>` binds ISO string to non-executable attribute — safe.
+- INFO: `useApi()` sends Bearer token on public blog requests — harmless; token in header not URL. Would be a concern if CDN logs request headers; currently Nitro-level cache only.
+- INFO: Blog slice is the cleanest slice reviewed to date — fewest findings, all low severity.
+
 ## Recurring Patterns to Watch
-- Any new `v-html` usage requires DOMPurify — none in auth, pets, reminders, medical, or shelters slice; audit every PR
+- Any new `v-html` usage requires DOMPurify — none in auth, pets, reminders, medical, shelters, or blog slice; audit every PR
 - Any composable doing multipart upload must read token from `authStore.token`, NOT `localStorage` directly
 - Any API field bound to `:src` OR `:href` must pass scheme validation — photo_url uses `isSafeImageUrl()`; website/external URLs need URL() parser guard allowing only https:/http:
 - RECURRING MISS: `isSafeImageUrl` is consistently applied to `:src` but the same pattern was NOT applied to `:href="shelter.website"` in shelters. Watch every `<a :href>` that binds API data.
 - Any new feature store holding user data must be added to `clearSession()` in `auth.store.ts`
-- Route query params used in API path construction must be validated against a format regex before use
+- Route path params (`route.params.*`) AND query params (`route.query.*`) used in API path construction must be validated against a format regex before use
 - `runtimeConfig.public` contains `gaId` and `cdnBase` — intentionally public; no secrets there
 - The `/**` routeRules security headers baseline is in place; do not override in feature-specific rules
+- `isSafeImageUrl` duplication is now at 11 files — extraction to shared utils is overdue; flag on every new slice PR until resolved
 
 ## Files to Always Re-check
 - `app/features/shared/composables/useApi.ts` — token handling, header construction
@@ -59,3 +73,4 @@
 - `app/features/pets/components/PetAvatar.vue` — `isSafeImageUrl` guard on photo_url
 - `app/features/pets/components/PetForm.vue` — `isSafeImageUrl` guard on photo_url, MIME/size validation in onPhotoChange
 - `app/features/shelters/components/ShelterDetail.vue` — `safeWebsiteUrl` computed (HIGH fix needed), `tel:`/`mailto:` format validation
+- `app/pages/blog/[slug].vue` — slug format validation before `fetchPostBySlug` (LOW, pending)

@@ -94,8 +94,29 @@
 - `/shelter/adoptions/[id]` → AdoptionDetail (public; adoption form requires auth, shown client-side only)
 - AppNavbar: "Adopciones" added to publicLinks array → always visible
 
+## Blog slice — confirmed file locations (RF-600 to RF-609 complete)
+- `app/features/blog/types/index.ts` — BlogPost, BlogAuthor, BlogCategory, BlogListFilters, BlogListResponse
+- `app/features/blog/stores/blog.store.ts` — useBlogStore: posts[], selectedPost, categories[], isLoading, currentPage, totalPages, total; getters: hasPosts, hasCategories, getPostBySlug(slug); actions: setPosts, appendPosts, setSelectedPost, clearSelectedPost, setCategories, setLoading, setPagination, clearBlog
+- `app/features/blog/composables/useBlog.ts` — error ref, blogStore ref, fetchPosts(filters?, append?), fetchPostBySlug(slug), fetchCategories(). Dual API shapes (BlogListResponse envelope or bare array). Store-first cache check in fetchPostBySlug.
+- `app/features/blog/components/BlogCategoryFilter.vue` — horizontal scrollable pill buttons, emits 'select' with slug|null, role=tablist pattern
+- `app/features/blog/components/BlogCard.vue` — post prop, isSafeImageUrl guard, SVG paw placeholder, 3-line excerpt clamp, author avatar with initial fallback, Intl date formatting in Spanish, reading time badge, NuxtLink stretched-link to /blog/:slug
+- `app/features/blog/components/BlogList.vue` — fetches posts+categories on mount in parallel, BlogCategoryFilter + search input, skeleton (6 cards), two empty states, "Cargar más" append pagination
+- `app/features/blog/components/BlogArticle.vue` — reads blogStore.selectedPost, hero image, author meta, tags, content as plain text paragraphs (NOT v-html — security note in file), "Ver más artículos" CTA, skeleton + not-found states
+- Pages: `app/pages/blog/index.vue`, `[slug].vue` (both public, no middleware)
+
+## Blog routes (public, no auth required)
+- `/blog` → BlogList (public)
+- `/blog/[slug]` → BlogArticle via BlogArticle component (public)
+- AppNavbar: "Blog" added to publicLinks array between "Inicio" and "Adopciones"
+
+## Blog content security decision
+- Article `content` field rendered as plain text (paragraph split on `\n`), NOT v-html
+- Rationale: v-html is an XSS surface even with backend sanitisation; plain text is safe
+- If future requirement needs HTML rendering, add DOMPurify as client-only guard first
+- `featured_image` and `author.avatar` both pass through isSafeImageUrl before binding
+
 ## clearSession cross-store rule — current state
-`auth.store.clearSession()` now resets: petsStore (setPets+clearSelectedPet), remindersStore (clearReminders), medicalStore (clearMedicalRecords), sheltersStore (clearShelters). Add new user-specific stores here when implementing new slices.
+`auth.store.clearSession()` now resets: petsStore (setPets+clearSelectedPet), remindersStore (clearReminders), medicalStore (clearMedicalRecords), sheltersStore (clearShelters). Blog posts are public data — useBlogStore.clearBlog() is exported but NOT called from clearSession (no user-specific data). Add new user-specific stores here when implementing new slices.
 
 ## MedicalRecordForm pattern difference vs ReminderForm
 - MedicalRecordForm calls the composable directly (no emit-to-parent pattern)
