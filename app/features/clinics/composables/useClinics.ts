@@ -1,0 +1,105 @@
+// ============================================================
+// useClinics — Clinic directory feature composable
+// Central API surface for the clinic directory.
+// State is owned by useClinicsStore; this composable is the
+// API layer that keeps the store in sync.
+// ============================================================
+
+import type { Clinic, ClinicListFilters, ClinicListResponse } from '../types'
+
+export function useClinics() {
+  const { get } = useApi()
+  const clinicsStore = useClinicsStore()
+
+  const error = ref<string | null>(null)
+
+  // ── Public API ──────────────────────────────────────────────
+
+  /**
+   * Fetch all clinics, optionally filtered.
+   * Handles both `{ clinics: Clinic[] }` envelope and plain `Clinic[]` shapes.
+   */
+  async function fetchClinics(filters?: ClinicListFilters): Promise<void> {
+    clinicsStore.setLoading(true)
+    error.value = null
+    try {
+      // Build query string from non-empty filter values
+      const params = new URLSearchParams()
+      if (filters?.search) params.set('search', filters.search)
+      if (filters?.city) params.set('city', filters.city)
+      if (filters?.specialty) params.set('specialty', filters.specialty)
+      const qs = params.toString()
+      const path = qs ? `/api/clinics?${qs}` : '/api/clinics'
+
+      const response = await get<ClinicListResponse | Clinic[]>(path)
+      if (Array.isArray(response)) {
+        clinicsStore.setClinics(response)
+      }
+      else {
+        clinicsStore.setClinics(response.clinics ?? [])
+      }
+    }
+    catch (err: unknown) {
+      error.value = extractErrorMessage(err)
+    }
+    finally {
+      clinicsStore.setLoading(false)
+    }
+  }
+
+  /**
+   * Fetch a single clinic by id. Checks the clinics[] array first
+   * (store-first lookup — avoids a network round-trip when navigating
+   * from the list to the detail view).
+   * Calls setSelectedClinic() on success.
+   * Returns the clinic or null on failure.
+   */
+  async function fetchClinicById(id: string): Promise<Clinic | null> {
+    // Store-first: if we already loaded this clinic in the list, reuse it.
+    const cached = clinicsStore.clinics.find(c => c.id === id)
+    if (cached) {
+      clinicsStore.setSelectedClinic(cached)
+      return cached
+    }
+
+    clinicsStore.setLoading(true)
+    error.value = null
+    try {
+      const clinic = await get<Clinic>(`/api/clinics/${id}`)
+      clinicsStore.setSelectedClinic(clinic)
+      return clinic
+    }
+    catch (err: unknown) {
+      error.value = extractErrorMessage(err)
+      return null
+    }
+    finally {
+      clinicsStore.setLoading(false)
+    }
+  }
+
+  return {
+    error,
+    clinicsStore,
+    fetchClinics,
+    fetchClinicById,
+  }
+}
+
+// ── Helpers ─────────────────────────────────────────────────
+
+function extractErrorMessage(err: unknown): string {
+  if (typeof err === 'object' && err !== null) {
+    if ('data' in err) {
+      const data = (err as { data: unknown }).data
+      if (typeof data === 'object' && data !== null && 'error' in data) {
+        return String((data as { error: unknown }).error)
+      }
+      if (typeof data === 'string' && data.length > 0) return data
+    }
+    if ('message' in err && typeof (err as { message: unknown }).message === 'string') {
+      return (err as { message: string }).message
+    }
+  }
+  return 'Ocurrió un error inesperado. Intenta de nuevo.'
+}

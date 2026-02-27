@@ -843,19 +843,69 @@ export const useAuthStore = defineStore('auth', () => {
 
 ---
 
-### 5.10. Clínicas Veterinarias (RF-900 a RF-909)
+### 5.10. Clínicas Veterinarias (RF-900 a RF-909) — ✅ IMPLEMENTADO
 
-**Funcionalidades:**
-- Directorio público de clínicas
-- Búsqueda por ubicación y especialidad
-- Agenda online (opcional)
-- Perfil editable (PRO)
-- Vinculación mascota ↔ clínica
+**Funcionalidades:** ✅ MVP implementado
+- ✅ Directorio público de clínicas veterinarias cargado desde API
+- ✅ Filtros client-side: búsqueda por nombre/dirección, especialidad y ciudad
+- ✅ Sección "Clínicas Destacadas" (is_featured) oculta cuando hay filtros activos
+- ✅ Perfil completo de clínica: foto hero 16:9, especialidades, horario semanal, contacto, mapa placeholder
+- ✅ Store-first lookup en `fetchClinicById` (sin network call si ya está en caché)
+- ✅ Soporte dual API shape: envelope `{ clinics: [] }` y array directo
+- ✅ Skeleton loading (6 tarjetas) en ClinicList; skeleton de perfil en ClinicDetail
+- ✅ Estados vacíos con ilustración animada (sin resultados, sin clínicas)
+- ✅ Contador de resultados singular/plural ("1 clínica encontrada" / "N clínicas encontradas")
+- ✅ Badges de verificación (✓ Verificada) y destacado (⭐ Destacada)
+- ✅ Link "Clínicas" en AppNavbar (publicLinks)
+- 📋 Agenda online (sprint futuro)
+- 📋 Perfil editable PRO (sprint futuro)
+- 📋 Vinculación mascota ↔ clínica (sprint futuro)
 
-**Componentes:**
-- `ClinicCard` — tarjeta de clínica
-- `ClinicDirectory` — listado searchable
-- `ClinicDetail` — perfil con horario, contacto, servicios
+**Feature path:** `app/features/clinics/`
+
+**Componentes Frontend:** ✅ Todos implementados
+| Componente | Ubicación | Descripción |
+|---|---|---|
+| `ClinicCard` | `app/features/clinics/components/ClinicCard.vue` | Tarjeta de clínica con foto (🏥 fallback), specialties chips (máx 3 + overflow "+N"), badges verificada/destacada, contacto con guards de seguridad, stretched-link "Ver clínica" |
+| `ClinicList` | `app/features/clinics/components/ClinicList.vue` | Directorio completo: filtros search/especialidad/ciudad, sección destacadas, grid de tarjetas, skeleton 6-cards, dos estados vacíos, contador de resultados |
+| `ClinicDetail` | `app/features/clinics/components/ClinicDetail.vue` | Perfil completo: banner 16:9, especialidades, tabla de horario semanal ("Cerrado" para días sin horario), datos de contacto, mapa placeholder (cuando hay coordenadas), botón "Visitar sitio web" |
+
+**Composable:** `features/clinics/composables/useClinics.ts`
+— `fetchClinics(filters?)`: GET `/api/clinics`, construye URLSearchParams de filtros no vacíos, soporta envelope `{ clinics: [] }` y array directo. `fetchClinicById(id)`: store-first lookup (cache hit evita network), luego GET `/api/clinics/${id}`.
+
+**Store:** `features/clinics/stores/clinics.store.ts` — `useClinicsStore`
+— `clinics[]`, `selectedClinic`, `isLoading`. Getters: `hasClinics` (array.length > 0), `getFeaturedClinics` (filtra `is_featured === true`). Acciones: `setClinics`, `addClinic` (unshift — newest-first), `setSelectedClinic`, `clearSelectedClinic`, `setLoading`, `clearClinics`.
+
+**Páginas:** ✅ Todas implementadas
+| Ruta | Archivo | Middleware | Descripción |
+|---|---|---|---|
+| `/clinics` | `app/pages/clinics/index.vue` | ninguno | Directorio de clínicas veterinarias (público) |
+| `/clinics/:id` | `app/pages/clinics/[id].vue` | ninguno | Perfil de clínica (público) |
+
+**AppNavbar:** ✅ Actualizado
+- "Clínicas" agregado a `publicLinks` (entre "Tiendas" y "Precios")
+
+**Endpoints:** `GET /api/clinics`, `GET /api/clinics/:id`
+
+**Cross-store cleanup:** No aplica — datos públicos, sin contenido específico del usuario. `useClinicsStore` NO se integra en `clearSession()`.
+
+**Security:** ✅ Completado — rating LOW post-review
+- ✅ `isSafeImageUrl()` guard en `photo_url` (ClinicCard y ClinicDetail) — previene binding de URLs `data:` o `javascript:`
+- ✅ `safeWebsiteUrl` computed restringe href externo a `http:`/`https:` únicamente — previene URI `javascript:` en "Visitar sitio web"
+- ✅ `safePhone` regex `/^[+\d\s\-().]{4,25}$/` valida hrefs `tel:` antes de renderizar
+- ✅ `safeEmail` regex valida hrefs `mailto:` antes de renderizar
+- ✅ `clinicId` validado con `/^[\w-]{1,64}$/` en ClinicDetail antes de interpolación en path de API — previene path traversal
+- ✅ Sin `v-html` en ningún componente — `clinic.description` renderizado como texto plano con `white-space: pre-line`
+- ✅ SSR-safe: sin acceso a `window`/`document`. Fechas vía `Intl.DateTimeFormat`. Sin `import.meta.client` necesario (no hay operaciones cliente-exclusivas)
+
+**Test coverage:** ✅ 178 tests
+| Archivo | Tests |
+|---|---|
+| `clinics.store.test.ts` | 42 |
+| `useClinics.test.ts` | 37 |
+| `ClinicCard.test.ts` | 34 |
+| `ClinicList.test.ts` | 29 |
+| `ClinicDetail.test.ts` | 35 |
 
 ---
 
@@ -1429,7 +1479,7 @@ routeRules: {
 - [x] RF-600 a RF-609 — Blog editorial (blog slice) ✅
 - [x] RF-700 a RF-709 — Directorio tiendas pet-friendly (petshops slice) ✅
 - [x] RF-800 a RF-809 — Monetización / PRO subscriptions (pro slice) ✅
-- [ ] RF-900 a RF-909 — Clínicas veterinarias (clinics slice)
+- [x] RF-900 a RF-909 — Clínicas veterinarias (clinics slice) ✅
 - [ ] RF-1000 a RF-1009 — Panel administrativo (admin slice)
 - [ ] Content Security Policy (CSP) implementation
 - [ ] Multi-language support (@nuxtjs/i18n)
