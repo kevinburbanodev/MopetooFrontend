@@ -25,6 +25,7 @@ npm run test:coverage    # Single run with coverage report
 - Reminders feature slice (RF-200–RF-209): 256 tests (store 44, useReminders 75, ReminderCard 26, ReminderList 29, ReminderForm 46) ✅
 - Medical feature slice (RF-300–RF-309): 273 tests (store 44, useMedical 65, MedicalRecordCard 38, MedicalHistory 31, MedicalRecordForm 86) ✅
 - Export/PDF slice (RF-400–RF-409): 24 tests (useExportPDF 24) ✅ — exportProfilePDF tests in usePets, exportRemindersPDF tests in useReminders
+- Shelters slice (RF-500–RF-509): 252 tests (store 65, useShelters 67, ShelterCard 21, ShelterList 25, AdoptionPetCard 35, AdoptionDetail 39) ✅
 
 ## Architecture
 
@@ -41,7 +42,8 @@ app/features/
 ├── auth/            # Login, register, password reset
 ├── pets/            # Pet profile CRUD
 ├── reminders/       # Reminder CRUD
-└── medical/         # Medical record CRUD
+├── medical/         # Medical record CRUD
+└── shelters/        # Shelter directory & adoption pets (public + auth)
 ```
 
 Every slice follows the same internal structure:
@@ -72,10 +74,11 @@ This means `useApi()`, `useAuth()`, `useAuthStore()`, etc. are available in any 
 | `usePetsStore` | `pets[]`, `selectedPet`, `isLoading` |
 | `useRemindersStore` | `reminders[]`, `selectedReminder`, `isLoading` |
 | `useMedicalStore` | `records[]`, `selectedRecord`, `isLoading` |
+| `useSheltersStore` | `shelters[]`, `selectedShelter`, `adoptionPets[]`, `selectedAdoptionPet`, `isLoading` |
 
 Token is persisted to `localStorage` under key `mopetoo_token`. The auth store exposes `setSession()`, `clearSession()`, and `restoreFromStorage()`.
 
-**Cross-store cleanup rule:** `clearSession()` in `auth.store.ts` MUST clear every user-specific store. Currently clears `petsStore`, `remindersStore`, and `medicalStore`. When adding new feature slices with user-specific data, add their store reset calls to `clearSession()` to prevent data leakage on shared devices.
+**Cross-store cleanup rule:** `clearSession()` in `auth.store.ts` MUST clear every user-specific store. Currently clears `petsStore`, `remindersStore`, `medicalStore`, and `sheltersStore`. When adding new feature slices with user-specific data, add their store reset calls to `clearSession()` to prevent data leakage on shared devices.
 
 ### HTTP Client
 
@@ -202,6 +205,12 @@ Any change to token storage or auth flow warrants a security review.
 - `NuxtLink` should be stubbed via `global.stubs: { NuxtLink: true }` in component tests
 - Resetting select filters to null: use clearFilters button click, not `setValue(null)` (happy-dom limitation)
 - `Pet.id` is `string`; `Reminder.pet_id` is `number` — compare with `String(pet_id) === pet.id`
+- `AdoptionDetail` adoption form is wrapped in `<ClientOnly>` — in tests, set `isAuthenticated: true` via `createTestingPinia` and verify the form renders after client hydration
+- `AdoptionPetCard` passes `?shelterId=` query param in its NuxtLink href — verify with `wrapper.find('a').attributes('href')`
+- **Auth store reset across tests (critical):** `setActivePinia(createPinia())` in `beforeEach` does NOT reset the Nuxt test env's auth store. Explicitly reset with: `const { useAuthStore } = await import('../../auth/stores/auth.store'); useAuthStore().token = null`
+- **Mount-first, then set token:** Setting `useAuthStore().token` BEFORE `mountSuspended` does NOT work. Mount first, then set token, then `await nextTick()` to trigger re-render of auth-conditional DOM
+- **Form submit in happy-dom:** `wrapper.find('button[type="submit"]').trigger('click')` does NOT propagate to `@submit.prevent`. Use `await wrapper.find('form').trigger('submit')` instead
+- **NuxtLink href assertions:** `{ NuxtLink: false }` or `{ NuxtLink: true }` stubs do not produce plain `<a href>`. Use a custom stub: `{ NuxtLink: { template: '<a :href="to"><slot /></a>', props: ['to'] } }`
 
 Invoke this agent for any new feature slice tests.
 

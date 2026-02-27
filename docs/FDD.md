@@ -593,39 +593,68 @@ export const useAuthStore = defineStore('auth', () => {
 
 ---
 
-### 5.6. Refugios y Adopciones (RF-500 a RF-509)
+### 5.6. Refugios y Adopciones (RF-500 a RF-509) — ✅ IMPLEMENTADO
 
-**Funcionalidades:**
-- Registro y login de refugios (tipo de usuario diferente)
-- Directorio público de refugios
-- Listado de mascotas disponibles
-- Sistema de solicitudes de adopción
-- Perfil de refugio editable (PRO)
+**Funcionalidades:** ✅ MVP público implementado
+- ✅ Directorio público de refugios (searchable, filtro por especie)
+- ✅ Detalle de refugio con perfil completo y listado de mascotas en adopción
+- ✅ Tarjetas de mascotas en adopción con estado visual (disponible/en proceso/adoptado)
+- ✅ Formulario de solicitud de adopción (autenticado, min 20 / max 500 chars)
+- ✅ CTA de login para usuarios no autenticados
+- ✅ Skeleton loading y empty states en todas las vistas
+- ✅ Foto con validación `isSafeImageUrl`, fallback a emoji por especie
+- 📋 Dashboard de gestión para refugios (post-MVP)
+- 📋 Perfil de refugio editable (PRO)
 
-**Componentes Frontend:**
-- `ShelterCard` — tarjeta de refugio
-- `ShelterDirectory` — listado público
-- `ShelterDetail` — perfil de refugio
-- `AdoptionList` — mascotas disponibles
-- `AdoptionCard` — mascota disponible
-- `AdoptionForm` — solicitar adopción
+**Componentes Frontend:** ✅ Todos implementados
+| Componente | Ubicación | Descripción |
+|---|---|---|
+| `ShelterCard` | `app/features/shelters/components/ShelterCard.vue` | Tarjeta con foto/fallback 🏠, nombre, ciudad, descripción (2-líneas clamp), badges de especie, badge verificado |
+| `ShelterList` | `app/features/shelters/components/ShelterList.vue` | Grid responsive, filtro client-side (búsqueda + especie), skeleton 6 cards, empty state, contador de resultados |
+| `ShelterDetail` | `app/features/shelters/components/ShelterDetail.vue` | Banner hero, perfil completo con contacto, especies aceptadas, integra AdoptionList |
+| `AdoptionPetCard` | `app/features/shelters/components/AdoptionPetCard.vue` | Foto/fallback por especie, badge estado overlay, chips vacunado/esterilizado, edad desde `age_months`, link a detalle |
+| `AdoptionList` | `app/features/shelters/components/AdoptionList.vue` | Grid con 4 filtros (especie, género, talla, estado), skeleton, empty states |
+| `AdoptionDetail` | `app/features/shelters/components/AdoptionDetail.vue` | Perfil completo del animal, formulario adopción (solo autenticado + disponible) en `<ClientOnly>`, success/error state |
 
-**Rutas de refugios:**
-```
-/shelter (público)
-  → Directorio searchable
-  → Filtros por ubicación, especies
+**Composable:** `features/shelters/composables/useShelters.ts`
+— `fetchShelters(filters?)`, `fetchShelterById(id)`, `fetchAdoptionPets(shelterId, filters?)`, `fetchAdoptionPetById(shelterId, petId)`, `submitAdoptionRequest(shelterId, petId, message)`. Soporta ambas formas de respuesta del API: `{ shelters: [] }` y array directo. Patrón idéntico al de medical/reminders.
 
-/shelter/[id] (público)
-  → Perfil del refugio
-  → Listado de adopciones
-  → Reviews/testimonios
+**Store:** `features/shelters/stores/shelters.store.ts` — `useSheltersStore`
+— `shelters[]`, `selectedShelter`, `adoptionPets[]`, `selectedAdoptionPet`, `isLoading`. Getters: `hasShelters`, `hasAdoptionPets`, `getAvailablePets` (filtro computed status === 'available'). Acciones: `setShelters`, `addShelter`, `setSelectedShelter`, `clearSelectedShelter`, `setAdoptionPets`, `addAdoptionPet`, `setSelectedAdoptionPet`, `clearSelectedAdoptionPet`, `setLoading`, `clearShelters`.
 
-/dashboard/shelter (protegido para refugios)
-  → Gestión de mascotas disponibles
-  → Gestión de solicitudes
-  → Estadísticas
-```
+**Páginas:** ✅ Todas implementadas (thin wrappers públicos sin middleware)
+| Ruta | Archivo | Descripción |
+|---|---|---|
+| `/shelter` | `app/pages/shelter/index.vue` | Directorio de refugios |
+| `/shelter/[id]` | `app/pages/shelter/[id].vue` | Detalle de refugio + adopciones |
+| `/shelter/adoptions/[id]` | `app/pages/shelter/adoptions/[id].vue` | Detalle de mascota en adopción |
+
+**Endpoints:** `GET /api/shelters`, `GET /api/shelters/:id`, `GET /api/shelters/:id/pets`, `GET /api/shelters/:id/pets/:petId`, `POST /api/shelters/:id/pets/:petId/adopt`
+
+**Cross-store cleanup:** ✅ `clearSession()` en `auth.store.ts` llama `sheltersStore.clearShelters()`
+
+**AppNavbar:** ✅ Enlace "Adopciones" agregado al menú público (visible sin autenticación)
+
+**SSR safety:** ✅ Formulario de adopción envuelto en `<ClientOnly>` — auth check nunca corre en servidor, elimina riesgo de hydration mismatch y filtración de estado auth en HTML.
+
+**Security review:** ✅ Completado — rating MEDIUM→LOW tras fixes
+- ✅ Fijo (HIGH): `safeWebsiteUrl` computed restringe website href a `http:`/`https:` — previene `javascript:` URI injection
+- ✅ Fijo (MEDIUM): `safePhone` (regex `/^[+\d\s\-().]{4,25}$/`) y `safeEmail` (regex con `@`) sanitizan hrefs `tel:` y `mailto:`
+- ✅ Fijo (LOW): `shelterId` del query param validado con `/^[\w-]{1,64}$/` antes de usar en path de API
+- ✅ Sin `v-html` en ningún componente
+- ✅ Todos los bindings `photo_url` pasan por `isSafeImageUrl()`
+- ✅ `clearSession()` + `sheltersStore.clearShelters()` correctamente integrado
+- 📋 Reportado: Strings raw del backend mostradas en UI (MEDIUM — patrón aceptado igual que otros slices)
+
+**Test coverage:** ✅ 252 tests
+| Archivo | Tests |
+|---|---|
+| `shelters.store.test.ts` | 65 |
+| `useShelters.test.ts` | 67 |
+| `ShelterCard.test.ts` | 21 |
+| `ShelterList.test.ts` | 25 |
+| `AdoptionPetCard.test.ts` | 35 |
+| `AdoptionDetail.test.ts` | 39 |
 
 ---
 
@@ -1278,7 +1307,7 @@ routeRules: {
 - [x] RF-200 a RF-209 — Recordatorios (reminders slice) ✅
 - [x] RF-300 a RF-309 — Historial médico (medical slice) ✅
 - [x] RF-400 a RF-409 — Exportación y PDF (export slice) ✅
-- [ ] RF-500 a RF-509 — Refugios y adopciones (shelters slice)
+- [x] RF-500 a RF-509 — Refugios y adopciones (shelters slice) ✅
 - [ ] RF-600 a RF-609 — Blog editorial (blog slice)
 - [ ] RF-700 a RF-709 — Directorio tiendas pet-friendly (stores slice)
 - [ ] RF-900 a RF-909 — Clínicas veterinarias (clinics slice)

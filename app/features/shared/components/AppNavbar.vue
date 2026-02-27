@@ -5,6 +5,7 @@ const authStore = useAuthStore()
 // Public nav links always visible
 const publicLinks = [
   { label: 'Inicio', to: '/' },
+  { label: 'Adopciones', to: '/shelter' },
 ]
 
 // Authenticated nav links — shown only when logged in
