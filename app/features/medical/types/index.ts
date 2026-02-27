@@ -1,32 +1,33 @@
 // ============================================================
-// Medical feature — domain types
+// Medical History feature — domain types
+// Aligned with Mopetoo backend API (Go + Gin)
 // ============================================================
 
 export interface MedicalRecord {
-  id: number
-  pet_id: number
+  id: string
+  pet_id: string
+  /** ISO date string, e.g. '2024-06-15' */
   date: string
-  symptoms?: string
-  diagnosis?: string
-  treatment?: string
+  veterinarian: string
+  diagnosis: string
+  treatment: string
   notes?: string
+  /** Weight in kg at the time of the visit */
+  weight?: number
+  /** ISO date string for the next scheduled visit */
+  next_visit?: string
   created_at: string
   updated_at: string
 }
 
-export interface CreateMedicalRecordPayload {
-  pet_id: number
+export interface CreateMedicalRecordDTO {
   date: string
-  symptoms?: string
-  diagnosis?: string
-  treatment?: string
+  veterinarian: string
+  diagnosis: string
+  treatment: string
   notes?: string
+  weight?: number
+  next_visit?: string
 }
 
-export interface UpdateMedicalRecordPayload {
-  date?: string
-  symptoms?: string
-  diagnosis?: string
-  treatment?: string
-  notes?: string
-}
+export type UpdateMedicalRecordDTO = Partial<CreateMedicalRecordDTO>

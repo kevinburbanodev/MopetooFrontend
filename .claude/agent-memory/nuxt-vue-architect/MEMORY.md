@@ -61,6 +61,29 @@
 - Pet gender backend values: 'male' | 'female'
 - AppNavbar uses `authStore.isAuthenticated` to show/hide authenticated nav links
 
+## Medical slice — confirmed file locations (RF-300 to RF-309 complete)
+- `app/features/medical/types/index.ts` — MedicalRecord (id/pet_id:string, date, veterinarian, diagnosis, treatment, notes?, weight?, next_visit?), CreateMedicalRecordDTO, UpdateMedicalRecordDTO
+- `app/features/medical/stores/medical.store.ts` — useMedicalStore: records[], selectedRecord, isLoading, setRecords(), addRecord(), updateRecord(), removeRecord(), setSelectedRecord(), clearSelectedRecord(), setLoading(), clearMedicalRecords()
+- `app/features/medical/composables/useMedical.ts` — error ref, medicalStore ref, fetchMedicalHistory(petId), fetchMedicalRecord(petId, recordId), createMedicalRecord(petId, dto), updateMedicalRecord(petId, recordId, dto), deleteMedicalRecord(petId, recordId), exportPDF(petId, petName?) — exportPDF uses $fetch with responseType:'blob' + authStore.token, guarded by import.meta.client
+- `app/features/medical/components/MedicalRecordCard.vue` — petId+record props, delete-record emit, two-step inline confirm, NuxtLink edit button, overdue next_visit badge (bg-danger vs bg-warning)
+- `app/features/medical/components/MedicalHistory.vue` — petId+petName props, fetches on mount, export PDF button (isExporting flag separate from store isLoading), skeleton (3 cards), empty state CTA
+- `app/features/medical/components/MedicalRecordForm.vue` — petId+record? props, calls composable directly (not emit-to-parent pattern), navigateTo on success
+- Pages: `app/pages/dashboard/medical/[petId]/index.vue`, `record/new.vue`, `record/[recordId]/edit.vue`
+
+## Medical routes
+- `/dashboard/medical/[petId]` → MedicalHistory (auth middleware)
+- `/dashboard/medical/[petId]/record/new` → MedicalRecordForm create (auth middleware)
+- `/dashboard/medical/[petId]/record/[recordId]/edit` → MedicalRecordForm edit (auth middleware)
+- Medical is accessed from PetDetail "Ver historial médico" button — no top-level navbar link
+
+## clearSession cross-store rule — current state
+`auth.store.clearSession()` now resets: petsStore (setPets+clearSelectedPet), remindersStore (clearReminders), medicalStore (clearMedicalRecords). Add new user-specific stores here when implementing new slices.
+
+## MedicalRecordForm pattern difference vs ReminderForm
+- MedicalRecordForm calls the composable directly (no emit-to-parent pattern)
+- ReminderForm emits a typed payload to the parent page which handles API calls
+- Both are valid patterns; use whichever keeps the page thinner
+
 ## See also
 - `docs/FDD.md` — full Frontend Development Document
 - `docs/SRS.md` — Software Requirements Specification

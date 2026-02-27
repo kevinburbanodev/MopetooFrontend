@@ -110,6 +110,14 @@ function formatDate(iso: string): string {
                 Editar mascota
               </button>
 
+              <!-- Link to the pet's medical history -->
+              <NuxtLink
+                :to="`/dashboard/medical/${pet.id}`"
+                class="btn btn-outline-primary"
+              >
+                Ver historial médico
+              </NuxtLink>
+
               <!-- Delete — two-step confirmation inline -->
               <div v-if="!confirmingDelete">
                 <button
