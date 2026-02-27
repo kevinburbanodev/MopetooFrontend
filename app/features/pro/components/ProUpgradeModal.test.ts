@@ -160,10 +160,12 @@ describe('ProUpgradeModal', () => {
 
   describe('plans loading', () => {
     it('calls fetchPlans if no plans are loaded when modal opens', async () => {
-      // modelValue: true triggers openModal() which calls fetchPlans when !hasPlans
+      // modelValue: true triggers openModal() which calls fetchPlans when !hasPlans.
+      // openModal() is async (does await import('bootstrap')) so nextTick() alone is
+      // not enough — flushPromises drains all pending microtasks and resolved promises.
       mockPlans.value = []
       const wrapper = await mountModal(true)
-      await nextTick()
+      await flushPromises()
       expect(mockFetchPlans).toHaveBeenCalledTimes(1)
     })
 
