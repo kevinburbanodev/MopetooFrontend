@@ -31,6 +31,7 @@ npm run test:coverage    # Single run with coverage report
 - Pro/Monetización slice (RF-800–RF-809): 216 tests (store 44, usePro 60, ProBanner 22, PricingTable 30, ProUpgradeModal 26, DonationForm 34) ✅
 - Clinics slice (RF-900–RF-909): 178 tests (store 42, useClinics 37, ClinicCard 34, ClinicList 29, ClinicDetail 35) ✅
 - Admin slice (RF-1000–RF-1009): 327 tests (store 75, useAdmin 76, AdminDashboard 27, AdminUserManager 31, AdminShelterManager 27, AdminStoreManager 27, AdminClinicManager 29, AdminTransactionLog 28, admin middleware 7) ✅
+- Stats slice (RF-1100–RF-1109): 165 tests (store 37, useStats 45, StatsOverview 27, StatsChart 22, RevenueReport 20, ActivityLog 34) ✅
 
 ## Architecture
 
@@ -53,7 +54,8 @@ app/features/
 ├── petshops/        # Pet-friendly stores directory (public: listing + detail)
 ├── pro/             # Monetización: PRO subscriptions, pricing table, donations (RF-800–RF-809)
 ├── clinics/         # Veterinary clinics directory (public: listing + detail) (RF-900–RF-909)
-└── admin/           # Admin panel: stats, user/shelter/store/clinic management, transactions (RF-1000–RF-1009)
+├── admin/           # Admin panel: stats, user/shelter/store/clinic management, transactions (RF-1000–RF-1009)
+└── stats/           # Statistics & metrics: KPI overview, revenue chart/table, activity log (RF-1100–RF-1109)
 ```
 
 Every slice follows the same internal structure:
@@ -90,10 +92,11 @@ This means `useApi()`, `useAuth()`, `useAuthStore()`, etc. are available in any 
 | `useProStore` | `subscription`, `plans[]`, `isLoading`, `isSubscribed`, `getMonthlyPlan`, `getAnnualPlan` |
 | `useClinicsStore` | `clinics[]`, `selectedClinic`, `isLoading`, `hasClinics`, `getFeaturedClinics` |
 | `useAdminStore` | `stats`, `users[]`, `shelters[]`, `petshops[]`, `clinics[]`, `transactions[]`, `selectedUser`, `isLoading`, total-count refs, `hasStats`, `hasUsers` |
+| `useStatsStore` | `overview`, `revenueData[]`, `activityEntries[]`, `totalActivity`, `isLoading`, `hasOverview`, `hasRevenueData`, `hasActivity` |
 
 Token is persisted to `localStorage` under key `mopetoo_token`. The auth store exposes `setSession()`, `clearSession()`, and `restoreFromStorage()`.
 
-**Cross-store cleanup rule:** `clearSession()` in `auth.store.ts` MUST clear every user-specific store. Currently clears `petsStore`, `remindersStore`, `medicalStore`, `sheltersStore`, `proStore`, and `adminStore`. When adding new feature slices with user-specific data, add their store reset calls to `clearSession()` to prevent data leakage on shared devices.
+**Cross-store cleanup rule:** `clearSession()` in `auth.store.ts` MUST clear every user-specific store. Currently clears `petsStore`, `remindersStore`, `medicalStore`, `sheltersStore`, `proStore`, `adminStore`, and `statsStore`. When adding new feature slices with user-specific data, add their store reset calls to `clearSession()` to prevent data leakage on shared devices.
 
 ### HTTP Client
 
