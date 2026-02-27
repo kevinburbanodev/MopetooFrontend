@@ -8,6 +8,7 @@ const publicLinks = [
   { label: 'Blog', to: '/blog' },
   { label: 'Adopciones', to: '/shelter' },
   { label: 'Tiendas', to: '/stores' },
+  { label: 'Clínicas', to: '/clinics' },
   { label: 'Precios', to: '/pricing' },
 ]
 

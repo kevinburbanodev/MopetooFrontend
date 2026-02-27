@@ -29,6 +29,7 @@ npm run test:coverage    # Single run with coverage report
 - Blog slice (RF-600–RF-609): 208 tests (store 44, useBlog 60, BlogCategoryFilter 18, BlogCard 24, BlogList 28, BlogArticle 34) ✅
 - Petshops slice (RF-700–RF-709): 187 tests (store 44, usePetshops 60, PetshopCard 26, PetshopList 37, PetshopDetail 40) ✅
 - Pro/Monetización slice (RF-800–RF-809): 216 tests (store 44, usePro 60, ProBanner 22, PricingTable 30, ProUpgradeModal 26, DonationForm 34) ✅
+- Clinics slice (RF-900–RF-909): 178 tests (store 42, useClinics 37, ClinicCard 34, ClinicList 29, ClinicDetail 35) ✅
 
 ## Architecture
 
@@ -49,7 +50,8 @@ app/features/
 ├── shelters/        # Shelter directory & adoption pets (public + auth)
 ├── blog/            # Blog editorial (public: listing + article detail)
 ├── petshops/        # Pet-friendly stores directory (public: listing + detail)
-└── pro/             # Monetización: PRO subscriptions, pricing table, donations (RF-800–RF-809)
+├── pro/             # Monetización: PRO subscriptions, pricing table, donations (RF-800–RF-809)
+└── clinics/         # Veterinary clinics directory (public: listing + detail) (RF-900–RF-909)
 ```
 
 Every slice follows the same internal structure:
@@ -84,6 +86,7 @@ This means `useApi()`, `useAuth()`, `useAuthStore()`, etc. are available in any 
 | `useBlogStore` | `posts[]`, `selectedPost`, `categories[]`, `isLoading`, `currentPage`, `totalPages`, `total` |
 | `usePetshopsStore` | `petshops[]`, `selectedPetshop`, `isLoading` |
 | `useProStore` | `subscription`, `plans[]`, `isLoading`, `isSubscribed`, `getMonthlyPlan`, `getAnnualPlan` |
+| `useClinicsStore` | `clinics[]`, `selectedClinic`, `isLoading`, `hasClinics`, `getFeaturedClinics` |
 
 Token is persisted to `localStorage` under key `mopetoo_token`. The auth store exposes `setSession()`, `clearSession()`, and `restoreFromStorage()`.
 
