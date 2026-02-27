@@ -8,6 +8,7 @@ const publicLinks = [
   { label: 'Blog', to: '/blog' },
   { label: 'Adopciones', to: '/shelter' },
   { label: 'Tiendas', to: '/stores' },
+  { label: 'Precios', to: '/pricing' },
 ]
 
 // Authenticated nav links — shown only when logged in
@@ -84,6 +85,23 @@ function logout(): void {
         <!-- Auth actions -->
         <div class="d-flex align-items-center gap-2">
           <template v-if="authStore.isAuthenticated">
+            <!-- PRO status indicator — shown to authenticated users only -->
+            <NuxtLink
+              v-if="!authStore.isPro"
+              to="/pricing"
+              class="btn btn-warning btn-sm fw-bold"
+              aria-label="Hazte PRO en Mopetoo"
+            >
+              Hazte PRO
+            </NuxtLink>
+            <span
+              v-else
+              class="badge bg-warning text-dark fw-bold"
+              aria-label="Tu cuenta tiene plan PRO activo"
+            >
+              PRO ✓
+            </span>
+
             <NuxtLink
               to="/dashboard/profile"
               class="btn btn-outline-light btn-sm"

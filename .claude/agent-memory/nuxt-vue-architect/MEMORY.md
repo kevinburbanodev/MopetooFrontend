@@ -138,8 +138,38 @@
 - No v-html anywhere; description rendered with white-space: pre-line
 - clearPetshops() NOT called from clearSession (public data, same rule as blog/shelters)
 
+## Pro slice — confirmed file locations (RF-800 to RF-809 complete)
+- `app/features/pro/types/index.ts` — PlanInterval, SubscriptionStatus, DonationStatus, ProPlan, ProSubscription, CheckoutSession, SubscribeRequest, DonationRequest, DonationResponse
+- `app/features/pro/stores/pro.store.ts` — useProStore: subscription, plans[], isLoading, isSubscribed (computed status==='active'), hasPlans, getMonthlyPlan, getAnnualPlan, setSubscription(), clearSubscription(), setPlans(), setLoading(), clearPro()
+- `app/features/pro/composables/usePro.ts` — error ref, proStore/authStore refs, fetchPlans(), fetchSubscription() (404→null, not error), createCheckoutSession(planId) (client-only, HTTPS guard, navigateTo external), cancelSubscription() (optimistic store update), donate(DonationRequest)
+- `app/features/pro/components/ProBanner.vue` — compact prop, featureName prop, emits upgrade/close. Shows upgrade prompt for authenticated non-PRO users; login CTA for unauthenticated users; nothing for PRO users
+- `app/features/pro/components/ProUpgradeModal.vue` — v-model boolean, Bootstrap Modal instance via lazy import('bootstrap'), hidden.bs.modal event keeps v-model in sync, plan selection with savings% badge, calls createCheckoutSession on submit
+- `app/features/pro/components/PricingTable.vue` — 3-column (Free/Monthly/Annual), fetches plans on mount, FREE_FEATURES hardcoded, emits select-plan(planId), isActivePlan() badge for PRO users, skeleton loading
+- `app/features/pro/components/DonationForm.vue` — shelterId+shelterName props, PRESET_AMOUNTS [5000,10000,25000,50000] COP, custom amount input, 200-char message, ClientOnly wrapper, success state with reset
+- `app/features/pro/components/PaymentCheckout.vue` — pure display, status:'success'|'canceled'|'pending' prop, no logic
+- Pages: `app/pages/pricing/index.vue` (public, no middleware), `app/pages/dashboard/subscription/index.vue` (auth middleware)
+
+## Pro routes
+- `/pricing` → PricingTable + ProUpgradeModal (public)
+- `/dashboard/subscription` → subscription management page (auth middleware)
+  - ?checkout=success → shows PaymentCheckout success + re-fetches subscription
+  - ?checkout=canceled → shows PaymentCheckout canceled
+- AppNavbar: "Precios" added to publicLinks; "Hazte PRO" btn (warning) for non-PRO auth users; "PRO ✓" badge for PRO users
+
+## Bootstrap Modal lazy-import pattern (confirmed)
+- Import Bootstrap's `Modal` class lazily inside an async function: `const { Modal } = await import('bootstrap')`
+- Always guard with `import.meta.client` before creating instance
+- Listen to `hidden.bs.modal` event to sync v-model when modal is dismissed via Esc/backdrop
+- `useTemplateRef<HTMLElement>('modalEl')` for the modal root element ref
+
+## Stripe Checkout redirect security pattern
+- `createCheckoutSession` validates returned URL with `new URL(url).protocol === 'https:'`
+- Only redirect via `navigateTo(url, { external: true })` after HTTPS validation passes
+- `window.location.origin` access always guarded by `import.meta.client`
+- Function returns null + sets error.value if URL is not HTTPS (prevents open redirect)
+
 ## clearSession cross-store rule — current state
-`auth.store.clearSession()` now resets: petsStore (setPets+clearSelectedPet), remindersStore (clearReminders), medicalStore (clearMedicalRecords), sheltersStore (clearShelters). Blog posts and petshops are public data — their clear actions exist but are NOT called from clearSession. Add new user-specific stores here when implementing new slices.
+`auth.store.clearSession()` now resets: petsStore (setPets+clearSelectedPet), remindersStore (clearReminders), medicalStore (clearMedicalRecords), sheltersStore (clearShelters), proStore (clearPro). Blog posts and petshops are public data — their clear actions exist but are NOT called from clearSession. Add new user-specific stores here when implementing new slices.
 
 ## MedicalRecordForm pattern difference vs ReminderForm
 - MedicalRecordForm calls the composable directly (no emit-to-parent pattern)

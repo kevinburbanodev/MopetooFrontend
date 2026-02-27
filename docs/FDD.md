@@ -772,24 +772,74 @@ export const useAuthStore = defineStore('auth', () => {
 
 ---
 
-### 5.9. Monetización (RF-800 a RF-809)
+### 5.9. Monetización (RF-800 a RF-809) — ✅ IMPLEMENTADO
 
-**Funcionalidades:**
-- Suscripción PRO (mensual, anual)
-- Donaciones a refugios
-- Tiendas y refugios destacados
+**Funcionalidades:** ✅ MVP implementado
+- ✅ Catálogo de planes PRO (mensual y anual) cargado desde API
+- ✅ Checkout Stripe: crea sesión en backend, redirige a URL Stripe (HTTPS guard)
+- ✅ Cancelación de suscripción con confirmación en 2 pasos (sin modal, inline)
+- ✅ Donaciones a refugios (importes preset + importe libre, mensaje opcional)
+- ✅ Tabla de precios pública en `/pricing`
+- ✅ Gestión de suscripción en `/dashboard/subscription`
+- ✅ `ProBanner` inline para gates de funciones PRO
+- ✅ Badge "Hazte PRO" en navbar para usuarios autenticados no-PRO
+- ✅ Badge "PRO ✓" en navbar para usuarios PRO
+- ✅ Estado de checkout (success/canceled) manejado via query param en `/dashboard/subscription`
+- 📋 Tiendas y refugios destacados (is_featured ya modelado en petshops/shelters slices)
+- 📋 Webhooks Stripe (responsabilidad del backend)
 
-**Componentes Frontend:**
-- `ProUpgradeModal` — oferta de suscripción
-- `ProBanner` — banner de PRO features
-- `PricingTable` — tabla de planes
-- `DonationForm` — formulario de donaciones
-- `PaymentCheckout` — (integración con Stripe/gateway)
+**Feature path:** `app/features/pro/`
 
-**Estrategia:**
-- Mostrar `ProBanner` o bloquear funciones PRO en dashboard
-- Integración con Stripe (webhook backend)
-- Persistencia de `is_pro` en store desde API
+**Componentes Frontend:** ✅ Todos implementados
+| Componente | Ubicación | Descripción |
+|---|---|---|
+| `ProBanner` | `app/features/pro/components/ProBanner.vue` | Banner inline para features PRO. Props: `featureName?`, `compact?`. Emite `upgrade` / `close`. Muestra CTA de login a usuarios no autenticados |
+| `ProUpgradeModal` | `app/features/pro/components/ProUpgradeModal.vue` | Modal Bootstrap v-model. Selección mensual/anual con badge de ahorro. "Continuar al pago" llama `createCheckoutSession()`. Skeleton si planes no cargados |
+| `PricingTable` | `app/features/pro/components/PricingTable.vue` | 3 columnas: Free / PRO Mensual / PRO Anual. Features list, badge "Más popular", "Plan activo ✓" para PRO. Emite `select-plan(planId)`. Skeleton loading |
+| `DonationForm` | `app/features/pro/components/DonationForm.vue` | Props: `shelterId`, `shelterName`. Importes preset (5k/10k/25k/50k COP) + libre. Mensaje 200 chars. Envuelto en `<ClientOnly>`. Success state con reset |
+| `PaymentCheckout` | `app/features/pro/components/PaymentCheckout.vue` | Display puro: `status: 'success' \| 'canceled' \| 'pending'`. Alerta verde / amarilla / spinner |
+
+**Composable:** `features/pro/composables/usePro.ts`
+— `fetchPlans()`: GET `/api/pro/plans`, soporta envelope `{ plans: [] }` y array directo. `fetchSubscription()`: 404 → null silencioso (no error). `createCheckoutSession(planId)`: SSR-safe, guard HTTPS en `checkout_url` antes de `navigateTo`. `cancelSubscription()`: actualización optimista en store. `donate(DonationRequest)`: POST `/api/shelters/:id/donations`.
+
+**Store:** `features/pro/stores/pro.store.ts` — `useProStore`
+— `subscription`, `plans[]`, `isLoading`. Getters: `isSubscribed` (status === 'active'), `hasPlans`, `getMonthlyPlan`, `getAnnualPlan`. Acciones: `setSubscription`, `clearSubscription`, `setPlans`, `setLoading`, `clearPro`.
+
+**Páginas:** ✅ Todas implementadas
+| Ruta | Archivo | Middleware | Descripción |
+|---|---|---|---|
+| `/pricing` | `app/pages/pricing/index.vue` | ninguno | Tabla de precios pública + modal de upgrade |
+| `/dashboard/subscription` | `app/pages/dashboard/subscription/index.vue` | `auth` | Gestión de suscripción: ver plan, cancelar, upgrade. Lee `?checkout` query param |
+
+**AppNavbar:** ✅ Actualizado
+- "Precios" agregado a `publicLinks`
+- "Hazte PRO" (btn-warning) visible para autenticados no-PRO
+- Badge "PRO ✓" visible para usuarios con `authStore.isPro`
+
+**Endpoints:** `GET /api/pro/plans`, `GET /api/pro/subscription`, `POST /api/pro/subscribe`, `DELETE /api/pro/subscription`, `POST /api/shelters/:id/donations`
+
+**Cross-store cleanup:** ✅ `clearSession()` en `auth.store.ts` llama `proStore.clearPro()` — subscription es dato específico del usuario.
+
+**Security:** ✅ Completado — rating LOW post-review
+- ✅ Fijo (HIGH): `shelter_id` validado con `/^[\w-]{1,64}$/` en `donate()` antes de interpolación en path de API — previene path traversal
+- ✅ Fijo (PASS): Guard HTTPS en `checkout_url` (`new URL().protocol === 'https:'`) antes de `navigateTo({ external: true })` — previene open redirect
+- ✅ `import.meta.client` guard en `createCheckoutSession` (accede a `window.location.origin`)
+- ✅ Sin `v-html` en ningún componente
+- ✅ Validación de importe en `DonationForm` (> 0 y ≤ 10,000,000) — backend también debe validar
+- ✅ Bootstrap Modal instanciado solo en cliente (lazy import de bootstrap)
+- ✅ `proStore.clearPro()` integrado en `clearSession()` — evita leakage de datos de suscripción en dispositivos compartidos
+- 📋 Reportado (MEDIUM): Backend debe restringir dominios de redirect en Stripe dashboard a `mopetoo.com`
+- 📋 Reportado (LOW): `proStore` expuesto directamente en return de `usePro()` — refactor a computed refs en sprint futuro
+
+**Test coverage:** ✅ 219 tests
+| Archivo | Tests |
+|---|---|
+| `pro.store.test.ts` | 44 |
+| `usePro.test.ts` | 56 |
+| `ProBanner.test.ts` | 22 |
+| `PricingTable.test.ts` | 32 |
+| `ProUpgradeModal.test.ts` | 27 |
+| `DonationForm.test.ts` | 38 |
 
 ---
 
@@ -1378,6 +1428,7 @@ routeRules: {
 - [x] RF-500 a RF-509 — Refugios y adopciones (shelters slice) ✅
 - [x] RF-600 a RF-609 — Blog editorial (blog slice) ✅
 - [x] RF-700 a RF-709 — Directorio tiendas pet-friendly (petshops slice) ✅
+- [x] RF-800 a RF-809 — Monetización / PRO subscriptions (pro slice) ✅
 - [ ] RF-900 a RF-909 — Clínicas veterinarias (clinics slice)
 - [ ] RF-1000 a RF-1009 — Panel administrativo (admin slice)
 - [ ] Content Security Policy (CSP) implementation

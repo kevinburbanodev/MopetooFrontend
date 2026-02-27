@@ -66,6 +66,22 @@
 - The `/**` routeRules security headers baseline is in place; do not override in feature-specific rules
 - `isSafeImageUrl` duplication is now at 11 files — extraction to shared utils is overdue; flag on every new slice PR until resolved
 
+## Known Findings (from pro/monetization review 2026-02-27)
+- FIXED (HIGH): `data.shelter_id` was interpolated directly into `/api/shelters/${data.shelter_id}/donations` path string in `usePro.ts:donate()` without format validation. Fixed: added `/^[\w-]{1,64}$/` guard before path construction — returns early with error message if malformed.
+- OPEN (LOW): `checkout` query param from `route.query.checkout` in subscription page is compared with strict equality (`=== 'success'` / `=== 'canceled'`) — value is never rendered into the DOM; no XSS risk but worth documenting as a reviewed/safe pattern.
+- PASS: `createCheckoutSession` validates `checkout_url` via `new URL()` + protocol check (`https:` only) before calling `navigateTo({ external: true })` — correctly mitigates open redirect from a compromised backend response.
+- PASS: No v-html anywhere in the pro slice — all user-sourced content rendered via safe `{{ }}` interpolation.
+- PASS: No raw card data handled client-side — checkout delegates entirely to Stripe-hosted page via redirect.
+- PASS: Token access in `usePro.ts` uses `useAuthStore()` (via `useApi()` internally) — no direct `localStorage` reads.
+- PASS: `window.location.origin` access in `createCheckoutSession` is correctly guarded with `if (!import.meta.client) return null`.
+- PASS: Bootstrap Modal instantiation in `ProUpgradeModal.vue` guarded with `if (!import.meta.client) return` — no SSR `window` access.
+- PASS: `proStore.clearPro()` is called in `auth.store.ts:clearSession()` — subscription state correctly cleared on logout.
+- PASS: `pro.store.ts` exposes no sensitive payment data (no card numbers, no raw Stripe keys, only subscription metadata).
+- PASS: `isPro` derived from `currentUser.is_pro` (server-authoritative JWT claim via user object) — not from `proStore.isSubscribed` alone. Correct trust boundary.
+- PASS: `DonationForm.vue` wraps auth-sensitive UI in `<ClientOnly>` — auth state never read server-side.
+- INFO: `authStore` and `proStore` are both exposed in `usePro()` return value — callers could mutate store state directly. Low risk (internal use only) but consider exposing only what callers need in a future cleanup.
+- INFO: `planId` passed to `createCheckoutSession` is a store-derived plan ID from API response — not user input; no validation needed.
+
 ## Files to Always Re-check
 - `app/features/shared/composables/useApi.ts` — token handling, header construction
 - `app/features/auth/stores/auth.store.ts` — logout completeness (clearSession must clear ALL feature stores)
@@ -74,3 +90,4 @@
 - `app/features/pets/components/PetForm.vue` — `isSafeImageUrl` guard on photo_url, MIME/size validation in onPhotoChange
 - `app/features/shelters/components/ShelterDetail.vue` — `safeWebsiteUrl` computed (HIGH fix needed), `tel:`/`mailto:` format validation
 - `app/pages/blog/[slug].vue` — slug format validation before `fetchPostBySlug` (LOW, pending)
+- `app/features/pro/composables/usePro.ts` — `shelter_id` path param guard (FIXED), `checkout_url` HTTPS guard
