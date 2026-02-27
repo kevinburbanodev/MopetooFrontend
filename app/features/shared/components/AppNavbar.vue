@@ -86,6 +86,17 @@ function logout(): void {
         <!-- Auth actions -->
         <div class="d-flex align-items-center gap-2">
           <template v-if="authStore.isAuthenticated">
+            <!-- Admin panel link — only for admin users -->
+            <NuxtLink
+              v-if="authStore.isAdmin"
+              to="/admin"
+              class="btn btn-outline-light btn-sm"
+              :class="{ active: isActive('/admin') }"
+              aria-label="Panel Administrativo"
+            >
+              ⚙️ Admin
+            </NuxtLink>
+
             <!-- PRO status indicator — shown to authenticated users only -->
             <NuxtLink
               v-if="!authStore.isPro"

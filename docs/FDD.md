@@ -909,34 +909,85 @@ export const useAuthStore = defineStore('auth', () => {
 
 ---
 
-### 5.11. Panel Administrativo (RF-1000 a RF-1009)
+### 5.11. Panel Administrativo (RF-1000 a RF-1009) — ✅ IMPLEMENTADO
 
-**Funcionalidades:**
-- Dashboard de admin
-- Gestión de usuarios
-- Gestión de refugios
-- Gestión de tiendas
-- Gestión de clínicas
-- Logs de transacciones
+**Funcionalidades:** ✅ Todas implementadas
+- ✅ Dashboard de admin con 8 KPIs (usuarios, mascotas, refugios, clínicas, tiendas, adopciones, suscripciones PRO, donaciones) + ingresos COP
+- ✅ Gestión de usuarios: tabla paginada + búsqueda + filtros PRO/Admin + toggle PRO/Admin + eliminación en 2 pasos + protección contra auto-democión
+- ✅ Gestión de refugios: tabla + toggle Verificado/Destacado + eliminación en 2 pasos
+- ✅ Gestión de tiendas: tabla + toggle Verificado/Destacado + eliminación en 2 pasos
+- ✅ Gestión de clínicas: tabla + especialidades chips + toggle Verificado/Destacado + eliminación en 2 pasos
+- ✅ Logs de transacciones: historial de pagos/donaciones con tipo/estado badges, solo lectura
 
-**Componentes:**
-- `AdminDashboard` — overview de stats
-- `AdminUserManager` — CRUD de usuarios
-- `AdminShelterManager` — CRUD de refugios
-- `AdminStoreManager` — CRUD de tiendas
-- `AdminClinicManager` — CRUD de clínicas
-- `AdminTransactionLog` — historial de pagos/donaciones
+**Feature path:** `app/features/admin/`
+
+**Componentes Frontend:** ✅ Todos implementados
+| Componente | Ubicación | Descripción |
+|---|---|---|
+| `AdminDashboard` | `app/features/admin/components/AdminDashboard.vue` | 8 KPI cards en 2 filas, ingresos COP formateados, quick-nav links, skeleton 8-cards, retry en error |
+| `AdminUserManager` | `app/features/admin/components/AdminUserManager.vue` | Tabla paginada, búsqueda debounced, filtros PRO/Admin, toggle PRO/Admin, 2-step delete, self-protection guard (`isSelf()`) |
+| `AdminShelterManager` | `app/features/admin/components/AdminShelterManager.vue` | Tabla con pets_count, toggle Verificado/Destacado, 2-step delete |
+| `AdminStoreManager` | `app/features/admin/components/AdminStoreManager.vue` | Tabla, toggle Verificado/Destacado, 2-step delete |
+| `AdminClinicManager` | `app/features/admin/components/AdminClinicManager.vue` | Tabla con specialty chips (máx 2 + overflow), toggle Verificado/Destacado, 2-step delete |
+| `AdminTransactionLog` | `app/features/admin/components/AdminTransactionLog.vue` | Log de lectura: type badges (subscription=primary/donation=success), status badges (4 variantes), paginación |
+
+**Composable:** `features/admin/composables/useAdmin.ts`
+— 14 funciones: `fetchStats`, `fetchUsers`, `updateUser`, `deleteUser`, `fetchShelters`, `updateShelter`, `deleteShelter`, `fetchPetshops`, `updatePetshop`, `deletePetshop`, `fetchAdminClinics`, `updateAdminClinic`, `deleteAdminClinic`, `fetchTransactions`. Dual API shapes en todos los fetches. IDs numéricos validados con `typeof id === 'number' && id > 0`; IDs string con `/^[\w-]{1,64}$/`.
+
+**Store:** `features/admin/stores/admin.store.ts` — `useAdminStore`
+— `stats`, `users[]`, `shelters[]`, `petshops[]`, `clinics[]`, `transactions[]`, `selectedUser`, `isLoading`, 5 total-count refs. Getters: `hasStats`, `hasUsers`. Acciones CRUD por entidad + `clearAdmin()`.
 
 **Middleware:**
 ```typescript
-// app/middleware/admin.ts
-export default defineRouteMiddleware((to, from) => {
+// app/middleware/admin.ts — doble check: isAuthenticated + isAdmin
+// No autenticado → /login
+// Autenticado sin admin → / (403 redirect)
+export default defineNuxtRouteMiddleware(() => {
   const authStore = useAuthStore()
-  if (!authStore.currentUser?.is_admin) {
-    return navigateTo('/')
-  }
+  if (!authStore.isAuthenticated) return navigateTo('/login')
+  if (!authStore.isAdmin) return navigateTo('/')
 })
 ```
+
+**Páginas:** ✅ Todas implementadas (thin wrappers con `admin` middleware)
+| Ruta | Archivo | Descripción |
+|---|---|---|
+| `/admin` | `app/pages/admin/index.vue` | Dashboard con KPIs |
+| `/admin/users` | `app/pages/admin/users/index.vue` | Gestión de usuarios |
+| `/admin/shelters` | `app/pages/admin/shelters/index.vue` | Gestión de refugios |
+| `/admin/stores` | `app/pages/admin/stores/index.vue` | Gestión de tiendas |
+| `/admin/clinics` | `app/pages/admin/clinics/index.vue` | Gestión de clínicas |
+| `/admin/stats` | `app/pages/admin/stats.vue` | Vista de estadísticas |
+
+**AppNavbar:** ✅ Actualizado
+- Botón "⚙️ Admin" visible solo para `authStore.isAdmin` (en área autenticada, antes del badge PRO)
+
+**Endpoints:** `GET /api/admin/stats`, `GET /api/admin/users`, `PUT /api/admin/users/:id`, `DELETE /api/admin/users/:id`, `GET /api/admin/shelters`, `PUT /api/admin/shelters/:id`, `DELETE /api/admin/shelters/:id`, `GET /api/admin/stores`, `PUT /api/admin/stores/:id`, `DELETE /api/admin/stores/:id`, `GET /api/admin/clinics`, `PUT /api/admin/clinics/:id`, `DELETE /api/admin/clinics/:id`, `GET /api/admin/transactions`
+
+**Cross-store cleanup:** ✅ `clearSession()` en `auth.store.ts` llama `adminStore.clearAdmin()` — datos de admin son específicos de la sesión (lista de usuarios, stats, etc.).
+
+**Security:** ✅ Completado — rating LOW post-review
+- ✅ Doble-gate middleware: `isAuthenticated` + `isAdmin` (no basta con solo `isAdmin`)
+- ✅ Validación de IDs antes de interpolación en paths de API (previene path traversal)
+- ✅ Sin `v-html` — todo el PII (email, nombre, teléfono) renderizado via `{{ }}` text interpolation
+- ✅ Auto-democión protegida: `isSelf()` guard desactiva "Quitar Admin" y "Eliminar" en la fila propia del admin logueado
+- ✅ SSR-safe: datos en `onMounted`, `Intl` formatters sin acceso a `window`/`document`
+- ✅ `clearAdmin()` en `clearSession()` previene data leakage en dispositivos compartidos
+- 📋 Reportado (MEDIUM): Backend debe validar `is_admin === true` en JWT claims en cada endpoint `/api/admin/**`
+- 📋 Reportado (LOW): IDOR en operaciones de toggle — el frontend no puede prevenir raw HTTP requests; el backend es la autoridad
+
+**Test coverage:** ✅ 327 tests
+| Archivo | Tests |
+|---|---|
+| `admin.store.test.ts` | 75 |
+| `useAdmin.test.ts` | 76 |
+| `admin.test.ts` (middleware) | 7 |
+| `AdminDashboard.test.ts` | 27 |
+| `AdminUserManager.test.ts` | 31 |
+| `AdminShelterManager.test.ts` | 27 |
+| `AdminStoreManager.test.ts` | 27 |
+| `AdminClinicManager.test.ts` | 29 |
+| `AdminTransactionLog.test.ts` | 28 |
 
 ---
 
@@ -1480,7 +1531,7 @@ routeRules: {
 - [x] RF-700 a RF-709 — Directorio tiendas pet-friendly (petshops slice) ✅
 - [x] RF-800 a RF-809 — Monetización / PRO subscriptions (pro slice) ✅
 - [x] RF-900 a RF-909 — Clínicas veterinarias (clinics slice) ✅
-- [ ] RF-1000 a RF-1009 — Panel administrativo (admin slice)
+- [x] RF-1000 a RF-1009 — Panel administrativo (admin slice) ✅
 - [ ] Content Security Policy (CSP) implementation
 - [ ] Multi-language support (@nuxtjs/i18n)
 

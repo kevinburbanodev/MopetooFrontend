@@ -241,3 +241,36 @@ vi.mock('../../shared/composables/useApi', () => ({ ... }))
 ```
 
 If the path is wrong, vi.mock silently does nothing and all API mock assertions get 0 calls.
+
+## 9. Admin Feature — Transacción plural form (accented)
+
+The AdminTransactionLog component uses:
+```vue
+{{ adminStore.totalTransactions }} transacción{{ adminStore.totalTransactions !== 1 ? 'es' : '' }}
+```
+This appends 'es' to 'transacción', producing 'transacciónes' (with accent on ó) for plurals.
+Test assertions must use `toContain('transacción')` (present in both singular and plural forms) rather than trying to match the exact plural string 'transacciones' (without accent).
+
+## 10. Admin middleware test — 3-branch coverage
+
+The admin middleware has THREE branches (not two like auth middleware):
+1. Not authenticated → navigateTo('/login')
+2. Authenticated + isAdmin=false → navigateTo('/')
+3. Authenticated + isAdmin=true → undefined (pass-through)
+
+isAdmin is a computed: `currentUser?.is_admin ?? false`
+Set via `createTestingPinia({ initialState: { auth: { token: 'jwt', currentUser: { id: 1, is_admin: true } } } })`
+
+Test file: `app/middleware/admin.test.ts` (7 tests — 2 per branch for the redirect cases, 2 for the pass-through)
+
+## 11. Admin slice — Coverage (RF-1000 to RF-1009)
+
+- `admin.store.ts`: 75 tests — initial state (11), hasStats getter (3), hasUsers getter (3), setStats (3), setUsers (5), updateUser (4), removeUser (4), setSelectedUser/clearSelectedUser (3), setShelters (2), updateShelter (2), removeShelter (3), setPetshops (1), updatePetshop (2), removePetshop (3), setAdminClinics (2), updateAdminClinic (3), removeAdminClinic (3), setTransactions (2), setLoading (4), clearAdmin (13)
+- `useAdmin.ts`: 76 tests — fetchStats (6), fetchUsers (10), updateUser (6), deleteUser (5), fetchShelters (6), updateShelter (4), deleteShelter (4), fetchPetshops (4), updatePetshop (4), deletePetshop (3), fetchAdminClinics (5), updateAdminClinic (4), deleteAdminClinic (4), fetchTransactions (6), error extraction (4)
+- `AdminDashboard.vue`: 27 tests — section structure, lifecycle (fetchStats on mount), loading skeleton (8 cards/aria-busy/no KPIs), KPI cards (8 labels/revenue section), quick nav links (5 links), empty state (heading/reintentar button/reintentar calls fetchStats), error alert (show/hide)
+- `AdminUserManager.vue`: 31 tests — section/lifecycle, loading skeleton (5 rows), empty state, user rows (name/email/city/PRO badge/Admin badge), toggle PRO (Dar/Quitar × 2), toggle Admin (Dar/Quitar × 2), 2-step delete (6 tests), result count (singular/plural), error alert, no pagination footer when ≤20
+- `AdminShelterManager.vue`: 27 tests — section/lifecycle, skeleton, empty state, shelter rows (name/city/verified badge/unverified/"No"/featured badge/email), toggle Verificado (2), toggle Destacado (2), 2-step delete (6), result count (singular/plural), error alert, no pagination footer
+- `AdminStoreManager.vue`: 27 tests — same pattern as ShelterManager but for petshops
+- `AdminClinicManager.vue`: 29 tests — same pattern + specialty chips (2 visible max, +N overflow badge, dash for empty specialties)
+- `AdminTransactionLog.vue`: 28 tests — section/lifecycle, skeleton, empty state, rows (user_name/email/id truncated/currency/description), type badges (subscription=bg-primary/"Suscripción"/donation=bg-success/"Donación"), status badges (completed/pending/failed/refunded with correct CSS classes and Spanish labels), read-only (no Eliminar/Verificar/Destacar buttons), result count, error alert, no pagination footer
+- `admin.ts` middleware: 7 tests — unauthenticated→/login (2), authenticated non-admin→/ (3), authenticated admin→pass-through (2)
