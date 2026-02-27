@@ -41,10 +41,22 @@ Never in a top-level `/tests` folder.
 ## Shared Feature Coverage (completed)
 - `useApi.ts`: 45 tests (1 skipped) — URL construction (6), get/post/put/patch/del HTTP methods (4 each), headers without token (9), $fetch call shape (5), return value contract (5)
 - Token branch (`import.meta.client = true`) is unreachable in nuxt SSR test environment — explicitly skipped with `it.skip` and explanation. Covered indirectly by usePets and useAuth multipart tests.
+- `useExportPDF.ts`: 24 tests — slugify (12: lowercase, spaces, multi-space, accents, special chars, apostrophes, digits, hyphens, clean slug, empty, all-stripped, real-world), downloadPDF (12: full URL, GET method, blob responseType, auth header, empty headers when no token, createObjectURL call, revokeObjectURL call, download attribute, href/blob, propagates errors, no createObjectURL on $fetch error, different endpoint)
+
+## useExportPDF URL stub pattern
+`vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:...')` and `vi.spyOn(URL, 'revokeObjectURL')` — MUST spy on the real URL object, NOT replace it with `vi.stubGlobal('URL', {...})`. Replacing URL entirely breaks Nuxt internals that use `new URL(href)` as a constructor ("URL is not a constructor").
+
+## import.meta.client in nuxt test environment
+`import.meta.client` evaluates to `true` in the nuxt test environment with happy-dom — NOT false. The client-side path (including $fetch, DOM manipulation) IS exercised in tests. The SSR guard can only be tested by patching compiled output, which is impractical. Document the SSR no-op as untested and rely on the guard being a trivial one-liner.
+
+## RF-400 PDF export Coverage (completed)
+- `useExportPDF.ts`: 24 tests (shared composable)
+- `usePets.ts` `exportProfilePDF`: 12 new tests added to existing `usePets.test.ts` — endpoint construction, petName slugify, petId fallback, slugify call/skip, isLoading lifecycle, error handling (3 shapes + generic fallback), error cleared on success
+- `useReminders.ts` `exportRemindersPDF`: 19 new tests added to existing `useReminders.test.ts` — endpoint selection (no petId/with petId/petId=0 edge), filename (no petName/petName suffix/petId-only/slugify call/no slugify call/combined), isLoading lifecycle, error handling (4 shapes)
 
 ## Pets Feature Coverage (completed — RF-100 to RF-109)
 - `pets.store.ts`: 44 tests — initial state, setPets, addPet, updatePet (selectedPet sync), removePet (selectedPet clear), setSelectedPet, clearSelectedPet, setLoading, hasPets getter, getPetById getter
-- `usePets.ts`: 51 tests — fetchPets (array/object/missing key/error), fetchPetById (success/404), createPet (JSON/FormData + auth header), updatePet (PATCH JSON/FormData), deletePet (success/failure/generic error)
+- `usePets.ts`: 64 tests — fetchPets (array/object/missing key/error), fetchPetById (success/404), createPet (JSON/FormData + auth header), updatePet (PATCH JSON/FormData), deletePet (success/failure/generic error), exportProfilePDF (12 tests — RF-400)
 - `usePetAge.ts`: 17 tests — empty, invalid, today, months, years, combined, singular/plural
 - `PetAvatar.vue`: 21 tests — photo/fallback rendering, image error fallback, size prop, a11y
 - `PetCard.vue`: 22 tests — rendering all fields, event emissions, stopPropagation, a11y
@@ -52,11 +64,11 @@ Never in a top-level `/tests` folder.
 - `PetForm.vue`: 32 tests — create/edit mode field rendering, validation, submit payload, cancel, isLoading, photo upload
 - `PetDetail.vue`: 29 tests — all fields, edit emit, two-step delete confirmation flow, fallback species
 
-## Project Test Total: 883 passing, 1 skipped (23 test files)
+## Project Test Total: 937 passing, 1 skipped (24 test files)
 
 ## Reminders Feature Coverage (completed — RF-200 to RF-209)
 - `reminders.store.ts`: 44 tests — initial state, hasReminders, getReminderById, setReminders, addReminder, updateReminder (selectedReminder sync), removeReminder (selectedReminder clear), setSelectedReminder, clearSelectedReminder, setLoading, clearReminders
-- `useReminders.ts`: 56 tests — fetchReminders (array/object/missing key/error/petId nested route/petId=0 edge), fetchReminderById (success/404/no setSelectedReminder on error), createReminder (success/failure/loading), updateReminder (PUT/failure/no store call on error), deleteReminder (success/failure/loading/generic error), error ref contract (null start, cleared on success, shape extraction)
+- `useReminders.ts`: 75 tests — fetchReminders (array/object/missing key/error/petId nested route/petId=0 edge), fetchReminderById (success/404/no setSelectedReminder on error), createReminder (success/failure/loading), updateReminder (PUT/failure/no store call on error), deleteReminder (success/failure/loading/generic error), error ref contract (null start, cleared on success, shape extraction), exportRemindersPDF (19 tests — RF-400)
 - `ReminderCard.vue`: 26 tests — title/date/time element, petName show/hide, notes show/hide, type labels (5), type icons (5), recurrence labels (4) + hide when undefined, Vencido badge (past/future/CSS class), edit/delete emit, stopPropagation, a11y
 - `ReminderList.vue`: 29 tests — loading skeleton (6 cards/aria-busy/no filter bar), empty state (heading/CTA link/no skeleton), reminder grid (count/names/no empty state), filter bar (Todas/pet options/Todos/5 types/no Limpiar when inactive), pet filter (by pet/Limpiar clears/shows Limpiar when active), type filter (by type/Limpiar), filter no-results (message/no articles/Ver todos button/clear via Ver todos), sort ascending, petName lookup (match/unknown pet), event forwarding (edit/delete), accessibility (section aria-label)
 - `ReminderForm.vue`: 46 tests — create mode (all fields present/defaults/vacuna/first pet/no recurrence/Crear recordatorio), edit mode (pre-fill all fields/Guardar cambios), validation (no emit on empty/was-validated/is-invalid title/date/pet/short title), submit payload (required fields/pet_id as Number/trim title/omit recurrence when empty/include recurrence/omit notes when empty/include notes/trim notes/omit whitespace notes/different pet/different type), notes counter (0/500/count/edit prefill), cancel (emit/no submit), isLoading (disable submit/disable cancel/spinner/enabled when false/no spinner), no pets warning (show/hide), async pets (auto-select first/no override if already selected), type options (5 count/vacuna/medicina/visita), recurrence options (Sin recurrencia first/5 total)

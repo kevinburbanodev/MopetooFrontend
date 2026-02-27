@@ -555,16 +555,41 @@ export const useAuthStore = defineStore('auth', () => {
 
 ---
 
-### 5.5. Exportación y PDF (RF-400 a RF-409)
+### 5.5. Exportación y PDF (RF-400 a RF-409) — ✅ IMPLEMENTADO
 
-**Funcionalidades:**
-- Exportación de perfil de mascota
-- Exportación de historial médico
-- Exportación de recordatorios
+**Funcionalidades:** ✅ Todas implementadas
+- ✅ Exportación de perfil de mascota
+- ✅ Exportación de historial médico (ya implementado en RF-300)
+- ✅ Exportación de recordatorios
 
 **Implementación:**
 - Backend genera PDF y devuelve como `blob`
-- Frontend descarga usando `URL.createObjectURL` + `<a>` click
+- Frontend descarga usando `URL.createObjectURL` + `<a>` click + `revokeObjectURL`
+
+**Composable compartido:** `features/shared/composables/useExportPDF.ts`
+— `downloadPDF(endpoint, filename)`: fetch blob con `$fetch` + `responseType: 'blob'` + Bearer token, luego dispara descarga con `<a>` temporal. Siempre guarda con `import.meta.client`. `slugify(name)` convierte nombres de mascota a slugs seguros para filenames.
+
+**Integración en features:**
+
+| Feature | Función | Endpoint | Filename |
+|---|---|---|---|
+| `usePets` | `exportProfilePDF(petId, petName?)` | `GET /api/pets/:petId/export` | `perfil-{slug}.pdf` |
+| `useMedical` | `exportPDF(petId, petName?)` | `GET /api/pets/:petId/medical-records/export` | `historial-medico-{slug}.pdf` |
+| `useReminders` | `exportRemindersPDF(petId?, petName?)` | `GET /api/reminders/export` o `GET /api/pets/:petId/reminders/export` | `recordatorios[-{slug}].pdf` |
+
+**UI de exportación:**
+- `PetDetail.vue` — botón "Exportar perfil" emite `export-pdf` al padre (`[id].vue`)
+- `MedicalHistory.vue` — botón "Exportar PDF" (ya implementado en RF-300)
+- `app/pages/dashboard/reminders/index.vue` — botón "Exportar PDF" en cabecera (solo visible cuando hay recordatorios)
+
+**Endpoints backend:** `GET /api/pets/:petId/export`, `GET /api/pets/:petId/medical-records/export`, `GET /api/reminders/export`, `GET /api/pets/:petId/reminders/export`
+
+**Test coverage:** ✅ 55 tests
+| Archivo | Tests |
+|---|---|
+| `useExportPDF.test.ts` | 24 |
+| `usePets.test.ts` (exportProfilePDF describe) | 12 |
+| `useReminders.test.ts` (exportRemindersPDF describe) | 19 |
 
 ---
 
@@ -1252,6 +1277,7 @@ routeRules: {
 - [x] RF-100 a RF-109 — Gestión de mascotas (pets slice) ✅
 - [x] RF-200 a RF-209 — Recordatorios (reminders slice) ✅
 - [x] RF-300 a RF-309 — Historial médico (medical slice) ✅
+- [x] RF-400 a RF-409 — Exportación y PDF (export slice) ✅
 - [ ] RF-500 a RF-509 — Refugios y adopciones (shelters slice)
 - [ ] RF-600 a RF-609 — Blog editorial (blog slice)
 - [ ] RF-700 a RF-709 — Directorio tiendas pet-friendly (stores slice)

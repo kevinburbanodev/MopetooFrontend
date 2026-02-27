@@ -13,6 +13,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   edit: []
   delete: []
+  'export-pdf': []
 }>()
 
 const { formatAge } = usePetAge()
@@ -117,6 +118,17 @@ function formatDate(iso: string): string {
               >
                 Ver historial médico
               </NuxtLink>
+
+              <!-- Export pet profile as PDF -->
+              <button
+                type="button"
+                class="btn btn-outline-secondary"
+                :disabled="isLoading"
+                @click="emit('export-pdf')"
+              >
+                <span aria-hidden="true">📄 </span>
+                Exportar perfil
+              </button>
 
               <!-- Delete — two-step confirmation inline -->
               <div v-if="!confirmingDelete">
