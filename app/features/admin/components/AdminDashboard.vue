@@ -179,6 +179,11 @@ onMounted(async () => {
         </div>
       </div>
 
+      <!-- System status & maintenance toggle -->
+      <div class="mb-4">
+        <MaintenanceToggle />
+      </div>
+
       <!-- Quick navigation -->
       <div class="card border-0 shadow-sm">
         <div class="card-header bg-transparent border-bottom">

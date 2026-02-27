@@ -189,13 +189,20 @@
 - No v-html anywhere; all content as plain text bindings
 
 ## clearSession cross-store rule — current state
-`auth.store.clearSession()` now resets: petsStore (setPets+clearSelectedPet), remindersStore (clearReminders), medicalStore (clearMedicalRecords), sheltersStore (clearShelters), proStore (clearPro), adminStore (clearAdmin). Blog posts and petshops are public data — their clear actions exist but are NOT called from clearSession. Add new user-specific stores here when implementing new slices.
+`auth.store.clearSession()` now resets: petsStore, remindersStore, medicalStore, sheltersStore, proStore, adminStore, statsStore. Blog/petshops/clinics/maintenance are public data — NOT cleared on logout. Add user-specific stores when implementing new slices.
 
-## MedicalRecordForm pattern difference vs ReminderForm
-- MedicalRecordForm calls the composable directly (no emit-to-parent pattern)
-- ReminderForm emits a typed payload to the parent page which handles API calls
-- Both are valid patterns; use whichever keeps the page thinner
+## Maintenance slice — confirmed file locations (RF-1200 to RF-1209 complete)
+- `app/features/maintenance/types/index.ts` — MaintenanceStatus (is_enabled, message?, updated_at?, updated_by?), MaintenanceResponse, ToggleMaintenanceRequest
+- `app/features/maintenance/stores/maintenance.store.ts` — useMaintenanceStore: status, isLoading, isEnabled (computed), hasStatus (computed), setStatus(), setLoading(), clearMaintenance(). NOT in clearSession() — global/public flag
+- `app/features/maintenance/composables/useMaintenance.ts` — fetchStatus() (fails silently, dual API shapes), toggleMaintenance(enabled). Returns error, maintenanceStore, fetchStatus, toggleMaintenance
+- `app/features/maintenance/components/MaintenancePage.vue` — full-page centered layout, message? prop, brand green title, "Volver al inicio" NuxtLink, role="main", SSR-safe
+- `app/features/maintenance/components/MaintenanceToggle.vue` — self-contained admin widget, two-step confirm, status badge (bg-danger/bg-success), updated_at + updated_by metadata, skeleton, fetches on mount
+- `app/pages/maintenance.vue` — no middleware, noindex robots meta, reads maintenanceStore.status?.message for custom message
+- `app/middleware/maintenance.ts` — GLOBAL middleware (default export, no definePageMeta needed); admin bypass via authStore.isAdmin; isEnabled+!isMaintenancePage → /maintenance; !isEnabled+isMaintenancePage → /
+- `useApi.ts` updated: `onResponse: onResponseCheck` on all $fetch calls; detects `x-maintenance: true` header → setStatus + navigateTo('/maintenance'). Guard: import.meta.client
+- `AdminDashboard.vue` updated: `<MaintenanceToggle />` injected above quick-nav list-group (inside hasStats template block)
+- `nuxt.config.ts` updated: `/maintenance` route rule `{ cache: false }`
+- Endpoints: GET /api/admin/maintenance, PUT /api/admin/maintenance
 
 ## See also
 - `docs/FDD.md` — full Frontend Development Document
-- `docs/SRS.md` — Software Requirements Specification

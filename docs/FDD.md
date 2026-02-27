@@ -1046,36 +1046,77 @@ export default defineNuxtRouteMiddleware(() => {
 
 ---
 
-### 5.13. Sistema de Mantenimiento (RF-1200 a RF-1209)
+### 5.13. Sistema de Mantenimiento (RF-1200 a RF-1209) — ✅ IMPLEMENTADO
 
-**Funcionalidades:**
-- Bandera de mantenimiento desde admin
-- Página de mantenimiento
-- Redirección automática si frontend detecta mantenimiento
+**Funcionalidades:** ✅ Todas implementadas
+- ✅ Bandera de mantenimiento controlable desde admin (toggle con confirmación en 2 pasos)
+- ✅ Página de mantenimiento (`/maintenance`) accesible y con soporte de mensaje personalizado
+- ✅ Redirección automática vía header `x-maintenance: true` en cualquier respuesta de API
+- ✅ Middleware global que redirige a `/maintenance` cuando está activo (bypass para admins)
+- ✅ Redirect inverso: si mantenimiento termina y el usuario está en `/maintenance`, redirige a `/`
+- ✅ Widget `MaintenanceToggle` en `AdminDashboard` con skeleton, estado vacío, metadatos y vista previa del mensaje
+- ✅ Soporte dual API shapes en `fetchStatus()` y `toggleMaintenance()`
+- ✅ SSR-safe: header check en `useApi.ts` guardado con `import.meta.client`
+- ✅ Diseño accesible: `role="main"`, jerarquía de headings, aria-labels, foco visible
 
-**Implementación:**
+**Feature path:** `app/features/maintenance/`
+
+**Componentes Frontend:** ✅ Todos implementados
+| Componente | Ubicación | Descripción |
+|---|---|---|
+| `MaintenancePage` | `app/features/maintenance/components/MaintenancePage.vue` | Página completa centrada con 🔧, título "En mantenimiento", subtítulo (prop `message?` con fallback por defecto), botón "Volver al inicio" (NuxtLink to="/") |
+| `MaintenanceToggle` | `app/features/maintenance/components/MaintenanceToggle.vue` | Widget de admin para togglear mantenimiento: badge Activo/Inactivo, confirmación en 2 pasos inline, metadatos `updated_by`/`updated_at` (Intl formatado), preview del mensaje actual, skeleton loading, empty state con Reintentar |
+
+**Composable:** `features/maintenance/composables/useMaintenance.ts`
+— `fetchStatus()`: GET `/api/admin/maintenance`, dual API shapes, **falla silenciosamente** (no setea `error.value`) — endpoint es admin-only, usuarios no-admin no deben ver 403. `toggleMaintenance(enabled)`: PUT `/api/admin/maintenance` con body `{ is_enabled: boolean }`, dual API shapes, **sí** superficia errores (llamado desde UI admin donde el operador necesita feedback). Returns: `{ error, maintenanceStore, fetchStatus, toggleMaintenance }`.
+
+**Store:** `features/maintenance/stores/maintenance.store.ts` — `useMaintenanceStore`
+— `status` (MaintenanceStatus | null), `isLoading`. Getters: `isEnabled` (computed: `status?.is_enabled ?? false` — default `false` para renderizar normalmente antes del primer fetch), `hasStatus` (computed: `status !== null`). Acciones: `setStatus`, `setLoading`, `clearMaintenance`.
+
+> **Nota crítica:** `useMaintenanceStore` **NO se agrega** a `clearSession()` en `auth.store.ts`. El estado de mantenimiento es una bandera global de plataforma, no dato específico del usuario. Persiste entre sesiones intencionalmente.
+
+**Middleware:** `app/middleware/maintenance.ts` — middleware **global** (default export → Nuxt lo registra automáticamente en todas las rutas)
 ```typescript
-// features/shared/composables/useApi.ts
-export const useApi = () => {
-  const api = $fetch.create({
-    baseURL: useRuntimeConfig().public.apiBase,
-    onResponse({ response }) {
-      // Chequear header de mantenimiento
-      if (response.headers.get('x-maintenance') === 'true') {
-        navigateTo('/maintenance')
-      }
-    },
-    onRequestError({ error }) {
-      // Handle errors
-    }
-  })
-
-  return api
-}
-
-// Página de mantenimiento
-// app/pages/maintenance.vue
+// Lógica:
+// 1. Admin users → bypass completo (siempre pueden acceder al admin panel)
+// 2. isEnabled && !isMaintenancePage → navigateTo('/maintenance')
+// 3. !isEnabled && isMaintenancePage → navigateTo('/') (mantenimiento terminó)
+// 4. Resto → pass-through (undefined)
 ```
+
+**Página:** `app/pages/maintenance.vue`
+— Thin wrapper. **Sin middleware** (aplicar cualquier middleware podría crear redirect loops). `useHead` con `title` y `robots: noindex, nofollow`. Lee `maintenanceStore.status?.message` y lo pasa como prop a `MaintenancePage`.
+
+**Integración con `useApi.ts`:** ✅ Updated
+— `onResponseCheck()` hook agregado a todos los métodos `$fetch` (GET, POST, PUT, PATCH, DELETE). Guardado con `import.meta.client`. Si `response.headers.get('x-maintenance') === 'true'`: llama `maintenanceStore.setStatus({ is_enabled: true })` y `navigateTo('/maintenance')`. Detección pasiva y reactiva sin polling.
+
+**Integración con `AdminDashboard.vue`:** ✅ Updated
+— `<MaintenanceToggle />` agregado en sección "Sistema" dentro del bloque `v-else-if="adminStore.hasStats"`, entre las revenue cards y la navegación rápida. Auto-contenido.
+
+**`nuxt.config.ts`:** ✅ Updated
+— `'/maintenance': { cache: false }` — previene que CDN o browser sirvan la página de mantenimiento desde caché cuando el admin la desactiva.
+
+**Endpoints:**
+- `GET /api/admin/maintenance` — estado actual de mantenimiento (solo admin)
+- `PUT /api/admin/maintenance` — togglear modo mantenimiento (body: `{ is_enabled: boolean }`)
+
+**Cross-store cleanup:** No aplica — datos de plataforma, no específicos del usuario. `clearMaintenance()` disponible para uso futuro.
+
+**Security:** ✅ Completado
+- ✅ `import.meta.client` guard en el hook de header — previene redirect SSR indeseados
+- ✅ Middleware con bypass completo para admins — nunca se les bloquea el acceso al panel
+- ✅ Sin `v-html` en ningún componente
+- ✅ SSR-safe: no `window`/`document` en ningún componente
+- ✅ `/maintenance` sin cache — usuarios ven el estado live inmediatamente al restaurar servicio
+
+**Test coverage:** ✅ 163 tests
+| Archivo | Tests |
+|---|---|
+| `maintenance.store.test.ts` | 32 |
+| `useMaintenance.test.ts` | 37 |
+| `MaintenancePage.test.ts` | 18 |
+| `MaintenanceToggle.test.ts` | 52 |
+| `maintenance.test.ts` (middleware) | 24 |
 
 ---
 
@@ -1572,6 +1613,7 @@ routeRules: {
 - [x] RF-900 a RF-909 — Clínicas veterinarias (clinics slice) ✅
 - [x] RF-1000 a RF-1009 — Panel administrativo (admin slice) ✅
 - [x] RF-1100 a RF-1109 — Estadísticas y métricas (stats slice) ✅
+- [x] RF-1200 a RF-1209 — Sistema de mantenimiento (maintenance slice) ✅
 - [ ] Content Security Policy (CSP) implementation
 - [ ] Multi-language support (@nuxtjs/i18n)
 
