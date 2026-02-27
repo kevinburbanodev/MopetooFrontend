@@ -52,6 +52,8 @@ Never in a top-level `/tests` folder.
 - `PetForm.vue`: 32 tests — create/edit mode field rendering, validation, submit payload, cancel, isLoading, photo upload
 - `PetDetail.vue`: 29 tests — all fields, edit emit, two-step delete confirmation flow, fallback species
 
+## Project Test Total: 883 passing, 1 skipped (23 test files)
+
 ## Reminders Feature Coverage (completed — RF-200 to RF-209)
 - `reminders.store.ts`: 44 tests — initial state, hasReminders, getReminderById, setReminders, addReminder, updateReminder (selectedReminder sync), removeReminder (selectedReminder clear), setSelectedReminder, clearSelectedReminder, setLoading, clearReminders
 - `useReminders.ts`: 56 tests — fetchReminders (array/object/missing key/error/petId nested route/petId=0 edge), fetchReminderById (success/404/no setSelectedReminder on error), createReminder (success/failure/loading), updateReminder (PUT/failure/no store call on error), deleteReminder (success/failure/loading/generic error), error ref contract (null start, cleared on success, shape extraction)
@@ -63,7 +65,20 @@ Never in a top-level `/tests` folder.
 `setValue(null)` on a select bound to `:value="null"` does NOT work — happy-dom serializes it as `"null"` (string), not matching the `:value="null"` Vue binding. Use the "Limpiar filtros" button click or `setValue('')` instead of trying to reset a null-bound option via `setValue(null)`.
 
 ## NuxtLink in component tests
-Stub via `global: { stubs: { NuxtLink: true } }` for most tests. For tests asserting `href` attributes on the rendered `<a>`, use `{ NuxtLink: false }` so the real NuxtLink resolves to `<a>` in the test environment.
+- `{ NuxtLink: true }` — stubs as `<nuxtlink-stub>` with NO slot content. Text inside the link is invisible to `wrapper.text()`.
+- `{ NuxtLink: false }` — renders as real `<a>` with slot content. Use for `href` assertions and text-content assertions on links.
+- `{ NuxtLink: { template: '<a><slot /></a>' } }` — renders slot content without a real router. Use when text inside NuxtLink must be visible AND href precision is not needed (e.g. MedicalHistory "Agregar registro", "Volver a la mascota").
+
+## Composable mock path for medical feature
+- From `app/features/medical/components/`, mock `useMedical` as: `vi.mock('../composables/useMedical', ...)`.
+- From `app/features/medical/composables/`, mock `useApi` as: `vi.mock('../../shared/composables/useApi', ...)`.
+
+## Medical Feature Coverage (completed — RF-300 to RF-309)
+- `medical.store.ts`: 44 tests — initial state, hasRecords getter, getRecordById getter, setRecords, addRecord (prepend/unshift), updateRecord (selectedRecord sync), removeRecord (selectedRecord clear), setSelectedRecord, clearSelectedRecord, setLoading, clearMedicalRecords
+- `useMedical.ts`: 65 tests — fetchMedicalHistory (array/object/missing key/error/bare array shape), fetchMedicalRecord (success/404/no setSelected on error), createMedicalRecord (success/failure/loading/no addRecord on error), updateMedicalRecord (PUT/failure/no store call on error/URL correctness), deleteMedicalRecord (success/failure/loading/generic error/no removeRecord on error), exportPDF (function exists/SSR no-op), error ref contract (null start/cleared on success/3 error shapes)
+- `MedicalRecordCard.vue`: 38 tests — required fields (date/vet/diagnosis/treatment/labels), optional weight (show/hide/0 boundary/title), optional notes (show/hide), optional next_visit (show/hide/bg-warning future), overdue badge (Vencida text/bg-danger/no bg-danger future/aria-label), edit link (Editar text/href/aria-label), two-step delete (initial state/show confirmation/Sí+Cancelar/no emit on first click/emit on confirm/cancel resets state/no emit on cancel), accessibility (article aria-label/delete button aria-label/aria-hidden emojis)
+- `MedicalHistory.vue`: 31 tests — header (heading/petName show/hide/subtitle/Agregar registro/Volver link), loading skeleton (aria-busy/aria-label/3 cards/no empty state/no articles), empty state (Sin registros/CTA/description/no skeleton/no articles/no Export PDF), records grid (article count/diagnoses/no empty state/no skeleton/Export PDF visible), Export PDF (not disabled/calls exportPDF with petId/with petName/hidden when no records), fetchMedicalHistory on mount (correct petId), error alert (shown/hidden), section aria-label
+- `MedicalRecordForm.vue`: 86 tests — create mode (7 fields rendered/all start empty/Guardar registro button), edit mode (pre-fill all 9 fields/Guardar cambios button/empty weight/notes when undefined), validation (was-validated/no call on empty/is-invalid date+vet+diagnosis+treatment/short vet/diagnosis/treatment/weight >200/<0/optional empty weight/boundary 0/200), create payload (petId+fields/trim vet+diagnosis+treatment/omit/include notes+trim/omit whitespace notes/omit/include weight as float/omit/include next_visit/no updateMedicalRecord), edit payload (updateMedicalRecord with petId+recordId+payload/no createMedicalRecord/updated vet/clear weight), navigation (navigate on success/no navigate on null/correct petId), cancel (navigate back/no createMedicalRecord/correct petId), isLoading (disable submit+cancel/spinner/enabled false/no spinner), counters (0/1000 diagnosis+treatment/0/500 notes/edit pre-fill lengths), error alert (shown/hidden), required labels (7 labels rendered)
 
 ## localStorage TOKEN KEY
 `mopetoo_token` — used in store and useApi. Assertions must use this exact string.

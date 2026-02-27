@@ -23,6 +23,7 @@ npm run test:coverage    # Single run with coverage report
 - Auth feature slice (RF-001–RF-009): 85 tests (store 41, composable 36, auth middleware 4, guest middleware 4)
 - Pets feature slice (RF-100–RF-109): 232 tests (store 44, usePets 51, usePetAge 17, PetAvatar 21, PetCard 22, PetList 16, PetForm 32, PetDetail 29)
 - Reminders feature slice (RF-200–RF-209): 237 tests (store 44, useReminders 56, ReminderCard 26, ReminderList 29, ReminderForm 46) ✅
+- Medical feature slice (RF-300–RF-309): 273 tests (store 44, useMedical 65, MedicalRecordCard 38, MedicalHistory 31, MedicalRecordForm 86) ✅
 
 ## Architecture
 
@@ -69,10 +70,11 @@ This means `useApi()`, `useAuth()`, `useAuthStore()`, etc. are available in any 
 | `useAuthStore` | `currentUser`, `token`, `isAuthenticated`, `isPro` |
 | `usePetsStore` | `pets[]`, `selectedPet`, `isLoading` |
 | `useRemindersStore` | `reminders[]`, `selectedReminder`, `isLoading` |
+| `useMedicalStore` | `records[]`, `selectedRecord`, `isLoading` |
 
 Token is persisted to `localStorage` under key `mopetoo_token`. The auth store exposes `setSession()`, `clearSession()`, and `restoreFromStorage()`.
 
-**Cross-store cleanup rule:** `clearSession()` in `auth.store.ts` MUST clear every user-specific store. Currently clears `petsStore` and `remindersStore`. When adding new feature slices with user-specific data (medical, etc.), add their store reset calls to `clearSession()` to prevent data leakage on shared devices.
+**Cross-store cleanup rule:** `clearSession()` in `auth.store.ts` MUST clear every user-specific store. Currently clears `petsStore`, `remindersStore`, and `medicalStore`. When adding new feature slices with user-specific data, add their store reset calls to `clearSession()` to prevent data leakage on shared devices.
 
 ### HTTP Client
 

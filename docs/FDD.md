@@ -506,46 +506,52 @@ export const useAuthStore = defineStore('auth', () => {
 
 ---
 
-### 5.4. Historial Médico (RF-300 a RF-309)
+### 5.4. Historial Médico (RF-300 a RF-309) — ✅ IMPLEMENTADO
 
-**Funcionalidades:**
-- CRUD de registros médicos (fecha, veterinario, diagnóstico, tratamiento, notas)
-- Historial completo por mascota
-- Exportación a PDF
-- Adjuntos (recetas, análisis)
+**Funcionalidades:** ✅ Todas implementadas
+- ✅ CRUD completo de registros médicos (fecha, veterinario, diagnóstico, tratamiento, notas)
+- ✅ Historial completo por mascota con ordenamiento más reciente primero
+- ✅ Exportación a PDF (blob download con nombre de mascota)
+- ✅ Peso del animal por visita (opcional, en kg)
+- ✅ Próxima visita con badge de vencimiento (badge rojo si fecha pasada)
+- ✅ Eliminación en 2 pasos inline (sin modal)
+- ✅ Skeleton de carga y estado vacío con CTA
+- ✅ Integración con PetDetail: botón "Ver historial médico"
 
-**Composables:**
-```typescript
-// features/medical/composables/useMedical.ts
-export const useMedical = () => {
-  const api = useApi()
+**Componentes Frontend:** ✅ Todos implementados
+| Componente | Ubicación | Descripción |
+|---|---|---|
+| `MedicalRecordCard` | `app/features/medical/components/MedicalRecordCard.vue` | Tarjeta con fecha, veterinario (badge), diagnóstico/tratamiento (3-líneas clamp), peso, próxima visita con badge vencimiento, eliminación 2 pasos |
+| `MedicalHistory` | `app/features/medical/components/MedicalHistory.vue` | Historial por mascota: skeleton loading, empty state con CTA, botón "Exportar PDF" (solo si hay registros), botón "Agregar registro" |
+| `MedicalRecordForm` | `app/features/medical/components/MedicalRecordForm.vue` | Crear/editar: date, veterinario, diagnóstico, tratamiento, notas (opcionales), peso (0-200 kg, step 0.1), próxima visita. Bootstrap `was-validated`, contadores de caracteres |
 
-  const fetchMedicalHistory = async (petId: string) => {
-    const response = await api.get(`/api/pets/${petId}/medical-records`)
-    return response.data
-  }
+**Composable:** `features/medical/composables/useMedical.ts`
+— CRUD completo (`fetchMedicalHistory`, `fetchMedicalRecord`, `createMedicalRecord`, `updateMedicalRecord`, `deleteMedicalRecord`, `exportPDF`). Soporta ambas formas de respuesta del API: `{ medical_records: [] }` y array directo. `exportPDF` usa `$fetch` con `responseType: blob` + `import.meta.client` guard para SSR safety.
 
-  const createMedicalRecord = async (petId: string, data: CreateMedicalRecordDTO) => {
-    const response = await api.post(`/api/pets/${petId}/medical-records`, data)
-    return response.data
-  }
+**Store:** `features/medical/stores/medical.store.ts` — `useMedicalStore`
+— `records[]` (newest-first via prepend), `selectedRecord`, `isLoading`. Acciones: `setRecords`, `addRecord`, `updateRecord`, `removeRecord`, `setSelectedRecord`, `clearSelectedRecord`, `setLoading`, `clearMedicalRecords`, getter `hasRecords`, `getRecordById`
 
-  const exportPDF = async (petId: string) => {
-    // GET /api/pets/:petId/medical-records/export (recibe PDF binary)
-    const response = await api.get(`/api/pets/${petId}/medical-records/export`, {
-      responseType: 'blob'
-    })
-    // Trigger download
-    const url = window.URL.createObjectURL(response.data)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = `historial-${petId}.pdf`
-    link.click()
-  }
+**Páginas:** ✅ Todas implementadas (thin wrappers con `auth` middleware)
+| Ruta | Archivo | Descripción |
+|---|---|---|
+| `/dashboard/medical/[petId]` | `app/pages/dashboard/medical/[petId]/index.vue` | Historial médico de una mascota |
+| `/dashboard/medical/[petId]/record/new` | `app/pages/dashboard/medical/[petId]/record/new.vue` | Crear registro médico |
+| `/dashboard/medical/[petId]/record/[recordId]/edit` | `app/pages/dashboard/medical/[petId]/record/[recordId]/edit.vue` | Editar registro médico |
 
-  return { fetchMedicalHistory, createMedicalRecord, exportPDF }
-}
-```
+**Endpoints:** `GET /api/pets/:petId/medical-records`, `GET /api/pets/:petId/medical-records/:id`, `POST /api/pets/:petId/medical-records`, `PUT /api/pets/:petId/medical-records/:id`, `DELETE /api/pets/:petId/medical-records/:id`, `GET /api/pets/:petId/medical-records/export`
+
+**Cross-store cleanup:** ✅ `clearSession()` en `auth.store.ts` llama `medicalStore.clearMedicalRecords()`
+
+**PetDetail integration:** ✅ Botón "Ver historial médico" agregado en `PetDetail.vue`
+
+**Test coverage:** ✅ 273 tests
+| Archivo | Tests |
+|---|---|
+| `medical.store.test.ts` | 44 |
+| `useMedical.test.ts` | 65 |
+| `MedicalRecordCard.test.ts` | 38 |
+| `MedicalHistory.test.ts` | 31 |
+| `MedicalRecordForm.test.ts` | 86 |
 
 ---
 
@@ -1245,7 +1251,7 @@ routeRules: {
 ### Próximas implementaciones
 - [x] RF-100 a RF-109 — Gestión de mascotas (pets slice) ✅
 - [x] RF-200 a RF-209 — Recordatorios (reminders slice) ✅
-- [ ] RF-300 a RF-309 — Historial médico (medical slice)
+- [x] RF-300 a RF-309 — Historial médico (medical slice) ✅
 - [ ] RF-500 a RF-509 — Refugios y adopciones (shelters slice)
 - [ ] RF-600 a RF-609 — Blog editorial (blog slice)
 - [ ] RF-700 a RF-709 — Directorio tiendas pet-friendly (stores slice)
