@@ -55,6 +55,8 @@ export const useAuthStore = defineStore('auth', () => {
       medicalStore.clearMedicalRecords()
       const sheltersStore = useSheltersStore()
       sheltersStore.clearShelters()
+      const proStore = useProStore()
+      proStore.clearPro()
     }
   }
 

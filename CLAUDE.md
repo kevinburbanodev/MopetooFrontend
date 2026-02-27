@@ -28,6 +28,7 @@ npm run test:coverage    # Single run with coverage report
 - Shelters slice (RF-500–RF-509): 252 tests (store 65, useShelters 67, ShelterCard 21, ShelterList 25, AdoptionPetCard 35, AdoptionDetail 39) ✅
 - Blog slice (RF-600–RF-609): 208 tests (store 44, useBlog 60, BlogCategoryFilter 18, BlogCard 24, BlogList 28, BlogArticle 34) ✅
 - Petshops slice (RF-700–RF-709): 187 tests (store 44, usePetshops 60, PetshopCard 26, PetshopList 37, PetshopDetail 40) ✅
+- Pro/Monetización slice (RF-800–RF-809): 219 tests (store 44, usePro 56, ProBanner 22, PricingTable 32, ProUpgradeModal 27, DonationForm 38) ✅
 
 ## Architecture
 
@@ -47,7 +48,8 @@ app/features/
 ├── medical/         # Medical record CRUD
 ├── shelters/        # Shelter directory & adoption pets (public + auth)
 ├── blog/            # Blog editorial (public: listing + article detail)
-└── petshops/        # Pet-friendly stores directory (public: listing + detail)
+├── petshops/        # Pet-friendly stores directory (public: listing + detail)
+└── pro/             # Monetización: PRO subscriptions, pricing table, donations (RF-800–RF-809)
 ```
 
 Every slice follows the same internal structure:
@@ -81,10 +83,11 @@ This means `useApi()`, `useAuth()`, `useAuthStore()`, etc. are available in any 
 | `useSheltersStore` | `shelters[]`, `selectedShelter`, `adoptionPets[]`, `selectedAdoptionPet`, `isLoading` |
 | `useBlogStore` | `posts[]`, `selectedPost`, `categories[]`, `isLoading`, `currentPage`, `totalPages`, `total` |
 | `usePetshopsStore` | `petshops[]`, `selectedPetshop`, `isLoading` |
+| `useProStore` | `subscription`, `plans[]`, `isLoading`, `isSubscribed`, `getMonthlyPlan`, `getAnnualPlan` |
 
 Token is persisted to `localStorage` under key `mopetoo_token`. The auth store exposes `setSession()`, `clearSession()`, and `restoreFromStorage()`.
 
-**Cross-store cleanup rule:** `clearSession()` in `auth.store.ts` MUST clear every user-specific store. Currently clears `petsStore`, `remindersStore`, `medicalStore`, and `sheltersStore`. When adding new feature slices with user-specific data, add their store reset calls to `clearSession()` to prevent data leakage on shared devices.
+**Cross-store cleanup rule:** `clearSession()` in `auth.store.ts` MUST clear every user-specific store. Currently clears `petsStore`, `remindersStore`, `medicalStore`, `sheltersStore`, and `proStore`. When adding new feature slices with user-specific data, add their store reset calls to `clearSession()` to prevent data leakage on shared devices.
 
 ### HTTP Client
 
@@ -202,6 +205,13 @@ Any change to token storage or auth flow warrants a security review.
 **Current project state:** Vitest is configured with `happy-dom`. Fully tested slices:
 - **Auth (RF-001–RF-009):** `auth.store.test.ts` (41), `useAuth.test.ts` (36), `auth.test.ts` (4), `guest.test.ts` (4)
 - **Pets (RF-100–RF-109):** `pets.store.test.ts` (44), `usePets.test.ts` (51), `usePetAge.test.ts` (17), `PetAvatar.test.ts` (21), `PetCard.test.ts` (22), `PetList.test.ts` (16), `PetForm.test.ts` (32), `PetDetail.test.ts` (29)
+
+**Mocking notes for pro slice:**
+- `usePro` composable: mock via `vi.mock('../composables/usePro', () => ({ usePro: () => ({ ... }) }))` with reactive refs for `error`, `proStore.*`
+- Bootstrap `Modal` JS: stub with `vi.mock('bootstrap', () => ({ Modal: { getOrCreateInstance: vi.fn(() => ({ show: vi.fn(), hide: vi.fn() })) } }))` in `ProUpgradeModal` tests
+- `createCheckoutSession` tests: mock `import.meta.client` as `true` (default in happy-dom); stub `navigateTo` via `mockNuxtImport('navigateTo', ...)`
+- `DonationForm` auth gate: form is wrapped in `<ClientOnly>` — mount first with `isAuthenticated: true` in `createTestingPinia`, then `await nextTick()` to see form render
+- Security fix: `donate()` in `usePro.ts` validates `shelter_id` against `/^[\w-]{1,64}$/` before API call — test invalid IDs return null with error
 
 **Mocking notes for pets and reminders slices:**
 - `useApi` is a project composable — mock via `vi.mock('../../shared/composables/useApi', ...)`, NOT `mockNuxtImport`
