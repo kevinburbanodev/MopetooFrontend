@@ -32,6 +32,7 @@ npm run test:coverage    # Single run with coverage report
 - Clinics slice (RF-900–RF-909): 178 tests (store 42, useClinics 37, ClinicCard 34, ClinicList 29, ClinicDetail 35) ✅
 - Admin slice (RF-1000–RF-1009): 327 tests (store 75, useAdmin 76, AdminDashboard 27, AdminUserManager 31, AdminShelterManager 27, AdminStoreManager 27, AdminClinicManager 29, AdminTransactionLog 28, admin middleware 7) ✅
 - Stats slice (RF-1100–RF-1109): 165 tests (store 37, useStats 45, StatsOverview 27, StatsChart 22, RevenueReport 20, ActivityLog 34) ✅
+- Maintenance slice (RF-1200–RF-1209): 163 tests (store 32, useMaintenance 37, MaintenancePage 18, MaintenanceToggle 52, maintenance middleware 24) ✅
 
 ## Architecture
 
@@ -55,7 +56,8 @@ app/features/
 ├── pro/             # Monetización: PRO subscriptions, pricing table, donations (RF-800–RF-809)
 ├── clinics/         # Veterinary clinics directory (public: listing + detail) (RF-900–RF-909)
 ├── admin/           # Admin panel: stats, user/shelter/store/clinic management, transactions (RF-1000–RF-1009)
-└── stats/           # Statistics & metrics: KPI overview, revenue chart/table, activity log (RF-1100–RF-1109)
+├── stats/           # Statistics & metrics: KPI overview, revenue chart/table, activity log (RF-1100–RF-1109)
+└── maintenance/     # Maintenance mode: toggle (admin), page, x-maintenance header detection (RF-1200–RF-1209)
 ```
 
 Every slice follows the same internal structure:
@@ -93,10 +95,13 @@ This means `useApi()`, `useAuth()`, `useAuthStore()`, etc. are available in any 
 | `useClinicsStore` | `clinics[]`, `selectedClinic`, `isLoading`, `hasClinics`, `getFeaturedClinics` |
 | `useAdminStore` | `stats`, `users[]`, `shelters[]`, `petshops[]`, `clinics[]`, `transactions[]`, `selectedUser`, `isLoading`, total-count refs, `hasStats`, `hasUsers` |
 | `useStatsStore` | `overview`, `revenueData[]`, `activityEntries[]`, `totalActivity`, `isLoading`, `hasOverview`, `hasRevenueData`, `hasActivity` |
+| `useMaintenanceStore` | `status` (MaintenanceStatus \| null), `isLoading`, `isEnabled` (computed), `hasStatus` (computed) |
 
 Token is persisted to `localStorage` under key `mopetoo_token`. The auth store exposes `setSession()`, `clearSession()`, and `restoreFromStorage()`.
 
 **Cross-store cleanup rule:** `clearSession()` in `auth.store.ts` MUST clear every user-specific store. Currently clears `petsStore`, `remindersStore`, `medicalStore`, `sheltersStore`, `proStore`, `adminStore`, and `statsStore`. When adding new feature slices with user-specific data, add their store reset calls to `clearSession()` to prevent data leakage on shared devices.
+
+**Exception — `useMaintenanceStore` is NOT in `clearSession()`:** Maintenance status is a global platform flag (not user-specific). It persists across sessions intentionally so the app can redirect to `/maintenance` without an extra API call after logout/login.
 
 ### HTTP Client
 
@@ -246,6 +251,16 @@ Any change to token storage or auth flow warrants a security review.
 - KPI card skeleton: 8 skeleton cards with `aria-busy="true"` visible when `isLoading=true` and no stats loaded yet.
 - Transaction type badges: `subscription` → `.bg-primary`; `donation` → `.bg-success`. Status badges: `completed` → `.bg-success`; `pending` → `.bg-warning`; `failed` → `.bg-danger`; `refunded` → `.bg-secondary`.
 - Transaction log is read-only: assert no Eliminar, Verificar, or Destacar buttons rendered.
+
+**Mocking notes for maintenance slice:**
+- `useMaintenance` composable: mock at module level with reactive refs (`mockFetchStatus`, `mockToggleMaintenance`, `mockError = ref(null)`, `mockMaintenanceStore = reactive({...})`) — same canonical pattern as stats/clinics slices
+- `maintenance.ts` middleware: same `vi.hoisted()` + `mockNuxtImport('navigateTo', ...)` + `vi.resetModules()` pattern as `admin.test.ts`
+- **Critical**: `maintenanceStore.isEnabled` is a computed from `status.is_enabled`. In `createTestingPinia`, set `maintenance: { status: { is_enabled: true } }` (NOT `maintenance: { isEnabled: true }`) to control the state
+- Middleware also reads `useAuthStore` — both stores must be set in `initialState` when testing the middleware: `{ auth: { token, currentUser }, maintenance: { status } }`
+- `fetchStatus()` fails **silently** (no `error.value` set) — test that `error.value` stays `null` after API rejection
+- `toggleMaintenance()` **surfaces** errors — test all three error shapes: `{ data: { error: 'msg' } }`, `{ message: 'msg' }`, and fallback generic message
+- `MaintenancePage` is a pure presentational component — no composable mock needed; use `mountSuspended` with NuxtLink stub
+- `MaintenanceToggle` calls `fetchStatus()` on mount — ensure `mockFetchStatus` is a `vi.fn()` that resolves immediately to prevent accidental store mutations
 
 Invoke this agent for any new feature slice tests.
 

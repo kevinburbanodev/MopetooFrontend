@@ -74,5 +74,8 @@ export default defineNuxtConfig({
     '/stores/**': { cache: { maxAge: 30 * 60 } },
     // Cache clinics directory for 30 minutes
     '/clinics/**': { cache: { maxAge: 30 * 60 } },
+    // Never cache the maintenance page — its content must always reflect
+    // the current maintenance status without stale CDN/browser cache.
+    '/maintenance': { cache: false },
   },
 })
