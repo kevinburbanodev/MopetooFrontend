@@ -30,7 +30,7 @@ function makePet(overrides: Partial<Pet> = {}): Pet {
     name: 'Max',
     species: 'dog',
     breed: 'Labrador',
-    birth_date: '2020-06-01',
+    age: 3,
     gender: 'male',
     created_at: '2024-01-01T00:00:00Z',
     updated_at: '2024-01-01T00:00:00Z',

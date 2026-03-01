@@ -1,8 +1,13 @@
 // ============================================================
 // usePets — Pets feature composable
 // Central API surface for all pet CRUD operations.
-// Photo uploads bypass useApi() (which injects Content-Type: JSON)
-// and use $fetch directly with FormData and a manual Bearer header.
+//
+// All create/update requests use multipart/form-data because
+// the backend (Go + Gin) binds with `form:""` struct tags,
+// not `json:""` tags. JSON requests will silently fail to bind.
+//
+// The backend requires photo on create (binding:"required").
+// Photo is optional on update.
 // ============================================================
 
 import type { Pet, CreatePetDTO, UpdatePetDTO } from '../types'
@@ -21,19 +26,28 @@ export function usePets() {
 
   /**
    * Fetch the authenticated user's full pet list and hydrate the store.
-   * Handles responses shaped as `{ pets: Pet[] }` or a bare `Pet[]`.
+   * Uses the user_id decoded from the JWT to call the correct endpoint.
+   *
+   * Backend response shapes:
+   *   - Pet[] when pets exist
+   *   - { message: string } when no pets exist
    */
   async function fetchPets(): Promise<void> {
     petsStore.setLoading(true)
     error.value = null
     try {
-      // The backend may return { pets: Pet[] } or Pet[] — handle both shapes
-      const response = await get<{ pets?: Pet[] } | Pet[]>('/api/pets')
+      const entityId = getEntityIdFromToken()
+      if (!entityId) {
+        error.value = 'No se pudo identificar al usuario'
+        return
+      }
+      const response = await get<Pet[] | { message?: string }>(`/api/pets/user/${entityId}`)
       if (Array.isArray(response)) {
-        petsStore.setPets(response)
+        petsStore.setPets(normalizePets(response))
       }
       else {
-        petsStore.setPets(response.pets ?? [])
+        // Backend returns { message: "No existen mascotas..." } when empty
+        petsStore.setPets([])
       }
     }
     catch (err: unknown) {
@@ -53,8 +67,9 @@ export function usePets() {
     error.value = null
     try {
       const pet = await get<Pet>(`/api/pets/${id}`)
-      petsStore.setSelectedPet(pet)
-      return pet
+      const normalized = normalizePet(pet)
+      petsStore.setSelectedPet(normalized)
+      return normalized
     }
     catch (err: unknown) {
       error.value = extractErrorMessage(err)
@@ -66,25 +81,18 @@ export function usePets() {
   }
 
   /**
-   * Create a new pet. If a photo is supplied it is sent as multipart/form-data;
-   * otherwise a JSON POST is used.
+   * Create a new pet. Always sent as multipart/form-data because
+   * the backend uses `form:""` struct tags and requires a photo file.
    */
   async function createPet(data: CreatePetDTO, photo?: File): Promise<Pet | null> {
     petsStore.setLoading(true)
     error.value = null
     try {
-      let pet: Pet
-      if (photo) {
-        const formData = buildPetFormData(data, photo)
-        pet = await multipartRequest<Pet>('POST', '/api/pets', formData, authStore.token, baseURL)
-      }
-      else {
-        // No photo — send plain JSON via useApi's post (already set up for JSON)
-        const { post } = useApi()
-        pet = await post<Pet>('/api/pets', data)
-      }
-      petsStore.addPet(pet)
-      return pet
+      const formData = buildPetFormData(data, photo)
+      const pet = await multipartRequest<Pet>('POST', '/api/pets', formData, authStore.token, baseURL)
+      const normalized = normalizePet(pet)
+      petsStore.addPet(normalized)
+      return normalized
     }
     catch (err: unknown) {
       error.value = extractErrorMessage(err)
@@ -96,23 +104,18 @@ export function usePets() {
   }
 
   /**
-   * Update an existing pet. Uses PATCH; upgrades to multipart if a new photo is provided.
+   * Update an existing pet. Always sent as multipart/form-data
+   * via PUT (backend only accepts PUT, not PATCH).
    */
   async function updatePet(id: string, data: UpdatePetDTO, photo?: File): Promise<Pet | null> {
     petsStore.setLoading(true)
     error.value = null
     try {
-      let pet: Pet
-      if (photo) {
-        const formData = buildPetFormData(data, photo)
-        pet = await multipartRequest<Pet>('PATCH', `/api/pets/${id}`, formData, authStore.token, baseURL)
-      }
-      else {
-        const { patch } = useApi()
-        pet = await patch<Pet>(`/api/pets/${id}`, data)
-      }
-      petsStore.updatePet(pet)
-      return pet
+      const formData = buildPetFormData(data, photo)
+      const pet = await multipartRequest<Pet>('PUT', `/api/pets/${id}`, formData, authStore.token, baseURL)
+      const normalized = normalizePet(pet)
+      petsStore.updatePet(normalized)
+      return normalized
     }
     catch (err: unknown) {
       error.value = extractErrorMessage(err)
@@ -183,6 +186,41 @@ export function usePets() {
 // ── Helpers ─────────────────────────────────────────────────
 
 /**
+ * Decode the user_id from the JWT stored in the auth store.
+ * Returns the user_id as a string, or null if the token is missing/invalid.
+ */
+function getEntityIdFromToken(): string | null {
+  const authStore = useAuthStore()
+  if (!authStore.token) return null
+  try {
+    const payload = JSON.parse(atob(authStore.token.split('.')[1]))
+    return payload.user_id ?? null
+  }
+  catch {
+    return null
+  }
+}
+
+/**
+ * Normalize a single pet from the backend response.
+ * Coerces id and user_id from number (backend uint) to string (frontend convention).
+ */
+function normalizePet(pet: Pet): Pet {
+  return {
+    ...pet,
+    id: String(pet.id),
+    user_id: String(pet.user_id),
+  }
+}
+
+/**
+ * Normalize an array of pets from the backend response.
+ */
+function normalizePets(pets: Pet[]): Pet[] {
+  return pets.map(normalizePet)
+}
+
+/**
  * Build a FormData object from DTO fields + optional photo.
  * Only appends keys whose values are not undefined/null.
  */
@@ -204,7 +242,7 @@ function buildPetFormData(data: Record<string, unknown>, photo?: File): FormData
  * localStorage reads inconsistent with the store state).
  */
 async function multipartRequest<T>(
-  method: 'POST' | 'PATCH' | 'PUT',
+  method: 'POST' | 'PUT',
   path: string,
   body: FormData,
   token: string | null,

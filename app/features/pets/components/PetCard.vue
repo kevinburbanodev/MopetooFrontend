@@ -33,7 +33,7 @@ const GENDER_LABEL: Record<string, string> = {
 
 const speciesLabel = computed(() => SPECIES_LABEL[props.pet.species] ?? props.pet.species)
 const genderLabel = computed(() => GENDER_LABEL[props.pet.gender] ?? props.pet.gender)
-const age = computed(() => formatAge(props.pet.birth_date))
+const age = computed(() => formatAge(props.pet.age))
 
 function handleSelect(): void {
   emit('select-pet', props.pet)
@@ -86,10 +86,6 @@ function handleDelete(event: Event): void {
         <li v-if="pet.weight" class="d-flex align-items-center gap-1">
           <span aria-hidden="true">⚖️</span>
           <span>{{ pet.weight }} kg</span>
-        </li>
-        <li v-if="pet.color" class="d-flex align-items-center gap-1">
-          <span aria-hidden="true">🎨</span>
-          <span class="text-truncate">{{ pet.color }}</span>
         </li>
       </ul>
       <p v-if="pet.notes" class="small text-muted mt-2 mb-0 pet-card__notes">

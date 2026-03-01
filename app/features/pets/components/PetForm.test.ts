@@ -47,11 +47,9 @@ function makePet(overrides: Partial<Pet> = {}): Pet {
     name: 'Max',
     species: 'dog',
     breed: 'Labrador',
-    birth_date: '2020-06-15',
+    age: 3,
     gender: 'male',
     weight: 28,
-    color: 'Dorado',
-    microchip: '123456789012345',
     notes: 'Alergias: ninguna.',
     created_at: '2024-01-01T00:00:00Z',
     updated_at: '2024-01-01T00:00:00Z',
@@ -61,6 +59,20 @@ function makePet(overrides: Partial<Pet> = {}): Pet {
 
 function makeFile(name = 'photo.jpg'): File {
   return new File(['(binary)'], name, { type: 'image/jpeg' })
+}
+
+/**
+ * Attaches a fake photo file to the file input and triggers the change event.
+ * Required for create-mode submissions where photo is mandatory.
+ */
+async function attachPhoto(wrapper: Awaited<ReturnType<typeof mountSuspended>>): Promise<void> {
+  const photoInput = wrapper.find('input[type="file"]')
+  const file = new File(['(binary)'], 'photo.jpg', { type: 'image/jpeg' })
+  Object.defineProperty(photoInput.element, 'files', {
+    value: { 0: file, length: 1, item: (i: number) => (i === 0 ? file : null) },
+    configurable: true,
+  })
+  await photoInput.trigger('change')
 }
 
 // ── Suite ────────────────────────────────────────────────────
@@ -84,9 +96,9 @@ describe('PetForm', () => {
       expect(wrapper.find('#pet-breed').exists()).toBe(true)
     })
 
-    it('renders the birth_date input', async () => {
+    it('renders the age input', async () => {
       const wrapper = await mountSuspended(PetForm)
-      expect(wrapper.find('#pet-birth-date').exists()).toBe(true)
+      expect(wrapper.find('#pet-age').exists()).toBe(true)
     })
 
     it('renders the male gender radio', async () => {
@@ -102,11 +114,6 @@ describe('PetForm', () => {
     it('renders the weight input', async () => {
       const wrapper = await mountSuspended(PetForm)
       expect(wrapper.find('#pet-weight').exists()).toBe(true)
-    })
-
-    it('renders the color input', async () => {
-      const wrapper = await mountSuspended(PetForm)
-      expect(wrapper.find('#pet-color').exists()).toBe(true)
     })
 
     it('renders the notes textarea', async () => {
@@ -170,10 +177,10 @@ describe('PetForm', () => {
       expect((wrapper.find('#pet-breed').element as HTMLInputElement).value).toBe('Labrador')
     })
 
-    it('pre-fills the birth_date field', async () => {
+    it('pre-fills the age field', async () => {
       const pet = makePet()
       const wrapper = await mountSuspended(PetForm, { props: { pet } })
-      expect((wrapper.find('#pet-birth-date').element as HTMLInputElement).value).toBe('2020-06-15')
+      expect((wrapper.find('#pet-age').element as HTMLInputElement).value).toBe('3')
     })
 
     it('pre-selects male gender', async () => {
@@ -194,12 +201,6 @@ describe('PetForm', () => {
       const pet = makePet()
       const wrapper = await mountSuspended(PetForm, { props: { pet } })
       expect((wrapper.find('#pet-weight').element as HTMLInputElement).value).toBe('28')
-    })
-
-    it('pre-fills the color field', async () => {
-      const pet = makePet()
-      const wrapper = await mountSuspended(PetForm, { props: { pet } })
-      expect((wrapper.find('#pet-color').element as HTMLInputElement).value).toBe('Dorado')
     })
 
     it('pre-fills the notes textarea', async () => {
@@ -257,17 +258,23 @@ describe('PetForm', () => {
       expect(wrapper.find('#pet-breed').classes()).toContain('is-invalid')
     })
 
-    it('applies "is-invalid" to the birth_date input when empty after submit', async () => {
-      const wrapper = await mountSuspended(PetForm)
-      await wrapper.find('form').trigger('submit')
-      expect(wrapper.find('#pet-birth-date').classes()).toContain('is-invalid')
-    })
-
     it('applies "is-invalid" to gender inputs when no gender selected after submit', async () => {
       const wrapper = await mountSuspended(PetForm)
       await wrapper.find('form').trigger('submit')
       const maleInput = wrapper.find('#gender-male')
       expect(maleInput.classes()).toContain('is-invalid')
+    })
+
+    it('does NOT emit "submit" when no photo selected in create mode', async () => {
+      const wrapper = await mountSuspended(PetForm)
+      // Fill all required text fields but do NOT attach a photo
+      await wrapper.find('#pet-name').setValue('Buddy')
+      await wrapper.find('#pet-species').setValue('dog')
+      await wrapper.find('#pet-breed').setValue('Beagle')
+      await wrapper.find('#gender-male').setValue(true)
+      await wrapper.find('form').trigger('submit')
+
+      expect(wrapper.emitted('submit')).toBeFalsy()
     })
   })
 
@@ -278,8 +285,9 @@ describe('PetForm', () => {
       await wrapper.find('#pet-name').setValue('Buddy')
       await wrapper.find('#pet-species').setValue('dog')
       await wrapper.find('#pet-breed').setValue('Beagle')
-      await wrapper.find('#pet-birth-date').setValue('2022-01-10')
       await wrapper.find('#gender-male').setValue(true)
+      // Photo is required in create mode
+      await attachPhoto(wrapper)
       await wrapper.find('form').trigger('submit')
     }
 
@@ -294,9 +302,33 @@ describe('PetForm', () => {
         name: 'Buddy',
         species: 'dog',
         breed: 'Beagle',
-        birth_date: '2022-01-10',
         gender: 'male',
       })
+    })
+
+    it('does NOT include birth_date, color, microchip, or veterinarian_id in the payload', async () => {
+      const wrapper = await mountSuspended(PetForm)
+      await fillAndSubmit(wrapper)
+
+      const payload = wrapper.emitted('submit')![0][0] as { data: Record<string, unknown> }
+      expect(payload.data).not.toHaveProperty('birth_date')
+      expect(payload.data).not.toHaveProperty('color')
+      expect(payload.data).not.toHaveProperty('microchip')
+      expect(payload.data).not.toHaveProperty('veterinarian_id')
+    })
+
+    it('includes age in payload when age field has a value', async () => {
+      const wrapper = await mountSuspended(PetForm)
+      await wrapper.find('#pet-name').setValue('Buddy')
+      await wrapper.find('#pet-species').setValue('dog')
+      await wrapper.find('#pet-breed').setValue('Beagle')
+      await wrapper.find('#gender-male').setValue(true)
+      await wrapper.find('#pet-age').setValue(5)
+      await attachPhoto(wrapper)
+      await wrapper.find('form').trigger('submit')
+
+      const payload = wrapper.emitted('submit')![0][0] as { data: Record<string, unknown> }
+      expect(payload.data.age).toBe(5)
     })
 
     it('trims whitespace from name in the emitted payload', async () => {
@@ -304,8 +336,8 @@ describe('PetForm', () => {
       await wrapper.find('#pet-name').setValue('  Buddy  ')
       await wrapper.find('#pet-species').setValue('dog')
       await wrapper.find('#pet-breed').setValue('Beagle')
-      await wrapper.find('#pet-birth-date').setValue('2022-01-10')
       await wrapper.find('#gender-male').setValue(true)
+      await attachPhoto(wrapper)
       await wrapper.find('form').trigger('submit')
 
       const payload = wrapper.emitted('submit')![0][0] as { data: Record<string, unknown> }
@@ -314,18 +346,15 @@ describe('PetForm', () => {
 
     it('includes weight in payload when a positive weight is entered', async () => {
       const wrapper = await mountSuspended(PetForm)
-      await fillAndSubmit(wrapper)
-      // setValue after fillAndSubmit re-triggers — mount fresh instead
-      const wrapper2 = await mountSuspended(PetForm)
-      await wrapper2.find('#pet-name').setValue('Buddy')
-      await wrapper2.find('#pet-species').setValue('dog')
-      await wrapper2.find('#pet-breed').setValue('Beagle')
-      await wrapper2.find('#pet-birth-date').setValue('2022-01-10')
-      await wrapper2.find('#gender-male').setValue(true)
-      await wrapper2.find('#pet-weight').setValue(12)
-      await wrapper2.find('form').trigger('submit')
+      await wrapper.find('#pet-name').setValue('Buddy')
+      await wrapper.find('#pet-species').setValue('dog')
+      await wrapper.find('#pet-breed').setValue('Beagle')
+      await wrapper.find('#gender-male').setValue(true)
+      await wrapper.find('#pet-weight').setValue(12)
+      await attachPhoto(wrapper)
+      await wrapper.find('form').trigger('submit')
 
-      const payload = wrapper2.emitted('submit')![0][0] as { data: Record<string, unknown> }
+      const payload = wrapper.emitted('submit')![0][0] as { data: Record<string, unknown> }
       expect(payload.data.weight).toBe(12)
     })
 
@@ -336,11 +365,11 @@ describe('PetForm', () => {
       expect(payload.data.weight).toBeUndefined()
     })
 
-    it('emits photo as undefined when no file was selected', async () => {
+    it('emits photo File when a file was selected', async () => {
       const wrapper = await mountSuspended(PetForm)
       await fillAndSubmit(wrapper)
       const payload = wrapper.emitted('submit')![0][0] as { data: Record<string, unknown>; photo?: File }
-      expect(payload.photo).toBeUndefined()
+      expect(payload.photo).toBeInstanceOf(File)
     })
 
     it('does NOT emit "submit" when weight is present but <= 0', async () => {
@@ -348,9 +377,9 @@ describe('PetForm', () => {
       await wrapper.find('#pet-name').setValue('Buddy')
       await wrapper.find('#pet-species').setValue('dog')
       await wrapper.find('#pet-breed').setValue('Beagle')
-      await wrapper.find('#pet-birth-date').setValue('2022-01-10')
       await wrapper.find('#gender-male').setValue(true)
       await wrapper.find('#pet-weight').setValue(0)
+      await attachPhoto(wrapper)
       await wrapper.find('form').trigger('submit')
 
       expect(wrapper.emitted('submit')).toBeFalsy()
@@ -450,7 +479,6 @@ describe('PetForm', () => {
       await wrapper.find('#pet-name').setValue('Buddy')
       await wrapper.find('#pet-species').setValue('dog')
       await wrapper.find('#pet-breed').setValue('Beagle')
-      await wrapper.find('#pet-birth-date').setValue('2022-01-10')
       await wrapper.find('#gender-male').setValue(true)
       await wrapper.find('form').trigger('submit')
 

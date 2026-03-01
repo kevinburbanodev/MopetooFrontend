@@ -1,6 +1,11 @@
 // ============================================================
 // Pets feature — domain types
 // Aligned with Mopetoo backend API (Go + Gin)
+//
+// Backend model fields:
+//   id (uint), user_id (uint), name, species, breed (*string),
+//   age (*int, years), weight (*float64), gender (*string),
+//   photo_url (string), notes (*string), created_at, updated_at
 // ============================================================
 
 export interface Pet {
@@ -10,16 +15,13 @@ export interface Pet {
   /** Backend enum values: 'dog' | 'cat' | 'bird' | 'rabbit' | 'other' */
   species: string
   breed: string
-  /** ISO date string, e.g. '2020-03-15' */
-  birth_date: string
+  /** Approximate age in years (backend stores as *int) */
+  age?: number
   /** 'male' | 'female' */
   gender: string
   weight?: number
-  color?: string
-  microchip?: string
   photo_url?: string
   notes?: string
-  veterinarian_id?: string
   created_at: string
   updated_at: string
 }
@@ -28,13 +30,10 @@ export interface CreatePetDTO {
   name: string
   species: string
   breed: string
-  birth_date: string
   gender: string
+  age?: number
   weight?: number
-  color?: string
-  microchip?: string
   notes?: string
-  veterinarian_id?: string
 }
 
 export type UpdatePetDTO = Partial<CreatePetDTO>
