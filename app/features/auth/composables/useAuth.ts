@@ -1,15 +1,27 @@
 // ============================================================
 // useAuth — Auth feature composable
-// Central API surface for all user-account operations.
+// Central API surface for all entity-account operations.
+// Supports 4 entity types: user, shelter, store, clinic.
 // Multipart uploads (photo) bypass useApi() and use $fetch
 // directly with FormData, as useApi injects Content-Type: JSON.
 // ============================================================
 
 import type {
+  EntityType,
   RegisterPayload,
+  RegisterShelterPayload,
+  RegisterStorePayload,
+  RegisterClinicPayload,
   UpdateProfileDTO,
   LoginResponse,
+  ShelterLoginResponse,
+  StoreLoginResponse,
+  ClinicLoginResponse,
   User,
+  AuthEntity,
+  AuthShelter,
+  AuthStore as AuthStoreType,
+  AuthClinic,
 } from '../types'
 
 export function useAuth() {
@@ -24,12 +36,19 @@ export function useAuth() {
 
   // ── Public API ──────────────────────────────────────────────
 
-  async function login(email: string, password: string): Promise<void> {
+  async function login(
+    email: string,
+    password: string,
+    entityType: EntityType = 'user',
+  ): Promise<void> {
     pending.value = true
     error.value = null
     try {
-      const response = await post<LoginResponse>('/login', { email, password })
-      authStore.setSession(response)
+      const endpoint = getLoginEndpoint(entityType)
+      const response = await post<
+        LoginResponse | ShelterLoginResponse | StoreLoginResponse | ClinicLoginResponse
+      >(endpoint, { email, password })
+      authStore.setSession(response, entityType)
       await router.push('/dashboard')
     }
     catch (err: unknown) {
@@ -56,7 +75,46 @@ export function useAuth() {
         await post<void>('/users', data)
       }
       // After registration log the user in automatically
-      await login(data.email, data.password)
+      await login(data.email, data.password, 'user')
+    }
+    catch (err: unknown) {
+      error.value = extractErrorMessage(err)
+      pending.value = false
+    }
+  }
+
+  async function registerShelter(data: RegisterShelterPayload): Promise<void> {
+    pending.value = true
+    error.value = null
+    try {
+      await post<void>('/shelters/register', data)
+      await login(data.email, data.password, 'shelter')
+    }
+    catch (err: unknown) {
+      error.value = extractErrorMessage(err)
+      pending.value = false
+    }
+  }
+
+  async function registerStore(data: RegisterStorePayload): Promise<void> {
+    pending.value = true
+    error.value = null
+    try {
+      await post<void>('/stores/register', data)
+      await login(data.email, data.password, 'store')
+    }
+    catch (err: unknown) {
+      error.value = extractErrorMessage(err)
+      pending.value = false
+    }
+  }
+
+  async function registerClinic(data: RegisterClinicPayload): Promise<void> {
+    pending.value = true
+    error.value = null
+    try {
+      await post<void>('/clinics/register', data)
+      await login(data.email, data.password, 'clinic')
     }
     catch (err: unknown) {
       error.value = extractErrorMessage(err)
@@ -102,8 +160,9 @@ export function useAuth() {
     pending.value = true
     error.value = null
     try {
-      const user = await get<User>('/api/me')
-      authStore.setUser(user)
+      const type = authStore.entityType ?? 'user'
+      const entity = await fetchEntityProfile(type)
+      authStore.setEntity(entity, type)
     }
     catch (err: unknown) {
       // A 401 here means the stored token is expired — clear the session
@@ -129,7 +188,8 @@ export function useAuth() {
       if (photo) {
         const formData = buildProfileFormData(data, photo)
         const storedToken = authStore.token
-        user = await $fetch<User>(`${baseURL}/api/me`, {
+        const entityId = decodeEntityIdFromToken()
+        user = await $fetch<User>(`${baseURL}/api/users/${entityId}`, {
           method: 'PATCH',
           headers: storedToken
             ? { Authorization: `Bearer ${storedToken}` }
@@ -138,8 +198,9 @@ export function useAuth() {
         })
       }
       else {
-        // PATCH /api/me — JSON path via the shared useApi wrapper
-        user = await patch<User>('/api/me', data)
+        const entityId = decodeEntityIdFromToken()
+        // PATCH /api/users/:id — JSON path via the shared useApi wrapper
+        user = await patch<User>(`/api/users/${entityId}`, data)
       }
       authStore.setUser(user)
     }
@@ -155,7 +216,8 @@ export function useAuth() {
     pending.value = true
     error.value = null
     try {
-      await del<void>('/api/me')
+      const entityId = decodeEntityIdFromToken()
+      await del<void>(`/api/users/${entityId}`)
       authStore.clearSession()
       await router.push('/')
     }
@@ -172,6 +234,9 @@ export function useAuth() {
     error,
     login,
     register,
+    registerShelter,
+    registerStore,
+    registerClinic,
     logout,
     forgotPassword,
     resetPassword,
@@ -182,6 +247,51 @@ export function useAuth() {
 }
 
 // ── Helpers ─────────────────────────────────────────────────
+
+function getLoginEndpoint(entityType: EntityType): string {
+  switch (entityType) {
+    case 'shelter': return '/shelters/login'
+    case 'store': return '/stores/login'
+    case 'clinic': return '/clinics/login'
+    default: return '/login'
+  }
+}
+
+function getProfileEndpoint(entityType: EntityType, entityId: string): string {
+  switch (entityType) {
+    case 'shelter': return `/api/shelters/${entityId}`
+    case 'store': return `/api/stores/${entityId}`
+    case 'clinic': return `/api/clinics/${entityId}`
+    default: return `/api/users/${entityId}`
+  }
+}
+
+async function fetchEntityProfile(type: EntityType): Promise<AuthEntity> {
+  const { get } = useApi()
+  const entityId = decodeEntityIdFromToken()
+  if (!entityId) throw new Error('No se pudo obtener el ID de la sesión')
+
+  const endpoint = getProfileEndpoint(type, entityId)
+
+  switch (type) {
+    case 'shelter': return await get<AuthShelter>(endpoint)
+    case 'store': return await get<AuthStoreType>(endpoint)
+    case 'clinic': return await get<AuthClinic>(endpoint)
+    default: return await get<User>(endpoint)
+  }
+}
+
+function decodeEntityIdFromToken(): string | null {
+  const authStore = useAuthStore()
+  if (!authStore.token) return null
+  try {
+    const payload = JSON.parse(atob(authStore.token.split('.')[1]))
+    return payload.user_id ?? null
+  }
+  catch {
+    return null
+  }
+}
 
 function buildRegisterFormData(data: RegisterPayload, photo: File): FormData {
   const fd = new FormData()

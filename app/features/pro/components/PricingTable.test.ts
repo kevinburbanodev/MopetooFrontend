@@ -342,8 +342,8 @@ describe('PricingTable', () => {
               initialState: {
                 auth: {
                   token: 'test-jwt',
-                  // isPro is computed from currentUser.is_pro — set it via currentUser
-                  currentUser: { id: '1', is_pro: true },
+                  currentEntity: { id: '1', is_pro: true },
+                  entityType: 'user',
                 },
               },
             }),

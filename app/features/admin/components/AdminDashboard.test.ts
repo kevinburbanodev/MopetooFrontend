@@ -66,7 +66,7 @@ async function mountDashboard() {
       plugins: [
         createTestingPinia({
           initialState: {
-            auth: { token: 'admin.jwt', currentUser: { id: 1, is_admin: true } },
+            auth: { token: 'admin.jwt', currentEntity: { id: 1, is_admin: true }, entityType: 'user' },
           },
         }),
       ],

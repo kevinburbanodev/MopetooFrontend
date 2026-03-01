@@ -12,12 +12,30 @@ const publicLinks = [
   { label: 'Precios', to: '/pricing' },
 ]
 
-// Authenticated nav links — shown only when logged in
-const authLinks = [
-  { label: 'Dashboard', to: '/dashboard' },
-  { label: 'Mis Mascotas', to: '/dashboard/pets' },
-  { label: 'Recordatorios', to: '/dashboard/reminders' },
-]
+// Authenticated nav links — dynamic based on entity type
+const authLinks = computed(() => {
+  if (!authStore.isAuthenticated) return []
+  switch (authStore.entityType) {
+    case 'shelter':
+      return [
+        { label: 'Dashboard', to: '/dashboard' },
+      ]
+    case 'store':
+      return [
+        { label: 'Dashboard', to: '/dashboard' },
+      ]
+    case 'clinic':
+      return [
+        { label: 'Dashboard', to: '/dashboard' },
+      ]
+    default:
+      return [
+        { label: 'Dashboard', to: '/dashboard' },
+        { label: 'Mis Mascotas', to: '/dashboard/pets' },
+        { label: 'Recordatorios', to: '/dashboard/reminders' },
+      ]
+  }
+})
 
 function isActive(path: string): boolean {
   // Exact match for root, prefix match for nested routes
@@ -97,22 +115,24 @@ function logout(): void {
               ⚙️ Admin
             </NuxtLink>
 
-            <!-- PRO status indicator — shown to authenticated users only -->
-            <NuxtLink
-              v-if="!authStore.isPro"
-              to="/pricing"
-              class="btn btn-warning btn-sm fw-bold"
-              aria-label="Hazte PRO en Mopetoo"
-            >
-              Hazte PRO
-            </NuxtLink>
-            <span
-              v-else
-              class="badge bg-warning text-dark fw-bold"
-              aria-label="Tu cuenta tiene plan PRO activo"
-            >
-              PRO ✓
-            </span>
+            <!-- PRO status indicator — shown for users, stores, clinics -->
+            <template v-if="authStore.isUser || authStore.isStore || authStore.isClinic">
+              <NuxtLink
+                v-if="!authStore.isPro"
+                to="/pricing"
+                class="btn btn-warning btn-sm fw-bold"
+                aria-label="Hazte PRO en Mopetoo"
+              >
+                Hazte PRO
+              </NuxtLink>
+              <span
+                v-else
+                class="badge bg-warning text-dark fw-bold"
+                aria-label="Tu cuenta tiene plan PRO activo"
+              >
+                PRO ✓
+              </span>
+            </template>
 
             <NuxtLink
               to="/dashboard/profile"

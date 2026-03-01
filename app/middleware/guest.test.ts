@@ -37,7 +37,7 @@ describe('guest middleware', () => {
       setActivePinia(
         createTestingPinia({
           initialState: {
-            auth: { token: 'jwt.test.token', currentUser: { id: 1 } },
+            auth: { token: 'jwt.test.token', currentEntity: { id: 1 }, entityType: 'user' },
           },
         }),
       )
@@ -63,7 +63,7 @@ describe('guest middleware', () => {
       setActivePinia(
         createTestingPinia({
           initialState: {
-            auth: { token: null, currentUser: null },
+            auth: { token: null, currentEntity: null },
           },
         }),
       )

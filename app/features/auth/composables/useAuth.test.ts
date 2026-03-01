@@ -5,7 +5,6 @@
 // Mocking strategy:
 //   - useApi() is mocked via vi.mock because it is an auto-imported
 //     composable defined inside the project (not a Nuxt built-in).
-//     mockNuxtImport is reserved for Nuxt/ofetch auto-imports.
 //   - $fetch (global) is stubbed via vi.stubGlobal for the multipart
 //     paths that bypass useApi.
 //   - useAuthStore is accessed via createTestingPinia so we get a real
@@ -13,11 +12,6 @@
 //   - useRouter / navigateTo are the Nuxt auto-imports that must be
 //     mocked through mockNuxtImport.
 //   - useRuntimeConfig is mocked to return a stable baseURL.
-//
-// What this suite does NOT cover intentionally:
-//   - buildRegisterFormData / buildProfileFormData field assembly — those
-//     are tested implicitly through the FormData branch assertions.
-//   - The SCSS / Bootstrap layer — not relevant to composable logic.
 // ============================================================
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
@@ -28,15 +22,9 @@ import type { LoginResponse, User } from '../types'
 
 // ── Nuxt auto-import mocks ───────────────────────────────────
 
-// navigateTo is used by logout, resetPassword, deleteAccount.
-// We need a stable mock reference to assert calls against.
 const navigateToMock = vi.hoisted(() => vi.fn())
 mockNuxtImport('navigateTo', () => navigateToMock)
 
-// useRouter is used by login, logout, resetPassword, deleteAccount (router.push).
-// The mock must include afterEach (and other navigation guards) because
-// @nuxt/test-utils calls useRouter().afterEach() during its own setup.
-// A stub that returns only { push } causes "afterEach is not a function".
 const routerPushMock = vi.hoisted(() => vi.fn())
 mockNuxtImport('useRouter', () => () => ({
   push: routerPushMock,
@@ -57,14 +45,7 @@ mockNuxtImport('useRouter', () => () => ({
   options: {},
 }))
 
-// NOTE: useRuntimeConfig is NOT mocked here. NUXT_PUBLIC_API_BASE is fed
-// via vitest.config.ts env so the real useRuntimeConfig works correctly.
-// Mocking useRuntimeConfig via mockNuxtImport breaks @nuxt/test-utils
-// internal router initialisation (useRouter().afterEach becomes undefined).
-
 // ── useApi mock ──────────────────────────────────────────────
-// useApi is NOT a Nuxt built-in, so we mock it with vi.mock.
-// Each test replaces the inner implementations via the returned spies.
 
 const apiPostMock = vi.fn()
 const apiGetMock = vi.fn()
@@ -81,8 +62,22 @@ vi.mock('../../shared/composables/useApi', () => ({
 }))
 
 // ── $fetch global stub ───────────────────────────────────────
-// Multipart photo paths bypass useApi and call $fetch directly.
 const fetchMock = vi.fn()
+
+// ── Fake JWT helper ──────────────────────────────────────────
+// Creates a JWT token that decodes to the given payload.
+function makeFakeJwt(payload: Record<string, unknown>): string {
+  const header = btoa(JSON.stringify({ alg: 'HS256' }))
+  const body = btoa(JSON.stringify(payload))
+  return `${header}.${body}.fakesignature`
+}
+
+const FAKE_JWT = makeFakeJwt({
+  user_id: '1',
+  email: 'ana@example.com',
+  entity_type: 'user',
+  is_admin: false,
+})
 
 // ── Fixtures ────────────────────────────────────────────────
 
@@ -102,7 +97,7 @@ const mockUser: User = {
 }
 
 const mockLoginResponse: LoginResponse = {
-  token: 'jwt.test.token',
+  token: FAKE_JWT,
   user: mockUser,
 }
 
@@ -118,7 +113,6 @@ const minimalRegisterPayload = {
 }
 
 // ── Helper ───────────────────────────────────────────────────
-// Builds a fake File for multipart tests.
 function makeFile(name = 'photo.jpg'): File {
   return new File(['(binary)'], name, { type: 'image/jpeg' })
 }
@@ -129,16 +123,13 @@ describe('useAuth', () => {
   let authStore: ReturnType<typeof import('../stores/auth.store').useAuthStore>
 
   beforeEach(async () => {
-    // Isolate Pinia per test — stubActions: false so real action logic runs.
     setActivePinia(
       createTestingPinia({ stubActions: false, createSpy: vi.fn }),
     )
 
-    // Resolve the store after pinia is active.
     const { useAuthStore } = await import('../stores/auth.store')
     authStore = useAuthStore()
 
-    // Reset all API mocks — prevents call counts from bleeding between tests.
     apiPostMock.mockReset()
     apiGetMock.mockReset()
     apiPatchMock.mockReset()
@@ -147,12 +138,10 @@ describe('useAuth', () => {
     navigateToMock.mockReset()
     fetchMock.mockReset()
 
-    // Inject the $fetch stub globally for multipart paths.
     vi.stubGlobal('$fetch', fetchMock)
 
-    // Stub localStorage for the updateProfile photo path.
     vi.stubGlobal('localStorage', {
-      getItem: vi.fn(() => 'stored.jwt'),
+      getItem: vi.fn(() => FAKE_JWT),
       setItem: vi.fn(),
       removeItem: vi.fn(),
     })
@@ -178,7 +167,7 @@ describe('useAuth', () => {
       })
     })
 
-    it('calls authStore.setSession with the API response on success', async () => {
+    it('calls authStore.setSession with the API response and entity type on success', async () => {
       apiPostMock.mockResolvedValueOnce(mockLoginResponse)
       const setSessionSpy = vi.spyOn(authStore, 'setSession')
       const { useAuth } = await import('./useAuth')
@@ -186,7 +175,20 @@ describe('useAuth', () => {
 
       await login('ana@example.com', 'Secret123!')
 
-      expect(setSessionSpy).toHaveBeenCalledWith(mockLoginResponse)
+      expect(setSessionSpy).toHaveBeenCalledWith(mockLoginResponse, 'user')
+    })
+
+    it('calls the shelter login endpoint when entityType is shelter', async () => {
+      apiPostMock.mockResolvedValueOnce({ token: 'tok', shelter: {} })
+      const { useAuth } = await import('./useAuth')
+      const { login } = useAuth()
+
+      await login('shelter@example.com', 'pass', 'shelter')
+
+      expect(apiPostMock).toHaveBeenCalledWith('/shelters/login', {
+        email: 'shelter@example.com',
+        password: 'pass',
+      })
     })
 
     it('navigates to /dashboard after successful login', async () => {
@@ -204,7 +206,6 @@ describe('useAuth', () => {
       const { useAuth } = await import('./useAuth')
       const { login, error } = useAuth()
 
-      // Pre-seed an error
       error.value = 'previous error'
       await login('ana@example.com', 'Secret123!')
 
@@ -237,7 +238,6 @@ describe('useAuth', () => {
     it('sets pending to true during the request and false after', async () => {
       let pendingDuringCall = false
       apiPostMock.mockImplementationOnce(async () => {
-        // Capture pending mid-flight by returning a deferred promise
         return new Promise<LoginResponse>(resolve =>
           setTimeout(() => resolve(mockLoginResponse), 0),
         )
@@ -246,7 +246,6 @@ describe('useAuth', () => {
       const { login, pending } = useAuth()
 
       const loginPromise = login('ana@example.com', 'Secret123!')
-      // pending should be true while the promise is in flight
       pendingDuringCall = pending.value
       await loginPromise
 
@@ -259,7 +258,6 @@ describe('useAuth', () => {
 
   describe('register()', () => {
     it('calls POST /users with JSON body when no photo is provided', async () => {
-      // register calls login internally after POST /users — mock both
       apiPostMock
         .mockResolvedValueOnce(undefined) // POST /users
         .mockResolvedValueOnce(mockLoginResponse) // POST /login (auto-login)
@@ -300,7 +298,6 @@ describe('useAuth', () => {
 
       await register(minimalRegisterPayload, makeFile())
 
-      // First call is the auto-login, not /users
       expect(apiPostMock).not.toHaveBeenCalledWith('/users', expect.anything())
     })
 
@@ -415,28 +412,36 @@ describe('useAuth', () => {
   // ── fetchCurrentUser ───────────────────────────────────────
 
   describe('fetchCurrentUser()', () => {
-    it('calls GET /api/me', async () => {
+    it('calls the correct profile endpoint based on entityType', async () => {
+      // Seed the store with a token and entityType so fetchCurrentUser
+      // can decode the user_id and call the right endpoint.
+      authStore.token = FAKE_JWT
+      authStore.entityType = 'user'
       apiGetMock.mockResolvedValueOnce(mockUser)
       const { useAuth } = await import('./useAuth')
       const { fetchCurrentUser } = useAuth()
 
       await fetchCurrentUser()
 
-      expect(apiGetMock).toHaveBeenCalledWith('/api/me')
+      expect(apiGetMock).toHaveBeenCalledWith('/api/users/1')
     })
 
-    it('calls authStore.setUser with the API response on success', async () => {
+    it('calls authStore.setEntity with the API response on success', async () => {
+      authStore.token = FAKE_JWT
+      authStore.entityType = 'user'
       apiGetMock.mockResolvedValueOnce(mockUser)
-      const setUserSpy = vi.spyOn(authStore, 'setUser')
+      const setEntitySpy = vi.spyOn(authStore, 'setEntity')
       const { useAuth } = await import('./useAuth')
       const { fetchCurrentUser } = useAuth()
 
       await fetchCurrentUser()
 
-      expect(setUserSpy).toHaveBeenCalledWith(mockUser)
+      expect(setEntitySpy).toHaveBeenCalledWith(mockUser, 'user')
     })
 
     it('calls clearSession on a 401 response', async () => {
+      authStore.token = FAKE_JWT
+      authStore.entityType = 'user'
       apiGetMock.mockRejectedValueOnce({ statusCode: 401 })
       const clearSessionSpy = vi.spyOn(authStore, 'clearSession')
       const { useAuth } = await import('./useAuth')
@@ -448,6 +453,8 @@ describe('useAuth', () => {
     })
 
     it('does not call clearSession on a non-401 error', async () => {
+      authStore.token = FAKE_JWT
+      authStore.entityType = 'user'
       apiGetMock.mockRejectedValueOnce({ statusCode: 500, data: { error: 'Server error' } })
       const clearSessionSpy = vi.spyOn(authStore, 'clearSession')
       const { useAuth } = await import('./useAuth')
@@ -459,6 +466,8 @@ describe('useAuth', () => {
     })
 
     it('sets error for non-401 API failures', async () => {
+      authStore.token = FAKE_JWT
+      authStore.entityType = 'user'
       apiGetMock.mockRejectedValueOnce({ statusCode: 500, data: { error: 'Internal error' } })
       const { useAuth } = await import('./useAuth')
       const { fetchCurrentUser, error } = useAuth()
@@ -469,6 +478,8 @@ describe('useAuth', () => {
     })
 
     it('sets pending to false after the request', async () => {
+      authStore.token = FAKE_JWT
+      authStore.entityType = 'user'
       apiGetMock.mockResolvedValueOnce(mockUser)
       const { useAuth } = await import('./useAuth')
       const { fetchCurrentUser, pending } = useAuth()
@@ -482,7 +493,9 @@ describe('useAuth', () => {
   // ── updateProfile ──────────────────────────────────────────
 
   describe('updateProfile()', () => {
-    it('calls PATCH /api/me with JSON body when no photo is provided', async () => {
+    it('calls PATCH /api/users/:id with JSON body when no photo is provided', async () => {
+      authStore.token = FAKE_JWT
+      authStore.entityType = 'user'
       const updatedUser: User = { ...mockUser, name: 'Ana Updated' }
       apiPatchMock.mockResolvedValueOnce(updatedUser)
       const { useAuth } = await import('./useAuth')
@@ -490,10 +503,12 @@ describe('useAuth', () => {
 
       await updateProfile({ name: 'Ana Updated' })
 
-      expect(apiPatchMock).toHaveBeenCalledWith('/api/me', { name: 'Ana Updated' })
+      expect(apiPatchMock).toHaveBeenCalledWith('/api/users/1', { name: 'Ana Updated' })
     })
 
     it('calls authStore.setUser with the updated user on JSON success', async () => {
+      authStore.token = FAKE_JWT
+      authStore.entityType = 'user'
       const updatedUser: User = { ...mockUser, name: 'Ana Updated' }
       apiPatchMock.mockResolvedValueOnce(updatedUser)
       const setUserSpy = vi.spyOn(authStore, 'setUser')
@@ -506,6 +521,8 @@ describe('useAuth', () => {
     })
 
     it('calls $fetch with FormData when a photo is provided', async () => {
+      authStore.token = FAKE_JWT
+      authStore.entityType = 'user'
       const updatedUser: User = { ...mockUser, name: 'Ana Updated' }
       fetchMock.mockResolvedValueOnce(updatedUser)
       const { useAuth } = await import('./useAuth')
@@ -514,7 +531,7 @@ describe('useAuth', () => {
       await updateProfile({ name: 'Ana Updated' }, makeFile())
 
       expect(fetchMock).toHaveBeenCalledWith(
-        'http://localhost:4000/api/me',
+        'http://localhost:4000/api/users/1',
         expect.objectContaining({
           method: 'PATCH',
           body: expect.any(FormData),
@@ -523,11 +540,10 @@ describe('useAuth', () => {
     })
 
     it('attaches Authorization header when a stored token exists during photo upload', async () => {
+      authStore.token = FAKE_JWT
+      authStore.entityType = 'user'
       const updatedUser: User = { ...mockUser }
       fetchMock.mockResolvedValueOnce(updatedUser)
-      // Seed a token into the store so authStore.token is non-null when
-      // updateProfile reads it for the Authorization header.
-      authStore.token = 'stored.jwt'
       const { useAuth } = await import('./useAuth')
       const { updateProfile } = useAuth()
 
@@ -536,12 +552,14 @@ describe('useAuth', () => {
       expect(fetchMock).toHaveBeenCalledWith(
         expect.any(String),
         expect.objectContaining({
-          headers: { Authorization: 'Bearer stored.jwt' },
+          headers: { Authorization: `Bearer ${FAKE_JWT}` },
         }),
       )
     })
 
     it('sets error on PATCH failure', async () => {
+      authStore.token = FAKE_JWT
+      authStore.entityType = 'user'
       apiPatchMock.mockRejectedValueOnce({ data: { error: 'Email inválido' } })
       const { useAuth } = await import('./useAuth')
       const { updateProfile, error } = useAuth()
@@ -555,17 +573,21 @@ describe('useAuth', () => {
   // ── deleteAccount ──────────────────────────────────────────
 
   describe('deleteAccount()', () => {
-    it('calls DELETE /api/me', async () => {
+    it('calls DELETE /api/users/:id', async () => {
+      authStore.token = FAKE_JWT
+      authStore.entityType = 'user'
       apiDelMock.mockResolvedValueOnce(undefined)
       const { useAuth } = await import('./useAuth')
       const { deleteAccount } = useAuth()
 
       await deleteAccount()
 
-      expect(apiDelMock).toHaveBeenCalledWith('/api/me')
+      expect(apiDelMock).toHaveBeenCalledWith('/api/users/1')
     })
 
     it('calls clearSession after deletion', async () => {
+      authStore.token = FAKE_JWT
+      authStore.entityType = 'user'
       apiDelMock.mockResolvedValueOnce(undefined)
       const clearSessionSpy = vi.spyOn(authStore, 'clearSession')
       const { useAuth } = await import('./useAuth')
@@ -577,6 +599,8 @@ describe('useAuth', () => {
     })
 
     it('navigates to / after deletion', async () => {
+      authStore.token = FAKE_JWT
+      authStore.entityType = 'user'
       apiDelMock.mockResolvedValueOnce(undefined)
       const { useAuth } = await import('./useAuth')
       const { deleteAccount } = useAuth()
@@ -587,6 +611,8 @@ describe('useAuth', () => {
     })
 
     it('sets error on failure and does not navigate', async () => {
+      authStore.token = FAKE_JWT
+      authStore.entityType = 'user'
       apiDelMock.mockRejectedValueOnce({ data: { error: 'No se puede eliminar' } })
       const { useAuth } = await import('./useAuth')
       const { deleteAccount, error } = useAuth()
@@ -598,6 +624,8 @@ describe('useAuth', () => {
     })
 
     it('sets pending to false after deletion regardless of outcome', async () => {
+      authStore.token = FAKE_JWT
+      authStore.entityType = 'user'
       apiDelMock.mockRejectedValueOnce({ message: 'Network error' })
       const { useAuth } = await import('./useAuth')
       const { deleteAccount, pending } = useAuth()

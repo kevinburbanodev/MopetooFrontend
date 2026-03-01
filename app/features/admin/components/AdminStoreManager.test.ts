@@ -70,7 +70,7 @@ async function mountManager() {
       plugins: [
         createTestingPinia({
           initialState: {
-            auth: { token: 'admin.jwt', currentUser: { id: 99, is_admin: true } },
+            auth: { token: 'admin.jwt', currentEntity: { id: 99, is_admin: true }, entityType: 'user' },
           },
         }),
       ],

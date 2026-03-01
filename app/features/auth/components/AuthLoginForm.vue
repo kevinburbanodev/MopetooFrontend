@@ -1,6 +1,9 @@
 <script setup lang="ts">
+import type { EntityType } from '../types'
+
 const { login, pending, error } = useAuth()
 
+const entityType = ref<EntityType>('user')
 const email = ref('')
 const password = ref('')
 
@@ -10,10 +13,17 @@ const submitted = ref(false)
 const emailInvalid = computed(() => submitted.value && !email.value.trim())
 const passwordInvalid = computed(() => submitted.value && !password.value)
 
+const subtitles: Record<EntityType, string> = {
+  user: 'Inicia sesión para cuidar a tus mascotas',
+  shelter: 'Inicia sesión como refugio',
+  store: 'Inicia sesión como tienda',
+  clinic: 'Inicia sesión como clínica veterinaria',
+}
+
 async function handleSubmit(): Promise<void> {
   submitted.value = true
   if (emailInvalid.value || passwordInvalid.value) return
-  await login(email.value.trim(), password.value)
+  await login(email.value.trim(), password.value, entityType.value)
 }
 </script>
 
@@ -26,8 +36,11 @@ async function handleSubmit(): Promise<void> {
           <div class="text-center mb-4">
             <div class="brand-icon mb-2" aria-hidden="true">🐾</div>
             <h1 class="h4 fw-bold text-dark">Bienvenido de vuelta</h1>
-            <p class="text-muted small mb-0">Inicia sesión para cuidar a tus mascotas</p>
+            <p class="text-muted small mb-0">{{ subtitles[entityType] }}</p>
           </div>
+
+          <!-- Entity type selector -->
+          <AuthEntityTypeSelector v-model="entityType" />
 
           <!-- API error alert -->
           <div

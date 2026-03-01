@@ -58,7 +58,8 @@ describe('maintenance middleware', () => {
           initialState: {
             auth: {
               token: 'admin.jwt.token',
-              currentUser: { id: 1, is_admin: true },
+              currentEntity: { id: 1, is_admin: true },
+              entityType: 'user',
             },
             maintenance: {
               status: { is_enabled: true },
@@ -108,7 +109,8 @@ describe('maintenance middleware', () => {
           initialState: {
             auth: {
               token: 'admin.jwt.token',
-              currentUser: { id: 1, is_admin: true },
+              currentEntity: { id: 1, is_admin: true },
+              entityType: 'user',
             },
             maintenance: {
               status: { is_enabled: false },
@@ -140,7 +142,7 @@ describe('maintenance middleware', () => {
           initialState: {
             auth: {
               token: 'user.jwt.token',
-              currentUser: { id: 2, is_admin: false },
+              currentEntity: { id: 2, is_admin: false }, entityType: 'user',
             },
             maintenance: {
               status: { is_enabled: true },
@@ -202,7 +204,7 @@ describe('maintenance middleware', () => {
           initialState: {
             auth: {
               token: 'user.jwt.token',
-              currentUser: { id: 2, is_admin: false },
+              currentEntity: { id: 2, is_admin: false }, entityType: 'user',
             },
             maintenance: {
               status: { is_enabled: false },
@@ -252,7 +254,7 @@ describe('maintenance middleware', () => {
           initialState: {
             auth: {
               token: null,
-              currentUser: null,
+              currentEntity: null,
             },
             maintenance: {
               status: { is_enabled: true },
@@ -290,7 +292,7 @@ describe('maintenance middleware', () => {
           initialState: {
             auth: {
               token: 'user.jwt.token',
-              currentUser: { id: 2, is_admin: false },
+              currentEntity: { id: 2, is_admin: false }, entityType: 'user',
             },
             maintenance: {
               // status is null — isEnabled computed defaults to false

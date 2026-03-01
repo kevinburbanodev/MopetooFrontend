@@ -1,10 +1,54 @@
 <script setup lang="ts">
+import type { User, AuthShelter, AuthStore as AuthStoreType, AuthClinic } from '~/features/auth/types'
+
 definePageMeta({
   middleware: 'auth',
 })
 
 const authStore = useAuthStore()
-const user = computed(() => authStore.currentUser)
+
+const entityName = computed(() => {
+  if (!authStore.currentEntity) return ''
+  switch (authStore.entityType) {
+    case 'user': return (authStore.currentEntity as User).name
+    case 'shelter': return (authStore.currentEntity as AuthShelter).organization_name
+    case 'store': return (authStore.currentEntity as AuthStoreType).name
+    case 'clinic': return (authStore.currentEntity as AuthClinic).name
+    default: return ''
+  }
+})
+
+interface DashboardCard {
+  to: string
+  icon: string
+  title: string
+  desc: string
+}
+
+const dashboardCards = computed<DashboardCard[]>(() => {
+  switch (authStore.entityType) {
+    case 'shelter':
+      return [
+        { to: '/dashboard/profile', icon: '👤', title: 'Mi perfil', desc: 'Ver y editar tu información' },
+        { to: '/shelter', icon: '🐾', title: 'Adopciones', desc: 'Gestiona tus mascotas en adopción' },
+      ]
+    case 'store':
+      return [
+        { to: '/dashboard/profile', icon: '👤', title: 'Mi perfil', desc: 'Ver y editar tu información' },
+        { to: '/stores', icon: '🛍️', title: 'Mi tienda', desc: 'Gestiona tus productos' },
+      ]
+    case 'clinic':
+      return [
+        { to: '/dashboard/profile', icon: '👤', title: 'Mi perfil', desc: 'Ver y editar tu información' },
+        { to: '/clinics', icon: '🏥', title: 'Mi clínica', desc: 'Gestiona tu clínica y citas' },
+      ]
+    default:
+      return [
+        { to: '/dashboard/profile', icon: '👤', title: 'Mi perfil', desc: 'Ver y editar tu información' },
+        { to: '/dashboard/pets', icon: '🐾', title: 'Mis Mascotas', desc: 'Gestiona los perfiles de tus compañeros' },
+      ]
+  }
+})
 
 useSeoMeta({
   title: 'Dashboard — Mopetoo',
@@ -16,33 +60,23 @@ useSeoMeta({
   <div class="container py-5">
     <div class="mb-4">
       <h1 class="h4 fw-bold">
-        Hola{{ user ? `, ${user.name}` : '' }} 👋
+        Hola{{ entityName ? `, ${entityName}` : '' }} 👋
       </h1>
       <p class="text-muted mb-0">Bienvenido a tu panel de Mopetoo</p>
     </div>
 
     <div class="row g-4">
-      <!-- Mi perfil -->
-      <div class="col-sm-6 col-lg-4">
-        <NuxtLink to="/dashboard/profile" class="card text-decoration-none dashboard-card border-0 shadow-sm h-100">
+      <div
+        v-for="card in dashboardCards"
+        :key="card.to"
+        class="col-sm-6 col-lg-4"
+      >
+        <NuxtLink :to="card.to" class="card text-decoration-none dashboard-card border-0 shadow-sm h-100">
           <div class="card-body d-flex align-items-center gap-3 p-4">
-            <span class="dashboard-card__icon" aria-hidden="true">👤</span>
+            <span class="dashboard-card__icon" aria-hidden="true">{{ card.icon }}</span>
             <div>
-              <h2 class="h6 fw-bold mb-0 text-dark">Mi perfil</h2>
-              <p class="text-muted small mb-0">Ver y editar tu información</p>
-            </div>
-          </div>
-        </NuxtLink>
-      </div>
-
-      <!-- Mis Mascotas -->
-      <div class="col-sm-6 col-lg-4">
-        <NuxtLink to="/dashboard/pets" class="card text-decoration-none dashboard-card border-0 shadow-sm h-100">
-          <div class="card-body d-flex align-items-center gap-3 p-4">
-            <span class="dashboard-card__icon" aria-hidden="true">🐾</span>
-            <div>
-              <h2 class="h6 fw-bold mb-0 text-dark">Mis Mascotas</h2>
-              <p class="text-muted small mb-0">Gestiona los perfiles de tus compañeros</p>
+              <h2 class="h6 fw-bold mb-0 text-dark">{{ card.title }}</h2>
+              <p class="text-muted small mb-0">{{ card.desc }}</p>
             </div>
           </div>
         </NuxtLink>
