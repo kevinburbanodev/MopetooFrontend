@@ -14,35 +14,54 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 import { usePetshopsStore } from './petshops.store'
-import type { Petshop } from '../types'
+import type { Petshop, StoreProduct } from '../types'
 
 // ── Fixtures ─────────────────────────────────────────────────
 
 function makePetshop(overrides: Partial<Petshop> = {}): Petshop {
   return {
-    id: '1',
+    id: 1,
     name: 'Tienda Mascotas Felices',
-    description: 'Una tienda completa para todas las mascotas',
-    address: 'Calle 50 #10-20',
-    city: 'Bogotá',
-    phone: '+57 300 123 4567',
     email: 'info@mascotasfelices.com',
+    description: 'Una tienda completa para todas las mascotas',
+    logo_url: 'https://example.com/tienda.jpg',
+    country: 'Colombia',
+    city: 'Bogotá',
+    phone_country_code: '+57',
+    phone: '300 123 4567',
+    whatsapp_link: 'https://wa.me/573001234567',
     website: 'https://mascotasfelices.com',
-    photo_url: 'https://example.com/tienda.jpg',
-    categories: ['Alimentos', 'Accesorios'],
-    is_verified: true,
-    is_featured: false,
-    latitude: 4.7109886,
-    longitude: -74.072092,
+    verified: true,
+    is_active: true,
+    plan: '',
     created_at: '2024-01-01T00:00:00Z',
     updated_at: '2024-01-01T00:00:00Z',
     ...overrides,
   }
 }
 
-const shopA = makePetshop({ id: '1', name: 'Mascotas Felices', city: 'Bogotá', is_featured: false })
-const shopB = makePetshop({ id: '2', name: 'PetWorld', city: 'Medellín', is_featured: true })
-const shopC = makePetshop({ id: '3', name: 'Mundo Animal', city: 'Cali', is_featured: true, is_verified: false })
+function makeProduct(overrides: Partial<StoreProduct> = {}): StoreProduct {
+  return {
+    id: 1,
+    store_id: 1,
+    name: 'Alimento Premium',
+    description: 'Alimento para perros adultos',
+    category: 'alimento',
+    price: 45.99,
+    photo_url: 'https://example.com/food.jpg',
+    is_available: true,
+    created_at: '2024-01-01T00:00:00Z',
+    updated_at: '2024-01-01T00:00:00Z',
+    ...overrides,
+  }
+}
+
+const shopA = makePetshop({ id: 1, name: 'Mascotas Felices', city: 'Bogotá', plan: '' })
+const shopB = makePetshop({ id: 2, name: 'PetWorld', city: 'Medellín', plan: 'premium' })
+const shopC = makePetshop({ id: 3, name: 'Mundo Animal', city: 'Cali', plan: 'basic', verified: false })
+
+const productA = makeProduct({ id: 1, name: 'Alimento Premium' })
+const productB = makeProduct({ id: 2, name: 'Collar LED', category: 'accesorios' })
 
 // ── Suite ─────────────────────────────────────────────────────
 
@@ -65,6 +84,11 @@ describe('usePetshopsStore', () => {
       expect(store.selectedPetshop).toBeNull()
     })
 
+    it('has an empty storeProducts array', () => {
+      const store = usePetshopsStore()
+      expect(store.storeProducts).toEqual([])
+    })
+
     it('has isLoading false', () => {
       const store = usePetshopsStore()
       expect(store.isLoading).toBe(false)
@@ -75,9 +99,9 @@ describe('usePetshopsStore', () => {
       expect(store.hasPetshops).toBe(false)
     })
 
-    it('getFeaturedPetshops returns an empty array', () => {
+    it('getPremiumPetshops returns an empty array', () => {
       const store = usePetshopsStore()
-      expect(store.getFeaturedPetshops).toEqual([])
+      expect(store.getPremiumPetshops).toEqual([])
     })
   })
 
@@ -109,58 +133,58 @@ describe('usePetshopsStore', () => {
     })
   })
 
-  // ── getFeaturedPetshops getter ─────────────────────────────
+  // ── getPremiumPetshops getter ──────────────────────────────
 
-  describe('getFeaturedPetshops getter', () => {
+  describe('getPremiumPetshops getter', () => {
     it('returns an empty array when no petshops are loaded', () => {
       const store = usePetshopsStore()
-      expect(store.getFeaturedPetshops).toEqual([])
+      expect(store.getPremiumPetshops).toEqual([])
     })
 
-    it('returns only petshops with is_featured === true', () => {
+    it('returns only petshops with a non-empty plan', () => {
       const store = usePetshopsStore()
       store.setPetshops([shopA, shopB, shopC])
-      const featured = store.getFeaturedPetshops
-      expect(featured).toHaveLength(2)
-      expect(featured.map(p => p.id)).toEqual(expect.arrayContaining(['2', '3']))
+      const premium = store.getPremiumPetshops
+      expect(premium).toHaveLength(2)
+      expect(premium.map(p => p.id)).toEqual(expect.arrayContaining([2, 3]))
     })
 
-    it('excludes petshops with is_featured === false', () => {
+    it('excludes petshops with plan === ""', () => {
       const store = usePetshopsStore()
       store.setPetshops([shopA, shopB, shopC])
-      const featured = store.getFeaturedPetshops
-      expect(featured.find(p => p.id === '1')).toBeUndefined()
+      const premium = store.getPremiumPetshops
+      expect(premium.find(p => p.id === 1)).toBeUndefined()
     })
 
-    it('returns all petshops when all have is_featured === true', () => {
+    it('returns all petshops when all have a non-empty plan', () => {
       const store = usePetshopsStore()
-      const allFeatured = [
-        makePetshop({ id: 'f1', is_featured: true }),
-        makePetshop({ id: 'f2', is_featured: true }),
+      const allPremium = [
+        makePetshop({ id: 10, plan: 'premium' }),
+        makePetshop({ id: 11, plan: 'basic' }),
       ]
-      store.setPetshops(allFeatured)
-      expect(store.getFeaturedPetshops).toHaveLength(2)
+      store.setPetshops(allPremium)
+      expect(store.getPremiumPetshops).toHaveLength(2)
     })
 
-    it('returns an empty array when all petshops have is_featured === false', () => {
+    it('returns an empty array when all petshops have plan === ""', () => {
       const store = usePetshopsStore()
-      store.setPetshops([shopA, makePetshop({ id: '5', is_featured: false })])
-      expect(store.getFeaturedPetshops).toEqual([])
+      store.setPetshops([shopA, makePetshop({ id: 5, plan: '' })])
+      expect(store.getPremiumPetshops).toEqual([])
     })
 
-    it('updates reactively when a featured petshop is added', () => {
+    it('updates reactively when a premium petshop is added', () => {
       const store = usePetshopsStore()
-      store.setPetshops([shopA]) // non-featured only
-      expect(store.getFeaturedPetshops).toHaveLength(0)
-      store.addPetshop(shopB) // featured
-      expect(store.getFeaturedPetshops).toHaveLength(1)
+      store.setPetshops([shopA]) // no plan
+      expect(store.getPremiumPetshops).toHaveLength(0)
+      store.addPetshop(shopB) // has plan
+      expect(store.getPremiumPetshops).toHaveLength(1)
     })
 
     it('returns an empty array after clearPetshops resets the list', () => {
       const store = usePetshopsStore()
-      store.setPetshops([shopB, shopC]) // both featured
+      store.setPetshops([shopB, shopC]) // both have plan
       store.clearPetshops()
-      expect(store.getFeaturedPetshops).toEqual([])
+      expect(store.getPremiumPetshops).toEqual([])
     })
   })
 
@@ -196,9 +220,9 @@ describe('usePetshopsStore', () => {
     it('preserves the order of the provided list', () => {
       const store = usePetshopsStore()
       store.setPetshops([shopC, shopA, shopB])
-      expect(store.petshops[0].id).toBe('3')
-      expect(store.petshops[1].id).toBe('1')
-      expect(store.petshops[2].id).toBe('2')
+      expect(store.petshops[0].id).toBe(3)
+      expect(store.petshops[1].id).toBe(1)
+      expect(store.petshops[2].id).toBe(2)
     })
   })
 
@@ -255,8 +279,8 @@ describe('usePetshopsStore', () => {
       const store = usePetshopsStore()
       store.setSelectedPetshop(shopA)
       expect(store.selectedPetshop?.name).toBe('Mascotas Felices')
-      expect(store.selectedPetshop?.is_verified).toBe(true)
-      expect(store.selectedPetshop?.categories).toEqual(['Alimentos', 'Accesorios'])
+      expect(store.selectedPetshop?.verified).toBe(true)
+      expect(store.selectedPetshop?.plan).toBe('')
     })
 
     it('does not affect the petshops array', () => {
@@ -289,6 +313,45 @@ describe('usePetshopsStore', () => {
       store.setSelectedPetshop(shopA)
       store.clearSelectedPetshop()
       expect(store.petshops).toHaveLength(2)
+    })
+  })
+
+  // ── setStoreProducts / clearStoreProducts ──────────────────
+
+  describe('setStoreProducts()', () => {
+    it('sets storeProducts to the provided list', () => {
+      const store = usePetshopsStore()
+      store.setStoreProducts([productA, productB])
+      expect(store.storeProducts).toEqual([productA, productB])
+    })
+
+    it('overwrites previously stored products', () => {
+      const store = usePetshopsStore()
+      store.setStoreProducts([productA])
+      store.setStoreProducts([productB])
+      expect(store.storeProducts).toEqual([productB])
+    })
+
+    it('accepts an empty array', () => {
+      const store = usePetshopsStore()
+      store.setStoreProducts([productA])
+      store.setStoreProducts([])
+      expect(store.storeProducts).toEqual([])
+    })
+  })
+
+  describe('clearStoreProducts()', () => {
+    it('resets storeProducts to an empty array', () => {
+      const store = usePetshopsStore()
+      store.setStoreProducts([productA, productB])
+      store.clearStoreProducts()
+      expect(store.storeProducts).toEqual([])
+    })
+
+    it('is safe to call when storeProducts is already empty', () => {
+      const store = usePetshopsStore()
+      expect(() => store.clearStoreProducts()).not.toThrow()
+      expect(store.storeProducts).toEqual([])
     })
   })
 
@@ -342,6 +405,13 @@ describe('usePetshopsStore', () => {
       expect(store.selectedPetshop).toBeNull()
     })
 
+    it('resets storeProducts to an empty array', () => {
+      const store = usePetshopsStore()
+      store.setStoreProducts([productA, productB])
+      store.clearPetshops()
+      expect(store.storeProducts).toEqual([])
+    })
+
     it('makes hasPetshops false after clearing', () => {
       const store = usePetshopsStore()
       store.setPetshops([shopA, shopB, shopC])
@@ -349,11 +419,11 @@ describe('usePetshopsStore', () => {
       expect(store.hasPetshops).toBe(false)
     })
 
-    it('makes getFeaturedPetshops return an empty array after clearing', () => {
+    it('makes getPremiumPetshops return an empty array after clearing', () => {
       const store = usePetshopsStore()
-      store.setPetshops([shopB, shopC]) // both featured
+      store.setPetshops([shopB, shopC]) // both have plan
       store.clearPetshops()
-      expect(store.getFeaturedPetshops).toEqual([])
+      expect(store.getPremiumPetshops).toEqual([])
     })
 
     it('is safe to call when the store is already in initial state', () => {
@@ -361,16 +431,13 @@ describe('usePetshopsStore', () => {
       expect(() => store.clearPetshops()).not.toThrow()
       expect(store.petshops).toEqual([])
       expect(store.selectedPetshop).toBeNull()
+      expect(store.storeProducts).toEqual([])
     })
 
     it('does NOT reset isLoading (loading state is not part of clearPetshops)', () => {
-      // clearPetshops only resets data, not transient UI state
       const store = usePetshopsStore()
       store.setLoading(true)
       store.clearPetshops()
-      // isLoading is not explicitly reset by clearPetshops (by design)
-      // but after a fresh pinia setup it starts false; this verifies
-      // clearPetshops is focused on data fields, not UI state
       expect(store.petshops).toEqual([])
     })
   })

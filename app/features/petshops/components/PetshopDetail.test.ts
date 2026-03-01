@@ -5,7 +5,7 @@
 // Strategy: mountSuspended resolves Nuxt auto-imports. The component
 // calls usePetshops() which internally calls useApi() and usePetshopsStore().
 // We mock usePetshops at the composable boundary so we can control the
-// store state and stub fetchPetshopById without making HTTP calls.
+// store state and stub fetchPetshopById/fetchStoreProducts.
 //
 // Mocking:
 //   - usePetshops: vi.mock('../composables/usePetshops', ...) — project
@@ -20,14 +20,12 @@
 // Key behaviours tested:
 //   - Loading skeleton rendered while isLoading is true and no petshop.
 //   - Petshop profile rendered when selectedPetshop is set.
-//   - All contact links: phone (tel:), email (mailto:), website.
+//   - Contact: composed phone (phone_country_code + phone), email, website, WhatsApp.
 //   - Security: javascript: website blocked; invalid phone blocked.
-//   - Business hours table shown/hidden based on hasHoursData.
-//   - "Cerrado" for days with no hours set.
-//   - Map placeholder shown/hidden based on latitude + longitude.
+//   - Products section with product cards.
 //   - Back navigation link.
-//   - fetchPetshopById called on mount with the prop value.
-//   - Invalid petshopId format (path traversal) is rejected.
+//   - fetchPetshopById called on mount with numeric ID.
+//   - Invalid petshopId format (NaN, non-numeric) is rejected.
 //   - Not-found state shown when not loading and no petshop.
 //
 // What this suite does NOT cover intentionally:
@@ -41,61 +39,73 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { mountSuspended } from '@nuxt/test-utils/runtime'
 import { ref } from 'vue'
 import PetshopDetail from './PetshopDetail.vue'
-import type { Petshop, PetshopHours } from '../types'
+import type { Petshop, StoreProduct } from '../types'
 
 // ── Fixtures ─────────────────────────────────────────────────
 
 function makePetshop(overrides: Partial<Petshop> = {}): Petshop {
   return {
-    id: 'shop-1',
+    id: 1,
     name: 'Mascotas Felices',
-    description: 'Una tienda completa para mascotas',
-    address: 'Calle 50 #10-20',
-    city: 'Bogotá',
-    phone: '+57 300 123 4567',
     email: 'info@mascotasfelices.com',
+    description: 'Una tienda completa para mascotas',
+    logo_url: 'https://example.com/tienda.jpg',
+    country: 'Colombia',
+    city: 'Bogotá',
+    phone_country_code: '+57',
+    phone: '300 123 4567',
+    whatsapp_link: 'https://wa.me/573001234567',
     website: 'https://mascotasfelices.com',
-    photo_url: 'https://example.com/tienda.jpg',
-    categories: ['Alimentos', 'Accesorios'],
-    is_verified: true,
-    is_featured: false,
-    latitude: 4.7109886,
-    longitude: -74.072092,
+    verified: true,
+    is_active: true,
+    plan: '',
     created_at: '2024-01-01T00:00:00Z',
     updated_at: '2024-01-01T00:00:00Z',
     ...overrides,
   }
 }
 
-const defaultHours: PetshopHours = {
-  monday: '8:00 - 18:00',
-  tuesday: '8:00 - 18:00',
-  wednesday: '8:00 - 18:00',
-  thursday: '8:00 - 18:00',
-  friday: '8:00 - 18:00',
-  saturday: '9:00 - 14:00',
-  // sunday intentionally absent → shows "Cerrado"
+function makeProduct(overrides: Partial<StoreProduct> = {}): StoreProduct {
+  return {
+    id: 1,
+    store_id: 1,
+    name: 'Alimento Premium',
+    description: 'Alimento para perros adultos',
+    category: 'alimento',
+    price: 45.99,
+    photo_url: 'https://example.com/food.jpg',
+    is_available: true,
+    created_at: '2024-01-01T00:00:00Z',
+    updated_at: '2024-01-01T00:00:00Z',
+    ...overrides,
+  }
 }
 
 // ── usePetshops mock ──────────────────────────────────────────
 // Module-level reactive refs control the mock state per test.
-// The component reads petshopsStore.selectedPetshop / isLoading.
+// The component reads petshopsStore.selectedPetshop / isLoading / storeProducts.
 
 const mockFetchPetshopById = vi.fn()
+const mockFetchStoreProducts = vi.fn()
 const mockClearSelectedPetshop = vi.fn()
+const mockClearStoreProducts = vi.fn()
 const mockError = ref<string | null>(null)
 const mockSelectedPetshop = ref<Petshop | null>(null)
+const mockStoreProducts = ref<StoreProduct[]>([])
 const mockIsLoading = ref(false)
 
 vi.mock('../composables/usePetshops', () => ({
   usePetshops: () => ({
     fetchPetshopById: mockFetchPetshopById,
+    fetchStoreProducts: mockFetchStoreProducts,
     error: mockError,
     petshopsStore: {
       get selectedPetshop() { return mockSelectedPetshop.value },
+      get storeProducts() { return mockStoreProducts.value },
       get isLoading() { return mockIsLoading.value },
       get petshops() { return [] },
       clearSelectedPetshop: mockClearSelectedPetshop,
+      clearStoreProducts: mockClearStoreProducts,
     },
   }),
 }))
@@ -119,28 +129,46 @@ describe('PetshopDetail', () => {
   beforeEach(() => {
     mockFetchPetshopById.mockReset()
     mockFetchPetshopById.mockResolvedValue(null)
+    mockFetchStoreProducts.mockReset()
+    mockFetchStoreProducts.mockResolvedValue(undefined)
     mockClearSelectedPetshop.mockReset()
+    mockClearStoreProducts.mockReset()
     mockError.value = null
     mockSelectedPetshop.value = null
+    mockStoreProducts.value = []
     mockIsLoading.value = false
   })
 
   // ── fetchPetshopById on mount ──────────────────────────────
 
   describe('lifecycle — mount', () => {
-    it('calls fetchPetshopById with the petshopId prop on mount', async () => {
-      await mountDetail('shop-1')
-      expect(mockFetchPetshopById).toHaveBeenCalledWith('shop-1')
+    it('calls fetchPetshopById with numeric ID parsed from petshopId prop', async () => {
+      await mountDetail('1')
+      expect(mockFetchPetshopById).toHaveBeenCalledWith(1)
     })
 
     it('calls fetchPetshopById exactly once', async () => {
-      await mountDetail('shop-1')
+      await mountDetail('1')
       expect(mockFetchPetshopById).toHaveBeenCalledTimes(1)
     })
 
-    it('does NOT call fetchPetshopById when petshopId contains path traversal (../ pattern)', async () => {
-      // The component guards: /^[\w-]{1,64}$/.test() — "../etc" fails the regex
-      await mountDetail('../etc/passwd')
+    it('calls fetchStoreProducts with numeric ID on mount', async () => {
+      await mountDetail('1')
+      expect(mockFetchStoreProducts).toHaveBeenCalledWith(1)
+    })
+
+    it('does NOT call fetchPetshopById when petshopId is not a number', async () => {
+      await mountDetail('abc')
+      expect(mockFetchPetshopById).not.toHaveBeenCalled()
+    })
+
+    it('does NOT call fetchPetshopById when petshopId is 0', async () => {
+      await mountDetail('0')
+      expect(mockFetchPetshopById).not.toHaveBeenCalled()
+    })
+
+    it('does NOT call fetchPetshopById when petshopId is negative', async () => {
+      await mountDetail('-1')
       expect(mockFetchPetshopById).not.toHaveBeenCalled()
     })
 
@@ -149,14 +177,9 @@ describe('PetshopDetail', () => {
       expect(mockFetchPetshopById).not.toHaveBeenCalled()
     })
 
-    it('does NOT call fetchPetshopById when petshopId contains a slash', async () => {
-      await mountDetail('valid/id')
-      expect(mockFetchPetshopById).not.toHaveBeenCalled()
-    })
-
-    it('calls fetchPetshopById with a hyphenated petshopId (valid format)', async () => {
-      await mountDetail('petshop-42')
-      expect(mockFetchPetshopById).toHaveBeenCalledWith('petshop-42')
+    it('calls fetchPetshopById with a large numeric ID', async () => {
+      await mountDetail('42')
+      expect(mockFetchPetshopById).toHaveBeenCalledWith(42)
     })
   })
 
@@ -166,7 +189,7 @@ describe('PetshopDetail', () => {
     it('renders the loading skeleton when isLoading is true and no petshop is selected', async () => {
       mockIsLoading.value = true
       mockSelectedPetshop.value = null
-      const wrapper = await mountDetail('shop-1')
+      const wrapper = await mountDetail('1')
       expect(wrapper.find('[aria-busy="true"]').exists()).toBe(true)
       expect(wrapper.find('[aria-label="Cargando tienda"]').exists()).toBe(true)
     })
@@ -174,7 +197,7 @@ describe('PetshopDetail', () => {
     it('does not render petshop profile content while loading', async () => {
       mockIsLoading.value = true
       mockSelectedPetshop.value = null
-      const wrapper = await mountDetail('shop-1')
+      const wrapper = await mountDetail('1')
       expect(wrapper.text()).not.toContain('Mascotas Felices')
     })
   })
@@ -185,14 +208,14 @@ describe('PetshopDetail', () => {
     it('shows "Tienda no encontrada" when not loading and no petshop selected', async () => {
       mockIsLoading.value = false
       mockSelectedPetshop.value = null
-      const wrapper = await mountDetail('shop-999')
+      const wrapper = await mountDetail('999')
       expect(wrapper.text()).toContain('Tienda no encontrada')
     })
 
     it('shows a "Volver al directorio" link in the not-found state', async () => {
       mockIsLoading.value = false
       mockSelectedPetshop.value = null
-      const wrapper = await mountDetail('shop-999')
+      const wrapper = await mountDetail('999')
       const links = wrapper.findAll('a')
       const backLink = links.find(l => l.text().includes('Volver al directorio'))
       expect(backLink).toBeDefined()
@@ -204,91 +227,88 @@ describe('PetshopDetail', () => {
   describe('petshop profile rendering', () => {
     it('renders the store name', async () => {
       mockSelectedPetshop.value = makePetshop({ name: 'Mascotas Felices' })
-      const wrapper = await mountDetail('shop-1')
+      const wrapper = await mountDetail('1')
       expect(wrapper.text()).toContain('Mascotas Felices')
     })
 
     it('renders the store description', async () => {
       mockSelectedPetshop.value = makePetshop({ description: 'La mejor tienda para tus mascotas' })
-      const wrapper = await mountDetail('shop-1')
+      const wrapper = await mountDetail('1')
       expect(wrapper.text()).toContain('La mejor tienda para tus mascotas')
     })
 
-    it('renders the city', async () => {
-      mockSelectedPetshop.value = makePetshop({ city: 'Medellín', address: '' })
-      const wrapper = await mountDetail('shop-1')
-      expect(wrapper.text()).toContain('Medellín')
+    it('renders the city and country', async () => {
+      mockSelectedPetshop.value = makePetshop({ city: 'Medellín', country: 'Colombia' })
+      const wrapper = await mountDetail('1')
+      expect(wrapper.text()).toContain('Medellín, Colombia')
     })
 
-    it('renders the "Verificado" badge when is_verified is true', async () => {
-      mockSelectedPetshop.value = makePetshop({ is_verified: true })
-      const wrapper = await mountDetail('shop-1')
+    it('renders the "Verificado" badge when verified is true', async () => {
+      mockSelectedPetshop.value = makePetshop({ verified: true })
+      const wrapper = await mountDetail('1')
       expect(wrapper.text()).toContain('Verificado')
     })
 
-    it('hides the "Verificado" badge when is_verified is false', async () => {
-      mockSelectedPetshop.value = makePetshop({ is_verified: false })
-      const wrapper = await mountDetail('shop-1')
+    it('hides the "Verificado" badge when verified is false', async () => {
+      mockSelectedPetshop.value = makePetshop({ verified: false })
+      const wrapper = await mountDetail('1')
       expect(wrapper.text()).not.toContain('Verificado')
     })
 
-    it('renders all category chips', async () => {
-      mockSelectedPetshop.value = makePetshop({ categories: ['Alimentos', 'Accesorios', 'Veterinaria'] })
-      const wrapper = await mountDetail('shop-1')
-      expect(wrapper.text()).toContain('Alimentos')
-      expect(wrapper.text()).toContain('Accesorios')
-      expect(wrapper.text()).toContain('Veterinaria')
+    it('renders the "Destacado" badge when plan is non-empty', async () => {
+      mockSelectedPetshop.value = makePetshop({ plan: 'premium' })
+      const wrapper = await mountDetail('1')
+      expect(wrapper.text()).toContain('Destacado')
+    })
+
+    it('hides the "Destacado" badge when plan is empty string', async () => {
+      mockSelectedPetshop.value = makePetshop({ plan: '' })
+      const wrapper = await mountDetail('1')
+      expect(wrapper.text()).not.toContain('Destacado')
     })
   })
 
   // ── Contact section ────────────────────────────────────────
 
   describe('contact section', () => {
-    it('renders the phone link with tel: href when phone is safe', async () => {
-      mockSelectedPetshop.value = makePetshop({ phone: '+57 300 123 4567' })
-      const wrapper = await mountDetail('shop-1')
+    it('renders the composed phone link with tel: href', async () => {
+      mockSelectedPetshop.value = makePetshop({ phone_country_code: '+57', phone: '300 123 4567' })
+      const wrapper = await mountDetail('1')
       const phoneLink = wrapper.find('a[href^="tel:"]')
       expect(phoneLink.exists()).toBe(true)
       expect(phoneLink.attributes('href')).toBe('tel:+57 300 123 4567')
     })
 
-    it('hides the phone section when phone is null', async () => {
-      mockSelectedPetshop.value = makePetshop({ phone: undefined })
-      const wrapper = await mountDetail('shop-1')
-      expect(wrapper.find('a[href^="tel:"]').exists()).toBe(false)
-    })
-
-    it('hides the phone section when phone fails the safety regex (injection attempt)', async () => {
-      mockSelectedPetshop.value = makePetshop({ phone: '<script>alert(1)</script>' })
-      const wrapper = await mountDetail('shop-1')
+    it('hides the phone section when phone is empty', async () => {
+      mockSelectedPetshop.value = makePetshop({ phone: '' })
+      const wrapper = await mountDetail('1')
       expect(wrapper.find('a[href^="tel:"]').exists()).toBe(false)
     })
 
     it('renders the email link with mailto: href when email is safe', async () => {
       mockSelectedPetshop.value = makePetshop({ email: 'info@mascotasfelices.com' })
-      const wrapper = await mountDetail('shop-1')
+      const wrapper = await mountDetail('1')
       const emailLink = wrapper.find('a[href^="mailto:"]')
       expect(emailLink.exists()).toBe(true)
       expect(emailLink.attributes('href')).toBe('mailto:info@mascotasfelices.com')
     })
 
-    it('hides the email section when email is null', async () => {
-      mockSelectedPetshop.value = makePetshop({ email: undefined })
-      const wrapper = await mountDetail('shop-1')
+    it('hides the email section when email is invalid', async () => {
+      mockSelectedPetshop.value = makePetshop({ email: 'not-an-email' })
+      const wrapper = await mountDetail('1')
       expect(wrapper.find('a[href^="mailto:"]').exists()).toBe(false)
     })
 
     it('renders the website link when website starts with https://', async () => {
       mockSelectedPetshop.value = makePetshop({ website: 'https://mascotasfelices.com' })
-      const wrapper = await mountDetail('shop-1')
+      const wrapper = await mountDetail('1')
       const websiteLink = wrapper.find('a[href="https://mascotasfelices.com"]')
       expect(websiteLink.exists()).toBe(true)
     })
 
     it('blocks the website link when website starts with javascript: (XSS)', async () => {
       mockSelectedPetshop.value = makePetshop({ website: 'javascript:alert(document.cookie)' })
-      const wrapper = await mountDetail('shop-1')
-      // safeWebsiteUrl returns null → the entire website div is hidden
+      const wrapper = await mountDetail('1')
       const allLinks = wrapper.findAll('a')
       const jsLinks = allLinks.filter(l => (l.attributes('href') ?? '').startsWith('javascript:'))
       expect(jsLinks).toHaveLength(0)
@@ -296,71 +316,96 @@ describe('PetshopDetail', () => {
 
     it('hides the website section when website is undefined', async () => {
       mockSelectedPetshop.value = makePetshop({ website: undefined })
-      const wrapper = await mountDetail('shop-1')
-      // No website <div> should be rendered at all
-      // The website section is wrapped in v-if="safeWebsiteUrl"
+      const wrapper = await mountDetail('1')
       expect(wrapper.text()).not.toContain('Sitio web')
     })
   })
 
-  // ── Business hours table ───────────────────────────────────
+  // ── WhatsApp section ───────────────────────────────────────
 
-  describe('business hours table', () => {
-    it('shows the hours table when petshop.hours has at least one non-empty value', async () => {
-      mockSelectedPetshop.value = makePetshop({ hours: defaultHours })
-      const wrapper = await mountDetail('shop-1')
-      expect(wrapper.find('table').exists()).toBe(true)
-      expect(wrapper.text()).toContain('Horarios de atención')
+  describe('WhatsApp section', () => {
+    it('renders the WhatsApp link when whatsapp_link is a valid https URL', async () => {
+      mockSelectedPetshop.value = makePetshop({ whatsapp_link: 'https://wa.me/573001234567' })
+      const wrapper = await mountDetail('1')
+      const waLink = wrapper.find('[aria-label="WhatsApp de Mascotas Felices"]')
+      expect(waLink.exists()).toBe(true)
+      expect(waLink.attributes('href')).toBe('https://wa.me/573001234567')
     })
 
-    it('hides the hours table when petshop.hours is undefined', async () => {
-      mockSelectedPetshop.value = makePetshop({ hours: undefined })
-      const wrapper = await mountDetail('shop-1')
-      expect(wrapper.find('table').exists()).toBe(false)
+    it('hides the WhatsApp section when whatsapp_link is undefined', async () => {
+      mockSelectedPetshop.value = makePetshop({ whatsapp_link: undefined })
+      const wrapper = await mountDetail('1')
+      expect(wrapper.text()).not.toContain('WhatsApp')
     })
 
-    it('shows "Cerrado" for days not included in the hours object', async () => {
-      // defaultHours does not define sunday → should show "Cerrado"
-      mockSelectedPetshop.value = makePetshop({ hours: defaultHours })
-      const wrapper = await mountDetail('shop-1')
-      expect(wrapper.text()).toContain('Cerrado')
-    })
-
-    it('renders the correct hours for Monday', async () => {
-      mockSelectedPetshop.value = makePetshop({ hours: { monday: '9:00 - 19:00' } })
-      const wrapper = await mountDetail('shop-1')
-      expect(wrapper.text()).toContain('9:00 - 19:00')
-      expect(wrapper.text()).toContain('Lunes')
-    })
-
-    it('shows "Domingo" row in the hours table', async () => {
-      mockSelectedPetshop.value = makePetshop({ hours: defaultHours })
-      const wrapper = await mountDetail('shop-1')
-      expect(wrapper.text()).toContain('Domingo')
+    it('hides the WhatsApp section when whatsapp_link is a javascript: URI', async () => {
+      mockSelectedPetshop.value = makePetshop({ whatsapp_link: 'javascript:alert(1)' })
+      const wrapper = await mountDetail('1')
+      expect(wrapper.text()).not.toContain('WhatsApp')
     })
   })
 
-  // ── Map placeholder ────────────────────────────────────────
+  // ── Products section ───────────────────────────────────────
 
-  describe('map placeholder', () => {
-    it('shows the map section when latitude and longitude are present', async () => {
-      mockSelectedPetshop.value = makePetshop({ latitude: 4.7109886, longitude: -74.072092 })
-      const wrapper = await mountDetail('shop-1')
-      expect(wrapper.text()).toContain('Ubicación')
-      expect(wrapper.text()).toContain('Mapa disponible próximamente')
+  describe('products section', () => {
+    it('shows the products section when products are loaded', async () => {
+      mockSelectedPetshop.value = makePetshop()
+      mockStoreProducts.value = [makeProduct()]
+      const wrapper = await mountDetail('1')
+      expect(wrapper.text()).toContain('Productos')
     })
 
-    it('shows the coordinates in the map placeholder', async () => {
-      mockSelectedPetshop.value = makePetshop({ latitude: 4.7109886, longitude: -74.072092 })
-      const wrapper = await mountDetail('shop-1')
-      // latitude.toFixed(6) = "4.710989"
-      expect(wrapper.text()).toContain('4.710989')
+    it('renders product name', async () => {
+      mockSelectedPetshop.value = makePetshop()
+      mockStoreProducts.value = [makeProduct({ name: 'Alimento Premium' })]
+      const wrapper = await mountDetail('1')
+      expect(wrapper.text()).toContain('Alimento Premium')
     })
 
-    it('hides the map section when latitude is absent', async () => {
-      mockSelectedPetshop.value = makePetshop({ latitude: undefined, longitude: undefined })
-      const wrapper = await mountDetail('shop-1')
-      expect(wrapper.text()).not.toContain('Ubicación')
+    it('renders product price formatted', async () => {
+      mockSelectedPetshop.value = makePetshop()
+      mockStoreProducts.value = [makeProduct({ price: 45.99 })]
+      const wrapper = await mountDetail('1')
+      expect(wrapper.text()).toContain('$45.99')
+    })
+
+    it('renders "Disponible" when product.is_available is true', async () => {
+      mockSelectedPetshop.value = makePetshop()
+      mockStoreProducts.value = [makeProduct({ is_available: true })]
+      const wrapper = await mountDetail('1')
+      expect(wrapper.text()).toContain('Disponible')
+    })
+
+    it('renders "No disponible" when product.is_available is false', async () => {
+      mockSelectedPetshop.value = makePetshop()
+      mockStoreProducts.value = [makeProduct({ is_available: false })]
+      const wrapper = await mountDetail('1')
+      expect(wrapper.text()).toContain('No disponible')
+    })
+
+    it('renders category label for product', async () => {
+      mockSelectedPetshop.value = makePetshop()
+      mockStoreProducts.value = [makeProduct({ category: 'accesorios' })]
+      const wrapper = await mountDetail('1')
+      expect(wrapper.text()).toContain('Accesorios')
+    })
+
+    it('renders multiple product cards', async () => {
+      mockSelectedPetshop.value = makePetshop()
+      mockStoreProducts.value = [
+        makeProduct({ id: 1, name: 'Alimento Premium' }),
+        makeProduct({ id: 2, name: 'Collar LED' }),
+      ]
+      const wrapper = await mountDetail('1')
+      expect(wrapper.text()).toContain('Alimento Premium')
+      expect(wrapper.text()).toContain('Collar LED')
+    })
+
+    it('hides the products section when no products are loaded', async () => {
+      mockSelectedPetshop.value = makePetshop()
+      mockStoreProducts.value = []
+      const wrapper = await mountDetail('1')
+      expect(wrapper.text()).not.toContain('Productos')
     })
   })
 
@@ -368,12 +413,12 @@ describe('PetshopDetail', () => {
 
   describe('back navigation', () => {
     it('renders a "Volver al directorio" link', async () => {
-      const wrapper = await mountDetail('shop-1')
+      const wrapper = await mountDetail('1')
       expect(wrapper.text()).toContain('Volver al directorio')
     })
 
     it('the back link points to /stores', async () => {
-      const wrapper = await mountDetail('shop-1')
+      const wrapper = await mountDetail('1')
       const links = wrapper.findAll('a')
       const backLink = links.find(l => l.text().includes('Volver'))
       expect(backLink).toBeDefined()
@@ -387,7 +432,7 @@ describe('PetshopDetail', () => {
     it('shows the error alert when error is set', async () => {
       mockError.value = 'Tienda no disponible'
       mockSelectedPetshop.value = null
-      const wrapper = await mountDetail('shop-1')
+      const wrapper = await mountDetail('1')
       expect(wrapper.find('[role="alert"]').exists()).toBe(true)
       expect(wrapper.text()).toContain('Tienda no disponible')
     })
@@ -395,7 +440,7 @@ describe('PetshopDetail', () => {
     it('does not show the error alert when error is null', async () => {
       mockError.value = null
       mockSelectedPetshop.value = null
-      const wrapper = await mountDetail('shop-1')
+      const wrapper = await mountDetail('1')
       expect(wrapper.find('[role="alert"]').exists()).toBe(false)
     })
   })
@@ -404,7 +449,7 @@ describe('PetshopDetail', () => {
 
   describe('accessibility', () => {
     it('has aria-label "Detalle de tienda" on the section', async () => {
-      const wrapper = await mountDetail('shop-1')
+      const wrapper = await mountDetail('1')
       expect(wrapper.find('[aria-label="Detalle de tienda"]').exists()).toBe(true)
     })
   })

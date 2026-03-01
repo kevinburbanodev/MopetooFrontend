@@ -21,7 +21,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { setActivePinia } from 'pinia'
 import { createTestingPinia } from '@pinia/testing'
-import type { Petshop } from '../types'
+import type { Petshop, StoreProduct } from '../types'
 
 // ── useApi mock ──────────────────────────────────────────────
 // useApi is a project composable — vi.mock intercepts the module.
@@ -36,28 +36,46 @@ vi.mock('../../shared/composables/useApi', () => ({
 
 function makePetshop(overrides: Partial<Petshop> = {}): Petshop {
   return {
-    id: '1',
+    id: 1,
     name: 'Tienda Mascotas Felices',
-    description: 'Una tienda completa para todas las mascotas',
-    address: 'Calle 50 #10-20',
-    city: 'Bogotá',
-    phone: '+57 300 123 4567',
     email: 'info@mascotasfelices.com',
+    description: 'Una tienda completa para todas las mascotas',
+    logo_url: 'https://example.com/tienda.jpg',
+    country: 'Colombia',
+    city: 'Bogotá',
+    phone_country_code: '+57',
+    phone: '300 123 4567',
+    whatsapp_link: 'https://wa.me/573001234567',
     website: 'https://mascotasfelices.com',
-    photo_url: 'https://example.com/tienda.jpg',
-    categories: ['Alimentos', 'Accesorios'],
-    is_verified: true,
-    is_featured: false,
-    latitude: 4.7109886,
-    longitude: -74.072092,
+    verified: true,
+    is_active: true,
+    plan: '',
     created_at: '2024-01-01T00:00:00Z',
     updated_at: '2024-01-01T00:00:00Z',
     ...overrides,
   }
 }
 
-const shopA = makePetshop({ id: '1', name: 'Mascotas Felices' })
-const shopB = makePetshop({ id: '2', name: 'PetWorld', city: 'Medellín', is_featured: true })
+function makeProduct(overrides: Partial<StoreProduct> = {}): StoreProduct {
+  return {
+    id: 1,
+    store_id: 1,
+    name: 'Alimento Premium',
+    description: 'Alimento para perros adultos',
+    category: 'alimento',
+    price: 45.99,
+    photo_url: 'https://example.com/food.jpg',
+    is_available: true,
+    created_at: '2024-01-01T00:00:00Z',
+    updated_at: '2024-01-01T00:00:00Z',
+    ...overrides,
+  }
+}
+
+const shopA = makePetshop({ id: 1, name: 'Mascotas Felices' })
+const shopB = makePetshop({ id: 2, name: 'PetWorld', city: 'Medellín', plan: 'premium' })
+const productA = makeProduct({ id: 1, name: 'Alimento Premium' })
+const productB = makeProduct({ id: 2, name: 'Collar LED', category: 'accesorios' })
 
 // ── Suite ─────────────────────────────────────────────────────
 
@@ -102,7 +120,7 @@ describe('usePetshops', () => {
     })
 
     it('hydrates the store when the response is shaped as { stores: Petshop[] }', async () => {
-      mockGet.mockResolvedValueOnce({ stores: [shopA, shopB], total: 2, page: 1, per_page: 20 })
+      mockGet.mockResolvedValueOnce({ stores: [shopA, shopB] })
       const setPetshopsSpy = vi.spyOn(petshopsStore, 'setPetshops')
       const { usePetshops } = await import('./usePetshops')
       const { fetchPetshops } = usePetshops()
@@ -204,16 +222,6 @@ describe('usePetshops', () => {
   // ── fetchPetshops with filters ─────────────────────────────
 
   describe('fetchPetshops(filters)', () => {
-    it('appends search filter as a query string parameter', async () => {
-      mockGet.mockResolvedValueOnce([])
-      const { usePetshops } = await import('./usePetshops')
-      const { fetchPetshops } = usePetshops()
-
-      await fetchPetshops({ search: 'mascotas' })
-
-      expect(mockGet).toHaveBeenCalledWith('/api/stores?search=mascotas')
-    })
-
     it('appends city filter as a query string parameter', async () => {
       mockGet.mockResolvedValueOnce([])
       const { usePetshops } = await import('./usePetshops')
@@ -229,9 +237,9 @@ describe('usePetshops', () => {
       const { usePetshops } = await import('./usePetshops')
       const { fetchPetshops } = usePetshops()
 
-      await fetchPetshops({ category: 'Alimentos' })
+      await fetchPetshops({ category: 'alimento' })
 
-      expect(mockGet).toHaveBeenCalledWith('/api/stores?category=Alimentos')
+      expect(mockGet).toHaveBeenCalledWith('/api/stores?category=alimento')
     })
 
     it('omits empty filter values from the query string', async () => {
@@ -240,7 +248,7 @@ describe('usePetshops', () => {
       const { fetchPetshops } = usePetshops()
 
       // Empty strings are falsy and should not be appended
-      await fetchPetshops({ search: '', city: '', category: '' })
+      await fetchPetshops({ city: '', category: '' })
 
       expect(mockGet).toHaveBeenCalledWith('/api/stores')
     })
@@ -250,12 +258,12 @@ describe('usePetshops', () => {
       const { usePetshops } = await import('./usePetshops')
       const { fetchPetshops } = usePetshops()
 
-      await fetchPetshops({ search: 'mascotas', category: 'Alimentos' })
+      await fetchPetshops({ city: 'Bogotá', category: 'alimento' })
 
       const calledPath: string = mockGet.mock.calls[0][0]
       expect(calledPath).toContain('/api/stores?')
-      expect(calledPath).toContain('search=mascotas')
-      expect(calledPath).toContain('category=Alimentos')
+      expect(calledPath).toContain('city=Bogot%C3%A1')
+      expect(calledPath).toContain('category=alimento')
     })
 
     it('calls GET /api/stores (no query string) when filters object is empty', async () => {
@@ -287,7 +295,7 @@ describe('usePetshops', () => {
       const { usePetshops } = await import('./usePetshops')
       const { fetchPetshopById } = usePetshops()
 
-      await fetchPetshopById('1')
+      await fetchPetshopById(1)
 
       expect(mockGet).toHaveBeenCalledWith('/api/stores/1')
     })
@@ -298,7 +306,7 @@ describe('usePetshops', () => {
       const { usePetshops } = await import('./usePetshops')
       const { fetchPetshopById } = usePetshops()
 
-      const result = await fetchPetshopById('1')
+      const result = await fetchPetshopById(1)
 
       // Should NOT have called the network at all
       expect(mockGet).not.toHaveBeenCalled()
@@ -311,7 +319,7 @@ describe('usePetshops', () => {
       const { usePetshops } = await import('./usePetshops')
       const { fetchPetshopById } = usePetshops()
 
-      await fetchPetshopById('1')
+      await fetchPetshopById(1)
 
       expect(setSelectedSpy).toHaveBeenCalledWith(shopA)
     })
@@ -323,7 +331,7 @@ describe('usePetshops', () => {
       const { usePetshops } = await import('./usePetshops')
       const { fetchPetshopById } = usePetshops()
 
-      await fetchPetshopById('2')
+      await fetchPetshopById(2)
 
       expect(mockGet).toHaveBeenCalledWith('/api/stores/2')
     })
@@ -334,7 +342,7 @@ describe('usePetshops', () => {
       const { usePetshops } = await import('./usePetshops')
       const { fetchPetshopById } = usePetshops()
 
-      await fetchPetshopById('1')
+      await fetchPetshopById(1)
 
       expect(setSelectedSpy).toHaveBeenCalledWith(shopA)
     })
@@ -344,7 +352,7 @@ describe('usePetshops', () => {
       const { usePetshops } = await import('./usePetshops')
       const { fetchPetshopById } = usePetshops()
 
-      const result = await fetchPetshopById('1')
+      const result = await fetchPetshopById(1)
 
       expect(result).toEqual(shopA)
     })
@@ -354,7 +362,7 @@ describe('usePetshops', () => {
       const { usePetshops } = await import('./usePetshops')
       const { fetchPetshopById } = usePetshops()
 
-      const result = await fetchPetshopById('999')
+      const result = await fetchPetshopById(999)
 
       expect(result).toBeNull()
     })
@@ -364,7 +372,7 @@ describe('usePetshops', () => {
       const { usePetshops } = await import('./usePetshops')
       const { fetchPetshopById, error } = usePetshops()
 
-      await fetchPetshopById('999')
+      await fetchPetshopById(999)
 
       expect(error.value).toBe('No encontrado')
     })
@@ -375,7 +383,7 @@ describe('usePetshops', () => {
       const { usePetshops } = await import('./usePetshops')
       const { fetchPetshopById } = usePetshops()
 
-      await fetchPetshopById('999')
+      await fetchPetshopById(999)
 
       expect(setSelectedSpy).not.toHaveBeenCalled()
     })
@@ -389,7 +397,7 @@ describe('usePetshops', () => {
       const { usePetshops } = await import('./usePetshops')
       const { fetchPetshopById } = usePetshops()
 
-      await fetchPetshopById('1')
+      await fetchPetshopById(1)
 
       expect(loadingDuringCall).toBe(true)
       expect(petshopsStore.isLoading).toBe(false)
@@ -400,7 +408,7 @@ describe('usePetshops', () => {
       const { usePetshops } = await import('./usePetshops')
       const { fetchPetshopById } = usePetshops()
 
-      await fetchPetshopById('1')
+      await fetchPetshopById(1)
 
       expect(petshopsStore.isLoading).toBe(false)
     })
@@ -412,7 +420,7 @@ describe('usePetshops', () => {
       const { usePetshops } = await import('./usePetshops')
       const { fetchPetshopById } = usePetshops()
 
-      await fetchPetshopById('1')
+      await fetchPetshopById(1)
 
       expect(setLoadingSpy).not.toHaveBeenCalled()
     })
@@ -422,7 +430,7 @@ describe('usePetshops', () => {
       const { usePetshops } = await import('./usePetshops')
       const { fetchPetshopById } = usePetshops()
 
-      await fetchPetshopById('42')
+      await fetchPetshopById(42)
 
       expect(mockGet).toHaveBeenCalledWith('/api/stores/42')
     })
@@ -433,9 +441,112 @@ describe('usePetshops', () => {
       const { fetchPetshopById, error } = usePetshops()
 
       error.value = 'error previo'
-      await fetchPetshopById('1')
+      await fetchPetshopById(1)
 
       expect(error.value).toBeNull()
+    })
+  })
+
+  // ── fetchStoreProducts ─────────────────────────────────────
+
+  describe('fetchStoreProducts()', () => {
+    it('calls GET /api/stores/{storeId}/products', async () => {
+      mockGet.mockResolvedValueOnce({ products: [productA] })
+      const { usePetshops } = await import('./usePetshops')
+      const { fetchStoreProducts } = usePetshops()
+
+      await fetchStoreProducts(1)
+
+      expect(mockGet).toHaveBeenCalledWith('/api/stores/1/products')
+    })
+
+    it('hydrates the store when the response is a bare StoreProduct array', async () => {
+      mockGet.mockResolvedValueOnce([productA, productB])
+      const setProductsSpy = vi.spyOn(petshopsStore, 'setStoreProducts')
+      const { usePetshops } = await import('./usePetshops')
+      const { fetchStoreProducts } = usePetshops()
+
+      await fetchStoreProducts(1)
+
+      expect(setProductsSpy).toHaveBeenCalledWith([productA, productB])
+    })
+
+    it('hydrates the store when the response is shaped as { products: StoreProduct[] }', async () => {
+      mockGet.mockResolvedValueOnce({ products: [productA, productB] })
+      const setProductsSpy = vi.spyOn(petshopsStore, 'setStoreProducts')
+      const { usePetshops } = await import('./usePetshops')
+      const { fetchStoreProducts } = usePetshops()
+
+      await fetchStoreProducts(1)
+
+      expect(setProductsSpy).toHaveBeenCalledWith([productA, productB])
+    })
+
+    it('calls setStoreProducts with an empty array when { products } key is missing', async () => {
+      mockGet.mockResolvedValueOnce({})
+      const setProductsSpy = vi.spyOn(petshopsStore, 'setStoreProducts')
+      const { usePetshops } = await import('./usePetshops')
+      const { fetchStoreProducts } = usePetshops()
+
+      await fetchStoreProducts(1)
+
+      expect(setProductsSpy).toHaveBeenCalledWith([])
+    })
+
+    it('sets isLoading to true during the request and false after success', async () => {
+      let loadingDuringCall = false
+      mockGet.mockImplementationOnce(async () => {
+        loadingDuringCall = petshopsStore.isLoading
+        return { products: [productA] }
+      })
+      const { usePetshops } = await import('./usePetshops')
+      const { fetchStoreProducts } = usePetshops()
+
+      await fetchStoreProducts(1)
+
+      expect(loadingDuringCall).toBe(true)
+      expect(petshopsStore.isLoading).toBe(false)
+    })
+
+    it('sets isLoading to false even when the API call fails', async () => {
+      mockGet.mockRejectedValueOnce({ message: 'Network error' })
+      const { usePetshops } = await import('./usePetshops')
+      const { fetchStoreProducts } = usePetshops()
+
+      await fetchStoreProducts(1)
+
+      expect(petshopsStore.isLoading).toBe(false)
+    })
+
+    it('sets error when the API call fails', async () => {
+      mockGet.mockRejectedValueOnce({ data: { error: 'Error del servidor' } })
+      const { usePetshops } = await import('./usePetshops')
+      const { fetchStoreProducts, error } = usePetshops()
+
+      await fetchStoreProducts(1)
+
+      expect(error.value).toBe('Error del servidor')
+    })
+
+    it('clears any previous error before the request', async () => {
+      mockGet.mockResolvedValueOnce({ products: [productA] })
+      const { usePetshops } = await import('./usePetshops')
+      const { fetchStoreProducts, error } = usePetshops()
+
+      error.value = 'error previo'
+      await fetchStoreProducts(1)
+
+      expect(error.value).toBeNull()
+    })
+
+    it('passes a different storeId correctly to the URL', async () => {
+      mockGet.mockResolvedValueOnce({ products: [] })
+      const { usePetshops } = await import('./usePetshops')
+      const { fetchStoreProducts } = usePetshops()
+
+      await fetchStoreProducts(42)
+
+      expect(mockGet).toHaveBeenCalledWith('/api/stores/42/products')
     })
   })
 

@@ -27,7 +27,7 @@ npm run test:coverage    # Single run with coverage report
 - Export/PDF slice (RF-400–RF-409): 24 tests (useExportPDF 24) ✅ — exportProfilePDF tests in usePets, exportRemindersPDF tests in useReminders
 - Shelters slice (RF-500–RF-509): 157 tests (store 35, useShelters 35, ShelterList 22, AdoptionPetCard 25, AdoptionDetail 40) ✅
 - Blog slice (RF-600–RF-609): 208 tests (store 44, useBlog 60, BlogCategoryFilter 18, BlogCard 24, BlogList 28, BlogArticle 34) ✅
-- Petshops slice (RF-700–RF-709): 187 tests (store 44, usePetshops 60, PetshopCard 26, PetshopList 37, PetshopDetail 40) ✅
+- Petshops slice (RF-700–RF-709): 203 tests (store 49, usePetshops 45, PetshopCard 29, PetshopList 38, PetshopDetail 42) ✅ — synced with backend model.Store
 - Pro/Monetización slice (RF-800–RF-809): 216 tests (store 44, usePro 60, ProBanner 22, PricingTable 30, ProUpgradeModal 26, DonationForm 34) ✅
 - Clinics slice (RF-900–RF-909): 178 tests (store 42, useClinics 37, ClinicCard 34, ClinicList 29, ClinicDetail 35) ✅
 - Admin slice (RF-1000–RF-1009): 327 tests (store 75, useAdmin 76, AdminDashboard 27, AdminUserManager 31, AdminShelterManager 27, AdminStoreManager 27, AdminClinicManager 29, AdminTransactionLog 28, admin middleware 7) ✅
@@ -90,7 +90,7 @@ This means `useApi()`, `useAuth()`, `useAuthStore()`, etc. are available in any 
 | `useMedicalStore` | `records[]`, `selectedRecord`, `isLoading` |
 | `useSheltersStore` | `adoptionListings[]`, `selectedListing`, `isLoading`, `hasAdoptionListings`, `getAvailableListings` |
 | `useBlogStore` | `posts[]`, `selectedPost`, `categories[]`, `isLoading`, `currentPage`, `totalPages`, `total` |
-| `usePetshopsStore` | `petshops[]`, `selectedPetshop`, `isLoading` |
+| `usePetshopsStore` | `petshops[]`, `selectedPetshop`, `storeProducts[]`, `isLoading`, `hasPetshops`, `getPremiumPetshops` |
 | `useProStore` | `subscription`, `plans[]`, `isLoading`, `isSubscribed`, `getMonthlyPlan`, `getAnnualPlan` |
 | `useClinicsStore` | `clinics[]`, `selectedClinic`, `isLoading`, `hasClinics`, `getFeaturedClinics` |
 | `useAdminStore` | `stats`, `users[]`, `shelters[]`, `petshops[]`, `clinics[]`, `transactions[]`, `selectedUser`, `isLoading`, total-count refs, `hasStats`, `hasUsers` |
