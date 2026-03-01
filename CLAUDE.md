@@ -28,7 +28,7 @@ npm run test:coverage    # Single run with coverage report
 - Shelters slice (RF-500–RF-509): 157 tests (store 35, useShelters 35, ShelterList 22, AdoptionPetCard 25, AdoptionDetail 40) ✅
 - Blog slice (RF-600–RF-609): 147 tests (store 34, useBlog 26, BlogCategoryFilter 20, BlogCard 16, BlogList 27, BlogArticle 24) ✅ — synced with backend model.BlogPost
 - Petshops slice (RF-700–RF-709): 203 tests (store 49, usePetshops 45, PetshopCard 29, PetshopList 38, PetshopDetail 42) ✅ — synced with backend model.Store
-- Pro/Monetización slice (RF-800–RF-809): 216 tests (store 44, usePro 60, ProBanner 22, PricingTable 30, ProUpgradeModal 26, DonationForm 34) ✅
+- Pro/Monetización slice (RF-800–RF-809): 156 tests (store 24, usePro 37, ProBanner 23, PricingTable 16, ProUpgradeModal 19, DonationForm 37) ✅ — synced with backend PayU Latam
 - Clinics slice (RF-900–RF-909): 186 tests (store 43, useClinics 36, ClinicCard 36, ClinicList 30, ClinicDetail 41) ✅ — synced with backend model.Clinic
 - Admin slice (RF-1000–RF-1009): 327 tests (store 75, useAdmin 76, AdminDashboard 27, AdminUserManager 31, AdminShelterManager 27, AdminStoreManager 27, AdminClinicManager 29, AdminTransactionLog 28, admin middleware 7) ✅
 - Stats slice (RF-1100–RF-1109): 165 tests (store 37, useStats 45, StatsOverview 27, StatsChart 22, RevenueReport 20, ActivityLog 34) ✅
@@ -91,7 +91,7 @@ This means `useApi()`, `useAuth()`, `useAuthStore()`, etc. are available in any 
 | `useSheltersStore` | `adoptionListings[]`, `selectedListing`, `isLoading`, `hasAdoptionListings`, `getAvailableListings` |
 | `useBlogStore` | `posts[]`, `selectedPost`, `isLoading`, `hasPosts`, `getPostBySlug` |
 | `usePetshopsStore` | `petshops[]`, `selectedPetshop`, `storeProducts[]`, `isLoading`, `hasPetshops`, `getPremiumPetshops` |
-| `useProStore` | `subscription`, `plans[]`, `isLoading`, `isSubscribed`, `getMonthlyPlan`, `getAnnualPlan` |
+| `useProStore` | `subscription`, `isLoading`, `isSubscribed` |
 | `useClinicsStore` | `clinics[]`, `selectedClinic`, `isLoading`, `hasClinics`, `getPremiumClinics` |
 | `useAdminStore` | `stats`, `users[]`, `shelters[]`, `petshops[]`, `clinics[]`, `transactions[]`, `selectedUser`, `isLoading`, total-count refs, `hasStats`, `hasUsers` |
 | `useStatsStore` | `overview`, `revenueData[]`, `activityEntries[]`, `totalActivity`, `isLoading`, `hasOverview`, `hasRevenueData`, `hasActivity` |
@@ -222,10 +222,14 @@ Any change to token storage or auth flow warrants a security review.
 
 **Mocking notes for pro slice:**
 - `usePro` composable: mock via `vi.mock('../composables/usePro', () => ({ usePro: () => ({ ... }) }))` with reactive refs for `error`, `proStore.*`
-- Bootstrap `Modal` JS: stub with `vi.mock('bootstrap', () => ({ Modal: { getOrCreateInstance: vi.fn(() => ({ show: vi.fn(), hide: vi.fn() })) } }))` in `ProUpgradeModal` tests
-- `createCheckoutSession` tests: mock `import.meta.client` as `true` (default in happy-dom); stub `navigateTo` via `mockNuxtImport('navigateTo', ...)`
+- Bootstrap `Modal` JS: stub with `vi.mock('bootstrap', () => ({ Modal: vi.fn(() => ({ show: vi.fn(), hide: vi.fn() })) }))` in `ProUpgradeModal` tests
+- Plans are constants (`PRO_PLANS` in `types/index.ts`) — no fetch, no loading, no empty state tests needed
+- `subscribe(plan: PlanValue)` replaces `createCheckoutSession()` — calls `POST /api/users/${userId}/subscribe`, redirects via hidden form POST to PayU
+- PayU form redirect testing: `vi.spyOn(HTMLFormElement.prototype, 'submit').mockImplementation(mockFormSubmit)` to verify form submission without navigation
 - `DonationForm` auth gate: form is wrapped in `<ClientOnly>` — mount first with `isAuthenticated: true` in `createTestingPinia`, then `await nextTick()` to see form render
+- `DonationForm` redirect state: `isRedirecting` ref replaces inline success state — shows "Redirigiendo al pago..." + spinner after successful donate
 - Security fix: `donate()` in `usePro.ts` validates `shelter_id` against `/^[\w-]{1,64}$/` before API call — test invalid IDs return null with error
+- `subscribe()` validates HTTPS on `checkout_url` — test `http://` URLs return null with security error
 
 **Mocking notes for pets and reminders slices:**
 - `useApi` is a project composable — mock via `vi.mock('../../shared/composables/useApi', ...)`, NOT `mockNuxtImport`

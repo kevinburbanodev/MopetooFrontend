@@ -1,69 +1,108 @@
 // ============================================================
 // Pro / Monetización feature — domain types
-// Aligned with Mopetoo backend API (Go + Gin)
+// Aligned with Mopetoo backend API (Go + Gin + PayU Latam)
 // RF-800 to RF-809
 // ============================================================
 
-/** Billing interval for a PRO plan. */
+/** Plan identifiers sent to POST /api/users/{id}/subscribe. */
+export type PlanValue = 'pro_monthly' | 'pro_annual'
+
+/** Billing interval for display purposes. */
 export type PlanInterval = 'monthly' | 'annual'
 
-/** Current state of a user's PRO subscription. */
-export type SubscriptionStatus = 'active' | 'canceled' | 'past_due' | 'inactive'
-
-/** Lifecycle state of a shelter donation. */
-export type DonationStatus = 'pending' | 'completed' | 'failed'
-
-export interface ProPlan {
-  id: string
-  name: string           // e.g. "PRO Mensual", "PRO Anual"
+/** Hardcoded plan definition — no API endpoint for plans. */
+export interface ProPlanDef {
+  value: PlanValue
+  name: string
   interval: PlanInterval
-  price: number          // display as-is (in COP or USD per backend)
-  currency: string       // 'COP' | 'USD'
-  features: string[]     // feature description strings
-  is_popular?: boolean   // when true, show "Más popular" badge
+  price: number
+  currency: string
+  features: string[]
+  is_popular?: boolean
 }
 
-export interface ProSubscription {
-  id: string
-  user_id: string
-  plan_id: string
-  /** Populated by the backend when it returns the plan inline. */
-  plan?: ProPlan
-  status: SubscriptionStatus
-  current_period_start: string  // ISO 8601
-  current_period_end: string    // ISO 8601
-  /** When true, subscription ends at period end instead of renewing. */
-  cancel_at_period_end: boolean
-  created_at: string
+/**
+ * PRO plans constant — matches backend env vars (pro_monthly=15000, pro_annual=120000 COP).
+ * Pattern: same as BLOG_CATEGORIES — no fetch needed, always available.
+ */
+export const PRO_PLANS: ProPlanDef[] = [
+  {
+    value: 'pro_monthly',
+    name: 'PRO Mensual',
+    interval: 'monthly',
+    price: 15000,
+    currency: 'COP',
+    features: [
+      'Mascotas ilimitadas',
+      'Exportar perfil en PDF',
+      'Recordatorios ilimitados',
+      'Historial médico completo',
+      'Soporte prioritario',
+    ],
+  },
+  {
+    value: 'pro_annual',
+    name: 'PRO Anual',
+    interval: 'annual',
+    price: 120000,
+    currency: 'COP',
+    features: [
+      'Mascotas ilimitadas',
+      'Exportar perfil en PDF',
+      'Recordatorios ilimitados',
+      'Historial médico completo',
+      'Soporte prioritario',
+      '2 meses gratis',
+    ],
+    is_popular: true,
+  },
+]
+
+/** GET /api/users/{id}/subscription response. */
+export interface SubscriptionStatus {
+  is_pro: boolean
+  is_active: boolean
+  subscription_plan: string
+  subscription_expires_at?: string
+  days_remaining: number
 }
 
-/** Stripe-hosted checkout session returned after POST /api/pro/subscribe. */
-export interface CheckoutSession {
-  session_id: string
-  checkout_url: string  // HTTPS URL to Stripe-hosted checkout
+/** POST /api/users/{id}/subscribe response (PayU form redirect). */
+export interface PayUCheckoutResponse {
+  checkout_url: string
+  form_params: Record<string, string>
+  reference_code: string
 }
 
-/** Body for POST /api/pro/subscribe. */
+/** POST /api/shelters/{id}/donate response (PayU form redirect). */
+export interface DonationCheckoutResponse extends PayUCheckoutResponse {
+  platform_fee: number
+  shelter_amount: number
+}
+
+/** Body for POST /api/users/{id}/subscribe. */
 export interface SubscribeRequest {
-  plan_id: string
-  success_url: string
-  cancel_url: string
+  plan: PlanValue
 }
 
-/** Body for POST /api/shelters/:shelterId/donations. */
+/** Body for POST /api/shelters/{id}/donate. */
 export interface DonationRequest {
-  shelter_id: string
-  /** Positive integer — units per backend convention (cents or full units). */
   amount: number
+  currency?: string
   message?: string
 }
 
-export interface DonationResponse {
-  id: string
-  shelter_id: string
-  user_id: string
+/** Donation status values (backend). */
+export type DonationStatus = 'pending' | 'approved' | 'declined' | 'error'
+
+/** GET /api/donations/my item. */
+export interface UserDonationItem {
+  id: number
+  shelter_id: number
   amount: number
+  currency: string
   message?: string
   status: DonationStatus
+  reference_code: string
   created_at: string
 }

@@ -1,48 +1,33 @@
 // ============================================================
-// Pro store — manages PRO subscription state and plan catalogue.
+// Pro store — manages PRO subscription state.
+// Plans are hardcoded constants (PRO_PLANS) — no store state needed.
 // Subscription is user-specific data: clearPro() IS called from
 // auth.store.clearSession() to prevent data leakage on logout.
 // ============================================================
 
 import { defineStore } from 'pinia'
-import type { ProPlan, ProSubscription } from '../types'
+import type { SubscriptionStatus } from '../types'
 
 export const useProStore = defineStore('pro', () => {
   // ── State ──────────────────────────────────────────────────
-  const subscription = ref<ProSubscription | null>(null)
-  const plans = ref<ProPlan[]>([])
+  const subscription = ref<SubscriptionStatus | null>(null)
   const isLoading = ref(false)
 
   // ── Getters ────────────────────────────────────────────────
 
-  /** True when the user has an active (non-canceled, non-past_due) subscription. */
-  const isSubscribed = computed(() => subscription.value?.status === 'active')
-
-  /** True when the plans catalogue has been loaded from the API. */
-  const hasPlans = computed(() => plans.value.length > 0)
-
-  /** The monthly plan from the catalogue, or undefined if not yet loaded. */
-  const getMonthlyPlan = computed<ProPlan | undefined>(() =>
-    plans.value.find(p => p.interval === 'monthly'),
-  )
-
-  /** The annual plan from the catalogue, or undefined if not yet loaded. */
-  const getAnnualPlan = computed<ProPlan | undefined>(() =>
-    plans.value.find(p => p.interval === 'annual'),
+  /** True when the user has an active PRO subscription. */
+  const isSubscribed = computed(
+    () => subscription.value?.is_pro === true && subscription.value?.is_active === true,
   )
 
   // ── Actions ────────────────────────────────────────────────
 
-  function setSubscription(sub: ProSubscription | null): void {
+  function setSubscription(sub: SubscriptionStatus | null): void {
     subscription.value = sub
   }
 
   function clearSubscription(): void {
     subscription.value = null
-  }
-
-  function setPlans(items: ProPlan[]): void {
-    plans.value = items
   }
 
   function setLoading(val: boolean): void {
@@ -56,24 +41,18 @@ export const useProStore = defineStore('pro', () => {
    */
   function clearPro(): void {
     subscription.value = null
-    plans.value = []
     isLoading.value = false
   }
 
   return {
     // State
     subscription,
-    plans,
     isLoading,
     // Getters
     isSubscribed,
-    hasPlans,
-    getMonthlyPlan,
-    getAnnualPlan,
     // Actions
     setSubscription,
     clearSubscription,
-    setPlans,
     setLoading,
     clearPro,
   }

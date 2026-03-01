@@ -1,18 +1,18 @@
 <script setup lang="ts">
 // PricingTable — full 3-column pricing comparison table.
-// Columns: Free (hardcoded) / PRO Mensual / PRO Anual (from store).
-// Fetches plans on mount if not already loaded.
+// Columns: Free (hardcoded) / PRO Mensual / PRO Anual (from PRO_PLANS constant).
+// Plans are always available — no fetch, no loading skeleton.
 // Emits `select-plan` when a PRO CTA is clicked — the parent handles
 // opening the ProUpgradeModal.
 
-import type { ProPlan } from '../types'
+import { PRO_PLANS, type ProPlanDef, type PlanValue } from '../types'
 
 const emit = defineEmits<{
   /** Emitted when the user clicks "Actualizar ahora" on a PRO plan. */
-  'select-plan': [planId: string]
+  'select-plan': [planValue: PlanValue]
 }>()
 
-const { fetchPlans, proStore } = usePro()
+const { proStore } = usePro()
 const authStore = useAuthStore()
 
 // Hardcoded free tier features — not managed via API
@@ -23,14 +23,8 @@ const FREE_FEATURES = [
   'Adopciones',
 ] as const
 
-onMounted(async () => {
-  if (!proStore.hasPlans) {
-    await fetchPlans()
-  }
-})
-
-const monthlyPlan = computed(() => proStore.getMonthlyPlan)
-const annualPlan = computed(() => proStore.getAnnualPlan)
+const monthlyPlan = computed(() => PRO_PLANS.find(p => p.interval === 'monthly'))
+const annualPlan = computed(() => PRO_PLANS.find(p => p.interval === 'annual'))
 
 /**
  * Percentage savings of annual plan vs. paying monthly for 12 months.
@@ -44,7 +38,7 @@ const annualSavingsPercent = computed<number | null>(() => {
   return Math.round(((annualEquivalent - a.price) / annualEquivalent) * 100)
 })
 
-function formatPrice(plan: ProPlan): string {
+function formatPrice(plan: ProPlanDef): string {
   try {
     return new Intl.NumberFormat('es-CO', {
       style: 'currency',
@@ -61,11 +55,11 @@ function formatPrice(plan: ProPlan): string {
  * Returns whether the user's active subscription matches this plan.
  * Used to show the "Plan activo ✓" badge.
  */
-function isActivePlan(planId: string): boolean {
+function isActivePlan(planValue: PlanValue): boolean {
   return (
     authStore.isPro
     && proStore.isSubscribed
-    && proStore.subscription?.plan_id === planId
+    && proStore.subscription?.subscription_plan === planValue
   )
 }
 </script>
@@ -79,32 +73,8 @@ function isActivePlan(planId: string): boolean {
       </p>
     </div>
 
-    <!-- Loading skeleton -->
-    <div
-      v-if="proStore.isLoading"
-      class="row g-4 justify-content-center"
-      aria-busy="true"
-      aria-label="Cargando planes"
-    >
-      <div v-for="n in 3" :key="n" class="col-12 col-md-4">
-        <div class="card border-0 shadow-sm h-100 p-4" aria-hidden="true">
-          <div class="skeleton-pulse rounded mb-2 pricing-skeleton__title" />
-          <div class="skeleton-pulse rounded mb-3 pricing-skeleton__price" />
-          <div
-            v-for="i in 5"
-            :key="i"
-            class="skeleton-pulse rounded mb-2 pricing-skeleton__line"
-          />
-          <div class="skeleton-pulse rounded mt-3 pricing-skeleton__btn" />
-        </div>
-      </div>
-    </div>
-
-    <!-- Pricing columns -->
-    <div
-      v-else
-      class="row g-4 justify-content-center align-items-stretch"
-    >
+    <!-- Pricing columns (always available — plans are hardcoded) -->
+    <div class="row g-4 justify-content-center align-items-stretch">
       <!-- ── Free tier ──────────────────────────────────────── -->
       <div class="col-12 col-md-4">
         <div class="card border-0 shadow-sm h-100 pricing-table__card">
@@ -169,7 +139,7 @@ function isActivePlan(planId: string): boolean {
             </ul>
 
             <!-- Active plan badge (PRO users) -->
-            <div v-if="isActivePlan(monthlyPlan.id)" class="mb-2">
+            <div v-if="isActivePlan(monthlyPlan.value)" class="mb-2">
               <span class="badge bg-success w-100 py-2 fs-6">
                 Plan activo ✓
               </span>
@@ -180,7 +150,7 @@ function isActivePlan(planId: string): boolean {
               type="button"
               class="btn btn-outline-primary w-100 mt-auto fw-semibold"
               aria-label="`Actualizar al plan ${monthlyPlan.name}`"
-              @click="emit('select-plan', monthlyPlan.id)"
+              @click="emit('select-plan', monthlyPlan.value)"
             >
               Actualizar ahora
             </button>
@@ -233,7 +203,7 @@ function isActivePlan(planId: string): boolean {
             </ul>
 
             <!-- Active plan badge (PRO users) -->
-            <div v-if="isActivePlan(annualPlan.id)" class="mb-2">
+            <div v-if="isActivePlan(annualPlan.value)" class="mb-2">
               <span class="badge bg-success w-100 py-2 fs-6">
                 Plan activo ✓
               </span>
@@ -244,23 +214,12 @@ function isActivePlan(planId: string): boolean {
               type="button"
               class="btn btn-primary w-100 mt-auto fw-semibold"
               aria-label="`Actualizar al plan ${annualPlan.name}`"
-              @click="emit('select-plan', annualPlan.id)"
+              @click="emit('select-plan', annualPlan.value)"
             >
               Actualizar ahora
             </button>
           </div>
         </div>
-      </div>
-
-      <!-- Fallback: API returned no plans (non-loading state) -->
-      <div
-        v-if="!proStore.isLoading && !monthlyPlan && !annualPlan"
-        class="col-12 text-center py-5 text-muted"
-      >
-        <span class="fs-1" aria-hidden="true">📋</span>
-        <p class="mt-3 mb-0">
-          Los planes PRO no están disponibles en este momento. Intenta de nuevo más tarde.
-        </p>
       </div>
     </div>
   </section>
@@ -306,52 +265,6 @@ function isActivePlan(planId: string): boolean {
     letter-spacing: 0.04em;
     padding: 0.3em 0.6em;
     border-radius: var(--bs-border-radius-pill);
-  }
-}
-
-// ── Skeleton shimmer ──────────────────────────────────────────
-.skeleton-pulse {
-  background: linear-gradient(
-    90deg,
-    var(--bs-secondary-bg) 25%,
-    var(--bs-tertiary-bg, #e8e8e8) 50%,
-    var(--bs-secondary-bg) 75%
-  );
-  background-size: 200% 100%;
-  animation: skeleton-shimmer 1.4s ease-in-out infinite;
-
-  @media (prefers-reduced-motion: reduce) {
-    animation: none;
-    background: var(--bs-secondary-bg);
-  }
-}
-
-@keyframes skeleton-shimmer {
-  0% { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
-}
-
-.pricing-skeleton {
-  &__title {
-    height: 0.85rem;
-    width: 45%;
-  }
-
-  &__price {
-    height: 2.5rem;
-    width: 65%;
-  }
-
-  &__line {
-    height: 0.75rem;
-    width: 100%;
-
-    &:nth-child(odd) { width: 85%; }
-  }
-
-  &__btn {
-    height: 2.5rem;
-    width: 100%;
   }
 }
 </style>
