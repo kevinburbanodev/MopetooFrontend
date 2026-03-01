@@ -1,12 +1,15 @@
 <script setup lang="ts">
 // AdminClinicManager — paginated clinic management table.
-// Each row supports toggling is_verified and is_featured,
-// plus 2-step inline delete confirmation.
-// Displays the first 3 specialties + overflow count badge.
+// Each row supports verify, activate/deactivate, and plan
+// assignment via specific PATCH endpoints. No delete or featured toggles.
+// Displays the first 2 specialties + overflow count badge.
 
 import type { AdminFilters } from '../types'
 
-const { fetchAdminClinics, updateAdminClinic, deleteAdminClinic, error, adminStore } = useAdmin()
+const {
+  fetchAdminClinics, verifyClinic, activateClinic, deactivateClinic,
+  setClinicPlan, error, adminStore,
+} = useAdmin()
 
 // ── Filters ────────────────────────────────────────────────
 const searchQuery = ref('')
@@ -24,22 +27,6 @@ function hiddenSpecialtyCount(specialties: string[]): number {
   return Math.max(0, specialties.length - MAX_VISIBLE_SPECIALTIES)
 }
 
-// ── Delete confirmation (2-step inline) ─────────────────────
-const confirmingDeleteId = ref<string | null>(null)
-
-function requestDelete(clinicId: string): void {
-  confirmingDeleteId.value = clinicId
-}
-
-function cancelDelete(): void {
-  confirmingDeleteId.value = null
-}
-
-async function confirmDelete(clinicId: string): Promise<void> {
-  confirmingDeleteId.value = null
-  await deleteAdminClinic(clinicId)
-}
-
 // ── Debounced fetch ─────────────────────────────────────────
 let debounceTimer: ReturnType<typeof setTimeout> | null = null
 
@@ -54,7 +41,7 @@ function scheduleRefetch(): void {
 async function loadClinics(): Promise<void> {
   const filters: AdminFilters = {
     page: currentPage.value,
-    per_page: PER_PAGE,
+    limit: PER_PAGE,
   }
   const q = searchQuery.value.trim()
   if (q) filters.search = q
@@ -88,6 +75,17 @@ function formatDate(dateString: string): string {
   catch {
     return dateString
   }
+}
+
+// ── Plan badge helpers ──────────────────────────────────────
+function planBadgeClass(plan: string): string {
+  if (plan === 'pro') return 'bg-info'
+  return 'bg-secondary'
+}
+
+function planLabel(plan: string): string {
+  if (plan === 'pro') return 'Pro'
+  return 'Free'
 }
 
 watch(searchQuery, scheduleRefetch)
@@ -146,7 +144,8 @@ onMounted(async () => {
               <th scope="col">Ciudad</th>
               <th scope="col">Especialidades</th>
               <th scope="col" class="text-center">Verificado</th>
-              <th scope="col" class="text-center">Destacado</th>
+              <th scope="col" class="text-center">Plan</th>
+              <th scope="col" class="text-center">Activo</th>
               <th scope="col">Registro</th>
               <th scope="col" class="text-end">Acciones</th>
             </tr>
@@ -165,6 +164,7 @@ onMounted(async () => {
                 </td>
                 <td class="text-center"><div class="skeleton-pulse rounded admin-table-skeleton__badge mx-auto" /></td>
                 <td class="text-center"><div class="skeleton-pulse rounded admin-table-skeleton__badge mx-auto" /></td>
+                <td class="text-center"><div class="skeleton-pulse rounded admin-table-skeleton__badge mx-auto" /></td>
                 <td><div class="skeleton-pulse rounded admin-table-skeleton__date" /></td>
                 <td><div class="skeleton-pulse rounded admin-table-skeleton__actions ms-auto" /></td>
               </tr>
@@ -177,7 +177,7 @@ onMounted(async () => {
                 <td class="text-muted small">{{ clinic.city }}</td>
                 <td>
                   <div
-                    v-if="clinic.specialties.length > 0"
+                    v-if="clinic.specialties && clinic.specialties.length > 0"
                     class="d-flex flex-wrap gap-1"
                     :aria-label="`Especialidades: ${clinic.specialties.join(', ')}`"
                   >
@@ -216,71 +216,63 @@ onMounted(async () => {
                 </td>
                 <td class="text-center">
                   <span
-                    v-if="clinic.is_featured"
-                    class="badge bg-warning text-dark"
-                    aria-label="Clínica destacada"
+                    class="badge"
+                    :class="planBadgeClass(clinic.plan)"
+                    :aria-label="`Plan: ${planLabel(clinic.plan)}`"
                   >
-                    Destacado
+                    {{ planLabel(clinic.plan) }}
+                  </span>
+                </td>
+                <td class="text-center">
+                  <span
+                    v-if="clinic.is_active"
+                    class="badge bg-success"
+                    aria-label="Clínica activa"
+                  >
+                    Activo
                   </span>
                   <span
                     v-else
-                    class="text-muted small"
-                    aria-label="Clínica no destacada"
+                    class="badge bg-secondary"
+                    aria-label="Clínica inactiva"
                   >
-                    No
+                    Inactivo
                   </span>
                 </td>
                 <td class="text-muted small">{{ formatDate(clinic.created_at) }}</td>
                 <td class="text-end">
                   <div class="d-flex justify-content-end gap-1 flex-wrap">
-                    <!-- 2-step delete confirmation -->
-                    <template v-if="confirmingDeleteId === clinic.id">
-                      <button
-                        type="button"
-                        class="btn btn-sm btn-danger"
-                        :aria-label="`Confirmar eliminación de ${clinic.name}`"
-                        @click="confirmDelete(clinic.id)"
-                      >
-                        ¿Confirmar?
-                      </button>
-                      <button
-                        type="button"
-                        class="btn btn-sm btn-outline-secondary"
-                        aria-label="Cancelar eliminación"
-                        @click="cancelDelete"
-                      >
-                        Cancelar
-                      </button>
-                    </template>
-                    <template v-else>
-                      <!-- Toggle Verificado -->
-                      <button
-                        type="button"
-                        class="btn btn-sm btn-outline-success"
-                        :aria-label="clinic.is_verified ? `Quitar verificación a ${clinic.name}` : `Verificar ${clinic.name}`"
-                        @click="updateAdminClinic(clinic.id, { is_verified: !clinic.is_verified })"
-                      >
-                        {{ clinic.is_verified ? 'Desverificar' : 'Verificar' }}
-                      </button>
-                      <!-- Toggle Destacado -->
-                      <button
-                        type="button"
-                        class="btn btn-sm btn-outline-warning"
-                        :aria-label="clinic.is_featured ? `Quitar destacado a ${clinic.name}` : `Destacar ${clinic.name}`"
-                        @click="updateAdminClinic(clinic.id, { is_featured: !clinic.is_featured })"
-                      >
-                        {{ clinic.is_featured ? 'Quitar dest.' : 'Destacar' }}
-                      </button>
-                      <!-- Delete -->
-                      <button
-                        type="button"
-                        class="btn btn-sm btn-outline-danger"
-                        :aria-label="`Eliminar clínica ${clinic.name}`"
-                        @click="requestDelete(clinic.id)"
-                      >
-                        Eliminar
-                      </button>
-                    </template>
+                    <!-- Verificar (only shown when not verified) -->
+                    <button
+                      v-if="!clinic.is_verified"
+                      type="button"
+                      class="btn btn-sm btn-outline-success"
+                      :aria-label="`Verificar ${clinic.name}`"
+                      @click="verifyClinic(clinic.id)"
+                    >
+                      Verificar
+                    </button>
+                    <!-- Plan selector -->
+                    <select
+                      class="form-select form-select-sm"
+                      style="width: auto; min-width: 90px;"
+                      :value="clinic.plan"
+                      :aria-label="`Cambiar plan de ${clinic.name}`"
+                      @change="setClinicPlan(clinic.id, ($event.target as HTMLSelectElement).value as 'free' | 'pro')"
+                    >
+                      <option value="free">Free</option>
+                      <option value="pro">Pro</option>
+                    </select>
+                    <!-- Activar / Desactivar -->
+                    <button
+                      type="button"
+                      class="btn btn-sm"
+                      :class="clinic.is_active ? 'btn-outline-secondary' : 'btn-outline-success'"
+                      :aria-label="clinic.is_active ? `Desactivar ${clinic.name}` : `Activar ${clinic.name}`"
+                      @click="clinic.is_active ? deactivateClinic(clinic.id) : activateClinic(clinic.id)"
+                    >
+                      {{ clinic.is_active ? 'Desactivar' : 'Activar' }}
+                    </button>
                   </div>
                 </td>
               </tr>
@@ -288,7 +280,7 @@ onMounted(async () => {
 
             <!-- Empty state -->
             <tr v-else>
-              <td colspan="7" class="text-center py-5 text-muted">
+              <td colspan="8" class="text-center py-5 text-muted">
                 <div class="fs-2 mb-2" aria-hidden="true">🏥</div>
                 No se encontraron clínicas con los filtros actuales.
               </td>
@@ -356,6 +348,6 @@ onMounted(async () => {
   &__spec { height: 1.25rem; width: 5rem; border-radius: var(--bs-border-radius-pill) !important; }
   &__badge { height: 1.25rem; width: 4rem; border-radius: var(--bs-border-radius-pill) !important; }
   &__date { height: 0.875rem; width: 70px; }
-  &__actions { height: 2rem; width: 180px; }
+  &__actions { height: 2rem; width: 200px; }
 }
 </style>

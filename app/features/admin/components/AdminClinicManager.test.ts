@@ -6,20 +6,25 @@
 //   - Calls fetchAdminClinics on mount.
 //   - Loading skeleton while isLoading.
 //   - Empty state when no clinics.
-//   - Clinic rows: name, city, specialties chips (max 2 visible + overflow badge).
-//   - Verificado / Destacado badges.
-//   - Toggle Verificado and Destacado calls updateAdminClinic.
-//   - 2-step delete: Eliminar → ¿Confirmar? / Cancelar → deleteAdminClinic.
-//   - Specialty overflow: exactly 2 shown + "+N" badge for the rest.
-//   - No specialty column shows dash when specialties is empty.
+//   - Clinic rows: name, city.
+//   - Verified / unverified badge.
+//   - Plan column: Free / Pro badge.
+//   - Active / inactive status badge.
+//   - Verify button only appears when !is_verified.
+//   - verifyClinic called when "Verificar" is clicked.
+//   - Plan select dropdown calls setClinicPlan.
+//   - Activate / deactivate calls activateClinic / deactivateClinic.
+//   - Specialty chips: max 2 visible + "+N" overflow badge.
+//   - Specialties optional — dash shown when missing or empty.
 //   - Result count (singular / plural).
 //   - Error alert.
+//   - No delete or featured functionality.
 // ============================================================
 
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { mountSuspended } from '@nuxt/test-utils/runtime'
 import { createTestingPinia } from '@pinia/testing'
-import { ref } from 'vue'
+import { ref, reactive } from 'vue'
 import AdminClinicManager from './AdminClinicManager.vue'
 import type { AdminClinic } from '../types'
 
@@ -27,12 +32,13 @@ import type { AdminClinic } from '../types'
 
 function makeClinic(overrides: Partial<AdminClinic> = {}): AdminClinic {
   return {
-    id: 'clinic-1',
+    id: 1,
     name: 'Clínica Vet Norte',
     city: 'Cali',
     email: 'info@clinica.com',
     is_verified: false,
-    is_featured: false,
+    is_active: true,
+    plan: 'free',
     specialties: ['Cirugía', 'Dermatología'],
     created_at: '2024-01-01T00:00:00Z',
     ...overrides,
@@ -42,24 +48,26 @@ function makeClinic(overrides: Partial<AdminClinic> = {}): AdminClinic {
 // ── useAdmin mock ─────────────────────────────────────────────
 
 const mockFetchAdminClinics = vi.fn()
-const mockUpdateAdminClinic = vi.fn()
-const mockDeleteAdminClinic = vi.fn()
+const mockVerifyClinic = vi.fn()
+const mockActivateClinic = vi.fn()
+const mockDeactivateClinic = vi.fn()
+const mockSetClinicPlan = vi.fn()
 const mockError = ref<string | null>(null)
-const mockClinics = ref<AdminClinic[]>([])
-const mockIsLoading = ref(false)
-const mockTotalClinics = ref(0)
+const mockAdminStore = reactive({
+  clinics: [] as AdminClinic[],
+  isLoading: false,
+  totalClinics: 0,
+})
 
 vi.mock('../composables/useAdmin', () => ({
   useAdmin: () => ({
     fetchAdminClinics: mockFetchAdminClinics,
-    updateAdminClinic: mockUpdateAdminClinic,
-    deleteAdminClinic: mockDeleteAdminClinic,
+    verifyClinic: mockVerifyClinic,
+    activateClinic: mockActivateClinic,
+    deactivateClinic: mockDeactivateClinic,
+    setClinicPlan: mockSetClinicPlan,
     error: mockError,
-    adminStore: {
-      get clinics() { return mockClinics.value },
-      get isLoading() { return mockIsLoading.value },
-      get totalClinics() { return mockTotalClinics.value },
-    },
+    adminStore: mockAdminStore,
   }),
 }))
 
@@ -84,12 +92,14 @@ async function mountManager() {
 describe('AdminClinicManager', () => {
   beforeEach(() => {
     mockFetchAdminClinics.mockReset()
-    mockUpdateAdminClinic.mockReset()
-    mockDeleteAdminClinic.mockReset()
+    mockVerifyClinic.mockReset()
+    mockActivateClinic.mockReset()
+    mockDeactivateClinic.mockReset()
+    mockSetClinicPlan.mockReset()
     mockError.value = null
-    mockClinics.value = []
-    mockIsLoading.value = false
-    mockTotalClinics.value = 0
+    mockAdminStore.clinics = []
+    mockAdminStore.isLoading = false
+    mockAdminStore.totalClinics = 0
   })
 
   // ── Section structure ───────────────────────────────────────
@@ -110,14 +120,14 @@ describe('AdminClinicManager', () => {
 
   describe('loading skeleton', () => {
     it('renders skeleton rows while isLoading is true', async () => {
-      mockIsLoading.value = true
+      mockAdminStore.isLoading = true
       const wrapper = await mountManager()
       const skeletonRows = wrapper.findAll('[aria-hidden="true"]')
       expect(skeletonRows.length).toBeGreaterThanOrEqual(5)
     })
 
     it('does not show clinic data while loading', async () => {
-      mockIsLoading.value = true
+      mockAdminStore.isLoading = true
       const wrapper = await mountManager()
       expect(wrapper.text()).not.toContain('Clínica Vet Norte')
     })
@@ -134,10 +144,10 @@ describe('AdminClinicManager', () => {
 
   describe('clinic rows', () => {
     beforeEach(() => {
-      mockClinics.value = [
-        makeClinic({ id: 'clinic-1', name: 'Clínica Norte', city: 'Bogotá', is_verified: true, is_featured: false }),
+      mockAdminStore.clinics = [
+        makeClinic({ id: 1, name: 'Clínica Norte', city: 'Bogotá', is_verified: true, is_active: true }),
       ]
-      mockTotalClinics.value = 1
+      mockAdminStore.totalClinics = 1
     })
 
     it('renders clinic name', async () => {
@@ -156,15 +166,47 @@ describe('AdminClinicManager', () => {
     })
 
     it('shows "No" label for unverified clinics', async () => {
-      mockClinics.value = [makeClinic({ id: 'c2', is_verified: false })]
+      mockAdminStore.clinics = [makeClinic({ id: 2, is_verified: false })]
       const wrapper = await mountManager()
       expect(wrapper.find('[aria-label="Clínica no verificada"]').exists()).toBe(true)
     })
+  })
 
-    it('shows Destacado badge for featured clinics', async () => {
-      mockClinics.value = [makeClinic({ id: 'c3', is_featured: true })]
+  // ── Plan column ─────────────────────────────────────────────
+
+  describe('plan column', () => {
+    it('shows "Free" badge for clinics with plan=free', async () => {
+      mockAdminStore.clinics = [makeClinic({ id: 1, plan: 'free' })]
+      mockAdminStore.totalClinics = 1
       const wrapper = await mountManager()
-      expect(wrapper.find('[aria-label="Clínica destacada"]').exists()).toBe(true)
+      expect(wrapper.find('[aria-label="Plan: Free"]').exists()).toBe(true)
+      expect(wrapper.find('[aria-label="Plan: Free"]').text()).toBe('Free')
+    })
+
+    it('shows "Pro" badge for clinics with plan=pro', async () => {
+      mockAdminStore.clinics = [makeClinic({ id: 1, plan: 'pro' })]
+      mockAdminStore.totalClinics = 1
+      const wrapper = await mountManager()
+      expect(wrapper.find('[aria-label="Plan: Pro"]').exists()).toBe(true)
+      expect(wrapper.find('[aria-label="Plan: Pro"]').text()).toBe('Pro')
+    })
+  })
+
+  // ── Active status badge ─────────────────────────────────────
+
+  describe('active status badge', () => {
+    it('shows Activo badge for active clinics', async () => {
+      mockAdminStore.clinics = [makeClinic({ id: 1, is_active: true })]
+      mockAdminStore.totalClinics = 1
+      const wrapper = await mountManager()
+      expect(wrapper.find('[aria-label="Clínica activa"]').exists()).toBe(true)
+    })
+
+    it('shows Inactivo badge for inactive clinics', async () => {
+      mockAdminStore.clinics = [makeClinic({ id: 1, is_active: false })]
+      mockAdminStore.totalClinics = 1
+      const wrapper = await mountManager()
+      expect(wrapper.find('[aria-label="Clínica inactiva"]').exists()).toBe(true)
     })
   })
 
@@ -172,125 +214,143 @@ describe('AdminClinicManager', () => {
 
   describe('specialty chips', () => {
     it('shows up to 2 specialty chips for a clinic with 2 specialties', async () => {
-      mockClinics.value = [makeClinic({ specialties: ['Cirugía', 'Dermatología'] })]
-      mockTotalClinics.value = 1
+      mockAdminStore.clinics = [makeClinic({ specialties: ['Cirugía', 'Dermatología'] })]
+      mockAdminStore.totalClinics = 1
       const wrapper = await mountManager()
-      const chips = wrapper.findAll('.badge.bg-primary')
-      // Only the two specialty badges (no overflow)
-      expect(chips.length).toBeGreaterThanOrEqual(2)
       expect(wrapper.text()).toContain('Cirugía')
       expect(wrapper.text()).toContain('Dermatología')
     })
 
     it('shows +1 overflow badge for a clinic with 3 specialties', async () => {
-      mockClinics.value = [makeClinic({ specialties: ['Cirugía', 'Dermatología', 'Cardiología'] })]
-      mockTotalClinics.value = 1
+      mockAdminStore.clinics = [makeClinic({ specialties: ['Cirugía', 'Dermatología', 'Cardiología'] })]
+      mockAdminStore.totalClinics = 1
       const wrapper = await mountManager()
       expect(wrapper.text()).toContain('+1')
     })
 
-    it('shows a dash for clinics with no specialties', async () => {
-      mockClinics.value = [makeClinic({ specialties: [] })]
-      mockTotalClinics.value = 1
+    it('shows a dash for clinics with no specialties (empty array)', async () => {
+      mockAdminStore.clinics = [makeClinic({ specialties: [] })]
+      mockAdminStore.totalClinics = 1
       const wrapper = await mountManager()
-      // The empty specialties column shows a "—" dash
-      expect(wrapper.text()).toContain('—')
+      expect(wrapper.text()).toContain('\u2014')
+    })
+
+    it('shows a dash for clinics with undefined specialties', async () => {
+      mockAdminStore.clinics = [makeClinic({ specialties: undefined })]
+      mockAdminStore.totalClinics = 1
+      const wrapper = await mountManager()
+      expect(wrapper.text()).toContain('\u2014')
     })
   })
 
-  // ── Toggle Verificado ───────────────────────────────────────
+  // ── Verify ───────────────────────────────────────────────────
 
-  describe('toggle Verificado', () => {
-    it('calls updateAdminClinic with { is_verified: true } when "Verificar" is clicked', async () => {
-      mockUpdateAdminClinic.mockResolvedValue(true)
-      mockClinics.value = [makeClinic({ id: 'clinic-1', is_verified: false })]
-      mockTotalClinics.value = 1
+  describe('verify clinic', () => {
+    it('shows "Verificar" button only for unverified clinics', async () => {
+      mockAdminStore.clinics = [makeClinic({ id: 1, is_verified: false })]
+      mockAdminStore.totalClinics = 1
+      const wrapper = await mountManager()
+      const btn = wrapper.findAll('button').find(b => b.text() === 'Verificar')
+      expect(btn).toBeDefined()
+    })
+
+    it('does not show "Verificar" button for already verified clinics', async () => {
+      mockAdminStore.clinics = [makeClinic({ id: 1, is_verified: true })]
+      mockAdminStore.totalClinics = 1
+      const wrapper = await mountManager()
+      const btn = wrapper.findAll('button').find(b => b.text() === 'Verificar')
+      expect(btn).toBeUndefined()
+    })
+
+    it('calls verifyClinic with clinic id when "Verificar" is clicked', async () => {
+      mockVerifyClinic.mockResolvedValue(true)
+      mockAdminStore.clinics = [makeClinic({ id: 5, is_verified: false })]
+      mockAdminStore.totalClinics = 1
       const wrapper = await mountManager()
       const btn = wrapper.findAll('button').find(b => b.text() === 'Verificar')
       await btn!.trigger('click')
-      expect(mockUpdateAdminClinic).toHaveBeenCalledWith('clinic-1', { is_verified: true })
-    })
-
-    it('calls updateAdminClinic with { is_verified: false } when "Desverificar" is clicked', async () => {
-      mockUpdateAdminClinic.mockResolvedValue(true)
-      mockClinics.value = [makeClinic({ id: 'clinic-1', is_verified: true })]
-      mockTotalClinics.value = 1
-      const wrapper = await mountManager()
-      const btn = wrapper.findAll('button').find(b => b.text() === 'Desverificar')
-      await btn!.trigger('click')
-      expect(mockUpdateAdminClinic).toHaveBeenCalledWith('clinic-1', { is_verified: false })
+      expect(mockVerifyClinic).toHaveBeenCalledWith(5)
     })
   })
 
-  // ── Toggle Destacado ────────────────────────────────────────
+  // ── Plan select dropdown ────────────────────────────────────
 
-  describe('toggle Destacado', () => {
-    it('calls updateAdminClinic with { is_featured: true } when "Destacar" is clicked', async () => {
-      mockUpdateAdminClinic.mockResolvedValue(true)
-      mockClinics.value = [makeClinic({ id: 'clinic-1', is_featured: false })]
-      mockTotalClinics.value = 1
+  describe('plan select dropdown', () => {
+    it('renders a plan select dropdown for each clinic', async () => {
+      mockAdminStore.clinics = [makeClinic({ id: 1, name: 'Clínica A' })]
+      mockAdminStore.totalClinics = 1
       const wrapper = await mountManager()
-      const btn = wrapper.findAll('button').find(b => b.text() === 'Destacar')
-      await btn!.trigger('click')
-      expect(mockUpdateAdminClinic).toHaveBeenCalledWith('clinic-1', { is_featured: true })
+      const select = wrapper.find('select[aria-label="Cambiar plan de Clínica A"]')
+      expect(select.exists()).toBe(true)
     })
 
-    it('calls updateAdminClinic with { is_featured: false } when "Quitar dest." is clicked', async () => {
-      mockUpdateAdminClinic.mockResolvedValue(true)
-      mockClinics.value = [makeClinic({ id: 'clinic-1', is_featured: true })]
-      mockTotalClinics.value = 1
+    it('calls setClinicPlan when plan is changed', async () => {
+      mockSetClinicPlan.mockResolvedValue(true)
+      mockAdminStore.clinics = [makeClinic({ id: 8, name: 'Clínica B', plan: 'free' })]
+      mockAdminStore.totalClinics = 1
       const wrapper = await mountManager()
-      const btn = wrapper.findAll('button').find(b => b.text() === 'Quitar dest.')
-      await btn!.trigger('click')
-      expect(mockUpdateAdminClinic).toHaveBeenCalledWith('clinic-1', { is_featured: false })
+      const select = wrapper.find('select[aria-label="Cambiar plan de Clínica B"]')
+      await select.setValue('pro')
+      expect(mockSetClinicPlan).toHaveBeenCalledWith(8, 'pro')
     })
   })
 
-  // ── 2-step delete ───────────────────────────────────────────
+  // ── Activate / Deactivate ───────────────────────────────────
 
-  describe('2-step delete confirmation', () => {
+  describe('activate / deactivate', () => {
+    it('shows "Desactivar" button for active clinics', async () => {
+      mockAdminStore.clinics = [makeClinic({ id: 1, is_active: true })]
+      mockAdminStore.totalClinics = 1
+      const wrapper = await mountManager()
+      const btn = wrapper.findAll('button').find(b => b.text().includes('Desactivar'))
+      expect(btn).toBeDefined()
+    })
+
+    it('calls deactivateClinic when "Desactivar" is clicked', async () => {
+      mockDeactivateClinic.mockResolvedValue(true)
+      mockAdminStore.clinics = [makeClinic({ id: 3, is_active: true })]
+      mockAdminStore.totalClinics = 1
+      const wrapper = await mountManager()
+      const btn = wrapper.findAll('button').find(b => b.text().includes('Desactivar'))
+      await btn!.trigger('click')
+      expect(mockDeactivateClinic).toHaveBeenCalledWith(3)
+    })
+
+    it('shows "Activar" button for inactive clinics', async () => {
+      mockAdminStore.clinics = [makeClinic({ id: 1, is_active: false })]
+      mockAdminStore.totalClinics = 1
+      const wrapper = await mountManager()
+      const btn = wrapper.findAll('button').find(b => b.text().includes('Activar'))
+      expect(btn).toBeDefined()
+    })
+
+    it('calls activateClinic when "Activar" is clicked', async () => {
+      mockActivateClinic.mockResolvedValue(true)
+      mockAdminStore.clinics = [makeClinic({ id: 6, is_active: false })]
+      mockAdminStore.totalClinics = 1
+      const wrapper = await mountManager()
+      const btn = wrapper.findAll('button').find(b => b.text().includes('Activar'))
+      await btn!.trigger('click')
+      expect(mockActivateClinic).toHaveBeenCalledWith(6)
+    })
+  })
+
+  // ── No delete or featured functionality ─────────────────────
+
+  describe('no delete or featured functionality', () => {
     beforeEach(() => {
-      mockClinics.value = [makeClinic({ id: 'clinic-1', name: 'Clínica A' })]
-      mockTotalClinics.value = 1
+      mockAdminStore.clinics = [makeClinic()]
+      mockAdminStore.totalClinics = 1
     })
 
-    it('shows Eliminar button initially', async () => {
+    it('does not render any "Eliminar" button', async () => {
       const wrapper = await mountManager()
-      expect(wrapper.findAll('button').some(b => b.text() === 'Eliminar')).toBe(true)
+      expect(wrapper.findAll('button').some(b => b.text() === 'Eliminar')).toBe(false)
     })
 
-    it('shows ¿Confirmar? after clicking Eliminar', async () => {
+    it('does not render any "Destacar" button', async () => {
       const wrapper = await mountManager()
-      await wrapper.findAll('button').find(b => b.text() === 'Eliminar')!.trigger('click')
-      expect(wrapper.text()).toContain('¿Confirmar?')
-    })
-
-    it('does not call deleteAdminClinic on first click', async () => {
-      const wrapper = await mountManager()
-      await wrapper.findAll('button').find(b => b.text() === 'Eliminar')!.trigger('click')
-      expect(mockDeleteAdminClinic).not.toHaveBeenCalled()
-    })
-
-    it('calls deleteAdminClinic with clinicId when ¿Confirmar? is clicked', async () => {
-      mockDeleteAdminClinic.mockResolvedValue(true)
-      const wrapper = await mountManager()
-      await wrapper.findAll('button').find(b => b.text() === 'Eliminar')!.trigger('click')
-      await wrapper.findAll('button').find(b => b.text() === '¿Confirmar?')!.trigger('click')
-      expect(mockDeleteAdminClinic).toHaveBeenCalledWith('clinic-1')
-    })
-
-    it('hides ¿Confirmar? after clicking Cancelar', async () => {
-      const wrapper = await mountManager()
-      await wrapper.findAll('button').find(b => b.text() === 'Eliminar')!.trigger('click')
-      await wrapper.findAll('button').find(b => b.text() === 'Cancelar')!.trigger('click')
-      expect(wrapper.text()).not.toContain('¿Confirmar?')
-    })
-
-    it('does not call deleteAdminClinic when Cancelar is clicked', async () => {
-      const wrapper = await mountManager()
-      await wrapper.findAll('button').find(b => b.text() === 'Eliminar')!.trigger('click')
-      await wrapper.findAll('button').find(b => b.text() === 'Cancelar')!.trigger('click')
-      expect(mockDeleteAdminClinic).not.toHaveBeenCalled()
+      expect(wrapper.findAll('button').some(b => b.text() === 'Destacar')).toBe(false)
     })
   })
 
@@ -298,21 +358,21 @@ describe('AdminClinicManager', () => {
 
   describe('result count', () => {
     it('shows "0 clínicas" when totalClinics is 0', async () => {
-      mockTotalClinics.value = 0
+      mockAdminStore.totalClinics = 0
       const wrapper = await mountManager()
       expect(wrapper.find('[role="status"]').text()).toContain('0 clínicas')
     })
 
     it('shows "1 clínica" (singular) when totalClinics is 1', async () => {
-      mockTotalClinics.value = 1
-      mockClinics.value = [makeClinic()]
+      mockAdminStore.totalClinics = 1
+      mockAdminStore.clinics = [makeClinic()]
       const wrapper = await mountManager()
       expect(wrapper.find('[role="status"]').text()).toContain('1 clínica')
       expect(wrapper.find('[role="status"]').text()).not.toContain('1 clínicas')
     })
 
     it('shows "4 clínicas" (plural)', async () => {
-      mockTotalClinics.value = 4
+      mockAdminStore.totalClinics = 4
       const wrapper = await mountManager()
       expect(wrapper.find('[role="status"]').text()).toContain('4 clínicas')
     })
@@ -336,7 +396,7 @@ describe('AdminClinicManager', () => {
   // ── Pagination footer ───────────────────────────────────────
 
   it('does not show pagination footer when totalClinics <= 20', async () => {
-    mockTotalClinics.value = 8
+    mockAdminStore.totalClinics = 8
     const wrapper = await mountManager()
     expect(wrapper.find('.card-footer').exists()).toBe(false)
   })

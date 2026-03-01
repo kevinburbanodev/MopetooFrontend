@@ -3,24 +3,17 @@
 // RF-1200 to RF-1209
 //
 // Endpoints:
-//   GET /api/admin/maintenance — current maintenance status (admin-only)
-//   PUT /api/admin/maintenance — toggle maintenance mode (admin-only)
+//   GET   /api/admin/maintenance            — current status (admin-only)
+//   PATCH /api/admin/maintenance/activate    — activate with message (admin-only)
+//   PATCH /api/admin/maintenance/deactivate  — deactivate (admin-only)
 //
-// Both endpoints are admin-protected. fetchStatus() fails silently
+// All endpoints are admin-protected. fetchStatus() fails silently
 // so non-admin users and guests never see an error from this
 // composable — they simply have no status loaded.
-//
-// Dual API response shapes supported:
-//   { maintenance: MaintenanceStatus }  — envelope format
-//   MaintenanceStatus                  — direct format
 // ============================================================
 
 import { ref } from 'vue'
-import type {
-  MaintenanceStatus,
-  MaintenanceResponse,
-  ToggleMaintenanceRequest,
-} from '../types'
+import type { MaintenanceStatus, ActivateMaintenanceRequest } from '../types'
 
 /**
  * Normalise error values from $fetch into a human-readable string.
@@ -46,15 +39,12 @@ function extractErrorMessage(err: unknown): string {
 }
 
 export function useMaintenance() {
-  const api = useApi()
+  const { get, patch } = useApi()
   const maintenanceStore = useMaintenanceStore()
   const error = ref<string | null>(null)
 
   /**
    * Fetch the current maintenance status from the API.
-   *
-   * Handles both envelope (`{ maintenance: MaintenanceStatus }`) and
-   * direct (`MaintenanceStatus`) response shapes.
    *
    * Fails silently on error — this is intentional. The endpoint is
    * admin-only and non-admin callers (including the maintenance
@@ -65,65 +55,50 @@ export function useMaintenance() {
     maintenanceStore.setLoading(true)
     error.value = null
     try {
-      const response = await api.get<MaintenanceStatus | MaintenanceResponse>(
-        '/api/admin/maintenance',
-      )
-
-      let data: MaintenanceStatus
-      if (
-        response &&
-        typeof response === 'object' &&
-        'maintenance' in response &&
-        (response as MaintenanceResponse).maintenance
-      ) {
-        data = (response as MaintenanceResponse).maintenance
-      } else {
-        data = response as MaintenanceStatus
-      }
-
+      const data = await get<MaintenanceStatus>('/api/admin/maintenance')
       maintenanceStore.setStatus(data)
     } catch {
       // Fail silently — see module header for rationale.
-      // We intentionally do NOT set error.value here so that
-      // non-admin callers don't display a confusing error message.
     } finally {
       maintenanceStore.setLoading(false)
     }
   }
 
   /**
-   * Toggle maintenance mode on or off.
+   * Activate maintenance mode with a message and optional estimated return.
    *
-   * Unlike fetchStatus(), this surfaces errors because it is only
-   * called from the admin UI where the operator expects feedback.
-   *
-   * On success the store is updated with the response payload so the
-   * UI reflects the new state immediately without a second fetch.
+   * On success the store is updated optimistically so the UI reflects
+   * the new state immediately without a second fetch.
    */
-  async function toggleMaintenance(enabled: boolean): Promise<void> {
+  async function activateMaintenance(request: ActivateMaintenanceRequest): Promise<void> {
     maintenanceStore.setLoading(true)
     error.value = null
     try {
-      const body: ToggleMaintenanceRequest = { is_enabled: enabled }
-      const response = await api.put<MaintenanceStatus | MaintenanceResponse>(
-        '/api/admin/maintenance',
-        body,
-      )
+      await patch<{ message: string }>('/api/admin/maintenance/activate', request)
+      maintenanceStore.setStatus({
+        is_active: true,
+        message: request.message,
+        estimated_return: request.estimated_return,
+        activated_at: new Date().toISOString(),
+      })
+    } catch (err: unknown) {
+      error.value = extractErrorMessage(err)
+    } finally {
+      maintenanceStore.setLoading(false)
+    }
+  }
 
-      // Normalise dual API shapes (same as fetchStatus)
-      let data: MaintenanceStatus
-      if (
-        response &&
-        typeof response === 'object' &&
-        'maintenance' in response &&
-        (response as MaintenanceResponse).maintenance
-      ) {
-        data = (response as MaintenanceResponse).maintenance
-      } else {
-        data = response as MaintenanceStatus
-      }
-
-      maintenanceStore.setStatus(data)
+  /**
+   * Deactivate maintenance mode.
+   *
+   * On success the store is updated so the UI reflects the change immediately.
+   */
+  async function deactivateMaintenance(): Promise<void> {
+    maintenanceStore.setLoading(true)
+    error.value = null
+    try {
+      await patch<{ message: string }>('/api/admin/maintenance/deactivate', {})
+      maintenanceStore.setStatus({ is_active: false })
     } catch (err: unknown) {
       error.value = extractErrorMessage(err)
     } finally {
@@ -135,6 +110,7 @@ export function useMaintenance() {
     error,
     maintenanceStore,
     fetchStatus,
-    toggleMaintenance,
+    activateMaintenance,
+    deactivateMaintenance,
   }
 }

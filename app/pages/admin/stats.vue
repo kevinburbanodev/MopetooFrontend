@@ -1,10 +1,9 @@
 <script setup lang="ts">
 // Admin stats page — full statistics and metrics dashboard.
-// Protected by admin middleware. Composes four stats components:
-//   1. StatsOverview  — 10 KPI cards + revenue totals
-//   2. StatsChart     — monthly revenue bar chart (CSS progress bars)
-//   3. RevenueReport  — tabular monthly revenue breakdown
-//   4. ActivityLog    — recent platform events feed
+// Protected by admin middleware. Composes three stats components:
+//   1. StatsOverview  — KPI cards from nested overview structure
+//   2. StatsChart     — revenue bar chart (CSS progress bars)
+//   3. RevenueReport  — tabular revenue breakdown with aggregates
 //
 // Revenue data is fetched here and passed as props to StatsChart
 // and RevenueReport so both can share the same dataset without
@@ -23,7 +22,7 @@ useSeoMeta({
 const { fetchRevenueData, revenueLoading, statsStore } = useStats()
 
 onMounted(async () => {
-  await fetchRevenueData({ months: 6 })
+  await fetchRevenueData()
 })
 </script>
 
@@ -61,15 +60,11 @@ onMounted(async () => {
         <div class="card border-0 shadow-sm p-4 h-100">
           <RevenueReport
             :data="statsStore.revenueData"
+            :stats="statsStore.revenueStats"
             :is-loading="revenueLoading"
           />
         </div>
       </div>
-    </div>
-
-    <!-- Activity log (self-fetching) -->
-    <div class="mb-4">
-      <ActivityLog />
     </div>
   </div>
 </template>

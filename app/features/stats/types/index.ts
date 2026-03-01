@@ -5,70 +5,108 @@
 // ============================================================
 
 // ── Overview (platform KPIs) ────────────────────────────────
+// GET /api/admin/stats/overview → nested structure
 
-/** Aggregated platform KPI statistics. Matches GET /api/admin/stats. */
-export interface StatsOverview {
-  total_users: number
-  total_pets: number
-  total_shelters: number
-  total_clinics: number
-  total_stores: number
-  total_adoptions: number
-  total_pro_subscriptions: number
-  total_donations: number
-  revenue_total: number
-  revenue_month: number
+export interface OverviewUsers {
+  total: number
+  active: number
+  suspended: number
+  new_in_period: number
+  pro_active: number
+  free: number
+  conversion_rate_pct: number
 }
 
-/** Dual API shape — backend may return envelope or direct object. */
-export interface StatsOverviewResponse {
-  stats?: StatsOverview
-  [key: string]: unknown
+export interface OverviewShelters {
+  total: number
+  active: number
+  suspended: number
+  verified: number
+}
+
+export interface OverviewStores {
+  total: number
+  active: number
+  suspended: number
+  featured: number
+}
+
+export interface OverviewClinics {
+  total: number
+  active: number
+  suspended: number
+  pro: number
+}
+
+export interface OverviewRevenue {
+  total_accumulated: number
+  in_period: number
+  monthly_subscriptions: number
+  annual_subscriptions: number
+  arpu: number
+}
+
+export interface OverviewDonations {
+  total_amount: number
+  in_period: number
+  platform_fees_accumulated: number
+  net_to_shelters: number
+  total_count: number
+  unique_donors: number
+  avg_donation: number
+}
+
+export interface OverviewContent {
+  total_pets: number
+  total_reminders: number
+  total_medical_records: number
+  active_adoption_listings: number
+  adopted_in_period: number
+  blog_posts_published: number
+}
+
+/** Aggregated platform KPIs. Matches GET /api/admin/stats/overview. */
+export interface StatsOverview {
+  generated_at: string
+  period: { from: string; to: string }
+  users: OverviewUsers
+  shelters: OverviewShelters
+  stores: OverviewStores
+  clinics: OverviewClinics
+  revenue_cop: OverviewRevenue
+  donations_cop: OverviewDonations
+  content: OverviewContent
 }
 
 // ── Revenue time series ─────────────────────────────────────
+// GET /api/admin/stats/revenue
 
-/** Revenue data for a single calendar month. */
-export interface RevenueDataPoint {
-  month: string          // "YYYY-MM" format, e.g. "2025-01"
-  subscriptions: number  // COP — revenue from PRO subscriptions
-  donations: number      // COP — revenue from shelter donations
-  total: number          // subscriptions + donations
+/** A single point in the revenue time series. */
+export interface RevenueSeriesPoint {
+  date: string     // "YYYY-MM-DD" format
+  revenue: number  // COP amount
+  count: number    // transaction count
 }
 
-/** Dual API shape for the revenue endpoint. */
-export interface RevenueStatsResponse {
-  data?: RevenueDataPoint[]
-  [key: string]: unknown
+/** Revenue breakdown by plan. */
+export interface RevenueByPlan {
+  [plan: string]: { revenue: number; count: number }
 }
 
-/** Query filters for the revenue time-series endpoint. */
+/** Full revenue stats response from the backend. */
+export interface RevenueStats {
+  generated_at: string
+  period: { from: string; to: string }
+  total_accumulated_cop: number
+  in_period_cop: number
+  by_plan: RevenueByPlan
+  approved_transactions: number
+  arpu: number
+  series: RevenueSeriesPoint[]
+}
+
+/** Query filters for the revenue endpoint. */
 export interface RevenueFilters {
-  months?: number  // Number of past months to include (default: 6)
-}
-
-// ── Activity log ────────────────────────────────────────────
-
-/** All possible activity event types tracked by the platform. */
-export type ActivityType =
-  | 'user_registered'
-  | 'pet_created'
-  | 'adoption_requested'
-  | 'subscription_created'
-  | 'donation_made'
-
-/** A single platform activity entry. */
-export interface ActivityEntry {
-  id: string | number
-  type: ActivityType
-  description: string
-  user_email?: string
-  created_at: string
-}
-
-/** Dual API shape for the activity log endpoint. */
-export interface ActivityLogResponse {
-  activities?: ActivityEntry[]
-  total?: number
-  [key: string]: unknown
+  from?: string  // ISO-8601 date
+  to?: string    // ISO-8601 date
 }

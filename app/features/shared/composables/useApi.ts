@@ -122,7 +122,7 @@ function onResponseCheck({ response }: { response: Response }): void {
     const maintenanceStore = useMaintenanceStore()
     // Update the store so the maintenance middleware and page
     // reflect the new state immediately.
-    maintenanceStore.setStatus({ is_enabled: true })
+    maintenanceStore.setStatus({ is_active: true })
     // Navigate to the maintenance page. navigateTo is a Nuxt auto-import
     // and is safe to call from within a $fetch hook on the client.
     navigateTo('/maintenance')

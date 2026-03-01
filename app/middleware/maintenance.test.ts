@@ -11,7 +11,7 @@
 //
 // Key reads from stores:
 //   - authStore.isAdmin — computed: currentUser?.is_admin ?? false
-//   - maintenanceStore.isEnabled — computed: status?.is_enabled ?? false
+//   - maintenanceStore.isEnabled — computed: status?.is_active ?? false
 //
 // Testing strategy:
 //   - navigateTo is mocked via mockNuxtImport wrapped in vi.hoisted()
@@ -21,9 +21,10 @@
 //   - Both stores are controlled via createTestingPinia with initialState.
 //   - Middleware is dynamically imported AFTER pinia is activated
 //     (vi.resetModules() ensures a fresh module per test group).
-//   - maintenanceStore.isEnabled is a computed from status.is_enabled,
-//     so we set initialState: { maintenance: { status: { is_enabled: true } } }
-//     NOT { maintenance: { isEnabled: true } } which is ignored.
+//   - maintenanceStore.isEnabled is a computed from status.is_active
+//     (backend field), so we set initialState:
+//     { maintenance: { status: { is_active: true } } }
+//     NOT { maintenance: { isEnabled: true } } which would be ignored.
 // ============================================================
 
 import { describe, it, expect, beforeEach, vi } from 'vitest'
@@ -62,7 +63,7 @@ describe('maintenance middleware', () => {
               entityType: 'user',
             },
             maintenance: {
-              status: { is_enabled: true },
+              status: { is_active: true },
             },
           },
         }),
@@ -113,7 +114,7 @@ describe('maintenance middleware', () => {
               entityType: 'user',
             },
             maintenance: {
-              status: { is_enabled: false },
+              status: { is_active: false },
             },
           },
         }),
@@ -145,7 +146,7 @@ describe('maintenance middleware', () => {
               currentEntity: { id: 2, is_admin: false }, entityType: 'user',
             },
             maintenance: {
-              status: { is_enabled: true },
+              status: { is_active: true },
             },
           },
         }),
@@ -207,7 +208,7 @@ describe('maintenance middleware', () => {
               currentEntity: { id: 2, is_admin: false }, entityType: 'user',
             },
             maintenance: {
-              status: { is_enabled: false },
+              status: { is_active: false },
             },
           },
         }),
@@ -257,7 +258,7 @@ describe('maintenance middleware', () => {
               currentEntity: null,
             },
             maintenance: {
-              status: { is_enabled: true },
+              status: { is_active: true },
             },
           },
         }),

@@ -7,19 +7,19 @@
 //   - Loading skeleton while isLoading.
 //   - Empty state when no petshops.
 //   - Petshop rows: name, city, contact info.
-//   - Verificado / no-verificado badge.
-//   - Destacado / no-destacado badge.
-//   - Toggle Verificado calls updatePetshop with toggled boolean.
-//   - Toggle Destacado calls updatePetshop with toggled boolean.
-//   - 2-step delete: Eliminar → ¿Confirmar? / Cancelar → deletePetshop.
+//   - Plan column: shows Free / Featured badge.
+//   - Active / inactive status badge.
+//   - Plan select dropdown calls setStorePlan.
+//   - Activate / deactivate calls activateStore / deactivateStore.
 //   - Result count (singular / plural).
 //   - Error alert.
+//   - No delete, verify, or featured toggle buttons.
 // ============================================================
 
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { mountSuspended } from '@nuxt/test-utils/runtime'
 import { createTestingPinia } from '@pinia/testing'
-import { ref } from 'vue'
+import { ref, reactive } from 'vue'
 import AdminStoreManager from './AdminStoreManager.vue'
 import type { AdminPetshop } from '../types'
 
@@ -27,12 +27,12 @@ import type { AdminPetshop } from '../types'
 
 function makePetshop(overrides: Partial<AdminPetshop> = {}): AdminPetshop {
   return {
-    id: 'shop-1',
+    id: 1,
     name: 'Tienda Mascota Feliz',
     city: 'Medellín',
     email: 'info@tienda.com',
-    is_verified: false,
-    is_featured: false,
+    is_active: true,
+    plan: 'free',
     created_at: '2024-01-01T00:00:00Z',
     ...overrides,
   }
@@ -41,24 +41,24 @@ function makePetshop(overrides: Partial<AdminPetshop> = {}): AdminPetshop {
 // ── useAdmin mock ─────────────────────────────────────────────
 
 const mockFetchPetshops = vi.fn()
-const mockUpdatePetshop = vi.fn()
-const mockDeletePetshop = vi.fn()
+const mockActivateStore = vi.fn()
+const mockDeactivateStore = vi.fn()
+const mockSetStorePlan = vi.fn()
 const mockError = ref<string | null>(null)
-const mockPetshops = ref<AdminPetshop[]>([])
-const mockIsLoading = ref(false)
-const mockTotalPetshops = ref(0)
+const mockAdminStore = reactive({
+  petshops: [] as AdminPetshop[],
+  isLoading: false,
+  totalPetshops: 0,
+})
 
 vi.mock('../composables/useAdmin', () => ({
   useAdmin: () => ({
     fetchPetshops: mockFetchPetshops,
-    updatePetshop: mockUpdatePetshop,
-    deletePetshop: mockDeletePetshop,
+    activateStore: mockActivateStore,
+    deactivateStore: mockDeactivateStore,
+    setStorePlan: mockSetStorePlan,
     error: mockError,
-    adminStore: {
-      get petshops() { return mockPetshops.value },
-      get isLoading() { return mockIsLoading.value },
-      get totalPetshops() { return mockTotalPetshops.value },
-    },
+    adminStore: mockAdminStore,
   }),
 }))
 
@@ -83,12 +83,13 @@ async function mountManager() {
 describe('AdminStoreManager', () => {
   beforeEach(() => {
     mockFetchPetshops.mockReset()
-    mockUpdatePetshop.mockReset()
-    mockDeletePetshop.mockReset()
+    mockActivateStore.mockReset()
+    mockDeactivateStore.mockReset()
+    mockSetStorePlan.mockReset()
     mockError.value = null
-    mockPetshops.value = []
-    mockIsLoading.value = false
-    mockTotalPetshops.value = 0
+    mockAdminStore.petshops = []
+    mockAdminStore.isLoading = false
+    mockAdminStore.totalPetshops = 0
   })
 
   // ── Section structure ───────────────────────────────────────
@@ -109,14 +110,14 @@ describe('AdminStoreManager', () => {
 
   describe('loading skeleton', () => {
     it('renders skeleton rows while isLoading is true', async () => {
-      mockIsLoading.value = true
+      mockAdminStore.isLoading = true
       const wrapper = await mountManager()
       const skeletonRows = wrapper.findAll('[aria-hidden="true"]')
       expect(skeletonRows.length).toBeGreaterThanOrEqual(5)
     })
 
     it('does not show petshop data while loading', async () => {
-      mockIsLoading.value = true
+      mockAdminStore.isLoading = true
       const wrapper = await mountManager()
       expect(wrapper.text()).not.toContain('info@tienda.com')
     })
@@ -133,10 +134,10 @@ describe('AdminStoreManager', () => {
 
   describe('petshop rows', () => {
     beforeEach(() => {
-      mockPetshops.value = [
-        makePetshop({ id: 'shop-1', name: 'Tienda Norte', city: 'Bogotá', is_verified: true, is_featured: false }),
+      mockAdminStore.petshops = [
+        makePetshop({ id: 1, name: 'Tienda Norte', city: 'Bogotá', plan: 'free', is_active: true }),
       ]
-      mockTotalPetshops.value = 1
+      mockAdminStore.totalPetshops = 1
     })
 
     it('renders petshop name', async () => {
@@ -149,123 +150,133 @@ describe('AdminStoreManager', () => {
       expect(wrapper.text()).toContain('Bogotá')
     })
 
-    it('shows Verificado badge for verified petshops', async () => {
-      const wrapper = await mountManager()
-      expect(wrapper.find('[aria-label="Tienda verificada"]').exists()).toBe(true)
-    })
-
-    it('shows "No" for unverified petshops', async () => {
-      mockPetshops.value = [makePetshop({ id: 'shop-2', is_verified: false })]
-      const wrapper = await mountManager()
-      expect(wrapper.find('[aria-label="Tienda no verificada"]').exists()).toBe(true)
-    })
-
-    it('shows Destacado badge for featured petshops', async () => {
-      mockPetshops.value = [makePetshop({ id: 'shop-3', is_featured: true })]
-      const wrapper = await mountManager()
-      expect(wrapper.find('[aria-label="Tienda destacada"]').exists()).toBe(true)
-    })
-
     it('shows petshop email in contact column', async () => {
       const wrapper = await mountManager()
       expect(wrapper.text()).toContain('info@tienda.com')
     })
   })
 
-  // ── Toggle Verificado ───────────────────────────────────────
+  // ── Plan column ─────────────────────────────────────────────
 
-  describe('toggle Verificado', () => {
-    it('calls updatePetshop with { is_verified: true } when "Verificar" is clicked', async () => {
-      mockUpdatePetshop.mockResolvedValue(true)
-      mockPetshops.value = [makePetshop({ id: 'shop-1', is_verified: false })]
-      mockTotalPetshops.value = 1
+  describe('plan column', () => {
+    it('shows "Free" badge for stores with plan=free', async () => {
+      mockAdminStore.petshops = [makePetshop({ id: 1, plan: 'free' })]
+      mockAdminStore.totalPetshops = 1
       const wrapper = await mountManager()
-      const btn = wrapper.findAll('button').find(b => b.text() === 'Verificar')
-      await btn!.trigger('click')
-      expect(mockUpdatePetshop).toHaveBeenCalledWith('shop-1', { is_verified: true })
+      expect(wrapper.find('[aria-label="Plan: Free"]').exists()).toBe(true)
+      expect(wrapper.find('[aria-label="Plan: Free"]').text()).toBe('Free')
     })
 
-    it('calls updatePetshop with { is_verified: false } when "Desverificar" is clicked', async () => {
-      mockUpdatePetshop.mockResolvedValue(true)
-      mockPetshops.value = [makePetshop({ id: 'shop-1', is_verified: true })]
-      mockTotalPetshops.value = 1
+    it('shows "Featured" badge for stores with plan=featured', async () => {
+      mockAdminStore.petshops = [makePetshop({ id: 1, plan: 'featured' })]
+      mockAdminStore.totalPetshops = 1
       const wrapper = await mountManager()
-      const btn = wrapper.findAll('button').find(b => b.text() === 'Desverificar')
-      await btn!.trigger('click')
-      expect(mockUpdatePetshop).toHaveBeenCalledWith('shop-1', { is_verified: false })
+      expect(wrapper.find('[aria-label="Plan: Featured"]').exists()).toBe(true)
+      expect(wrapper.find('[aria-label="Plan: Featured"]').text()).toBe('Featured')
     })
   })
 
-  // ── Toggle Destacado ────────────────────────────────────────
+  // ── Active status badge ─────────────────────────────────────
 
-  describe('toggle Destacado', () => {
-    it('calls updatePetshop with { is_featured: true } when "Destacar" is clicked', async () => {
-      mockUpdatePetshop.mockResolvedValue(true)
-      mockPetshops.value = [makePetshop({ id: 'shop-1', is_featured: false })]
-      mockTotalPetshops.value = 1
+  describe('active status badge', () => {
+    it('shows Activo badge for active stores', async () => {
+      mockAdminStore.petshops = [makePetshop({ id: 1, is_active: true })]
+      mockAdminStore.totalPetshops = 1
       const wrapper = await mountManager()
-      const btn = wrapper.findAll('button').find(b => b.text() === 'Destacar')
-      await btn!.trigger('click')
-      expect(mockUpdatePetshop).toHaveBeenCalledWith('shop-1', { is_featured: true })
+      expect(wrapper.find('[aria-label="Tienda activa"]').exists()).toBe(true)
     })
 
-    it('calls updatePetshop with { is_featured: false } when "Quitar dest." is clicked', async () => {
-      mockUpdatePetshop.mockResolvedValue(true)
-      mockPetshops.value = [makePetshop({ id: 'shop-1', is_featured: true })]
-      mockTotalPetshops.value = 1
+    it('shows Inactivo badge for inactive stores', async () => {
+      mockAdminStore.petshops = [makePetshop({ id: 1, is_active: false })]
+      mockAdminStore.totalPetshops = 1
       const wrapper = await mountManager()
-      const btn = wrapper.findAll('button').find(b => b.text() === 'Quitar dest.')
-      await btn!.trigger('click')
-      expect(mockUpdatePetshop).toHaveBeenCalledWith('shop-1', { is_featured: false })
+      expect(wrapper.find('[aria-label="Tienda inactiva"]').exists()).toBe(true)
     })
   })
 
-  // ── 2-step delete ───────────────────────────────────────────
+  // ── Plan select dropdown ────────────────────────────────────
 
-  describe('2-step delete confirmation', () => {
+  describe('plan select dropdown', () => {
+    it('renders a plan select dropdown for each store', async () => {
+      mockAdminStore.petshops = [makePetshop({ id: 1, name: 'Tienda A' })]
+      mockAdminStore.totalPetshops = 1
+      const wrapper = await mountManager()
+      const select = wrapper.find('select[aria-label="Cambiar plan de Tienda A"]')
+      expect(select.exists()).toBe(true)
+    })
+
+    it('calls setStorePlan when plan is changed', async () => {
+      mockSetStorePlan.mockResolvedValue(true)
+      mockAdminStore.petshops = [makePetshop({ id: 7, name: 'Tienda B', plan: 'free' })]
+      mockAdminStore.totalPetshops = 1
+      const wrapper = await mountManager()
+      const select = wrapper.find('select[aria-label="Cambiar plan de Tienda B"]')
+      await select.setValue('featured')
+      expect(mockSetStorePlan).toHaveBeenCalledWith(7, 'featured')
+    })
+  })
+
+  // ── Activate / Deactivate ───────────────────────────────────
+
+  describe('activate / deactivate', () => {
+    it('shows "Desactivar" button for active stores', async () => {
+      mockAdminStore.petshops = [makePetshop({ id: 1, is_active: true })]
+      mockAdminStore.totalPetshops = 1
+      const wrapper = await mountManager()
+      const btn = wrapper.findAll('button').find(b => b.text().includes('Desactivar'))
+      expect(btn).toBeDefined()
+    })
+
+    it('calls deactivateStore when "Desactivar" is clicked', async () => {
+      mockDeactivateStore.mockResolvedValue(true)
+      mockAdminStore.petshops = [makePetshop({ id: 3, is_active: true })]
+      mockAdminStore.totalPetshops = 1
+      const wrapper = await mountManager()
+      const btn = wrapper.findAll('button').find(b => b.text().includes('Desactivar'))
+      await btn!.trigger('click')
+      expect(mockDeactivateStore).toHaveBeenCalledWith(3)
+    })
+
+    it('shows "Activar" button for inactive stores', async () => {
+      mockAdminStore.petshops = [makePetshop({ id: 1, is_active: false })]
+      mockAdminStore.totalPetshops = 1
+      const wrapper = await mountManager()
+      const btn = wrapper.findAll('button').find(b => b.text().includes('Activar'))
+      expect(btn).toBeDefined()
+    })
+
+    it('calls activateStore when "Activar" is clicked', async () => {
+      mockActivateStore.mockResolvedValue(true)
+      mockAdminStore.petshops = [makePetshop({ id: 4, is_active: false })]
+      mockAdminStore.totalPetshops = 1
+      const wrapper = await mountManager()
+      const btn = wrapper.findAll('button').find(b => b.text().includes('Activar'))
+      await btn!.trigger('click')
+      expect(mockActivateStore).toHaveBeenCalledWith(4)
+    })
+  })
+
+  // ── No delete, verify, or featured toggle ───────────────────
+
+  describe('no delete, verify, or featured toggle', () => {
     beforeEach(() => {
-      mockPetshops.value = [makePetshop({ id: 'shop-1', name: 'Tienda A' })]
-      mockTotalPetshops.value = 1
+      mockAdminStore.petshops = [makePetshop()]
+      mockAdminStore.totalPetshops = 1
     })
 
-    it('shows Eliminar button initially', async () => {
+    it('does not render any "Eliminar" button', async () => {
       const wrapper = await mountManager()
-      expect(wrapper.findAll('button').some(b => b.text() === 'Eliminar')).toBe(true)
+      expect(wrapper.findAll('button').some(b => b.text() === 'Eliminar')).toBe(false)
     })
 
-    it('shows ¿Confirmar? after clicking Eliminar', async () => {
+    it('does not render any "Verificar" button', async () => {
       const wrapper = await mountManager()
-      const deleteBtn = wrapper.findAll('button').find(b => b.text() === 'Eliminar')
-      await deleteBtn!.trigger('click')
-      expect(wrapper.text()).toContain('¿Confirmar?')
+      expect(wrapper.findAll('button').some(b => b.text() === 'Verificar')).toBe(false)
     })
 
-    it('does not call deletePetshop on first click', async () => {
+    it('does not render any "Destacar" button', async () => {
       const wrapper = await mountManager()
-      await wrapper.findAll('button').find(b => b.text() === 'Eliminar')!.trigger('click')
-      expect(mockDeletePetshop).not.toHaveBeenCalled()
-    })
-
-    it('calls deletePetshop with petshopId when ¿Confirmar? is clicked', async () => {
-      mockDeletePetshop.mockResolvedValue(true)
-      const wrapper = await mountManager()
-      await wrapper.findAll('button').find(b => b.text() === 'Eliminar')!.trigger('click')
-      await wrapper.findAll('button').find(b => b.text() === '¿Confirmar?')!.trigger('click')
-      expect(mockDeletePetshop).toHaveBeenCalledWith('shop-1')
-    })
-
-    it('hides ¿Confirmar? after clicking Cancelar', async () => {
-      const wrapper = await mountManager()
-      await wrapper.findAll('button').find(b => b.text() === 'Eliminar')!.trigger('click')
-      await wrapper.findAll('button').find(b => b.text() === 'Cancelar')!.trigger('click')
-      expect(wrapper.text()).not.toContain('¿Confirmar?')
-    })
-
-    it('does not call deletePetshop when Cancelar is clicked', async () => {
-      const wrapper = await mountManager()
-      await wrapper.findAll('button').find(b => b.text() === 'Eliminar')!.trigger('click')
-      await wrapper.findAll('button').find(b => b.text() === 'Cancelar')!.trigger('click')
-      expect(mockDeletePetshop).not.toHaveBeenCalled()
+      expect(wrapper.findAll('button').some(b => b.text() === 'Destacar')).toBe(false)
     })
   })
 
@@ -273,21 +284,21 @@ describe('AdminStoreManager', () => {
 
   describe('result count', () => {
     it('shows "0 tiendas" when totalPetshops is 0', async () => {
-      mockTotalPetshops.value = 0
+      mockAdminStore.totalPetshops = 0
       const wrapper = await mountManager()
       expect(wrapper.find('[role="status"]').text()).toContain('0 tiendas')
     })
 
     it('shows "1 tienda" (singular) when totalPetshops is 1', async () => {
-      mockTotalPetshops.value = 1
-      mockPetshops.value = [makePetshop()]
+      mockAdminStore.totalPetshops = 1
+      mockAdminStore.petshops = [makePetshop()]
       const wrapper = await mountManager()
       expect(wrapper.find('[role="status"]').text()).toContain('1 tienda')
       expect(wrapper.find('[role="status"]').text()).not.toContain('1 tiendas')
     })
 
     it('shows "5 tiendas" (plural)', async () => {
-      mockTotalPetshops.value = 5
+      mockAdminStore.totalPetshops = 5
       const wrapper = await mountManager()
       expect(wrapper.find('[role="status"]').text()).toContain('5 tiendas')
     })
@@ -311,7 +322,7 @@ describe('AdminStoreManager', () => {
   // ── Pagination footer ───────────────────────────────────────
 
   it('does not show pagination footer when totalPetshops <= 20', async () => {
-    mockTotalPetshops.value = 5
+    mockAdminStore.totalPetshops = 5
     const wrapper = await mountManager()
     expect(wrapper.find('.card-footer').exists()).toBe(false)
   })

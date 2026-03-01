@@ -1,34 +1,35 @@
 // ============================================================
 // Maintenance types — RF-1200 to RF-1209
+// Aligned with Mopetoo backend API (Go + Gin)
+//
+// Endpoints:
+//   GET   /api/admin/maintenance           → MaintenanceStatus
+//   PATCH /api/admin/maintenance/activate   → { message }
+//   PATCH /api/admin/maintenance/deactivate → { message }
 // ============================================================
 
 /**
  * The current maintenance mode status returned by the backend.
- * `is_enabled` is the authoritative flag; the remaining fields
- * are informational and may be absent in older API versions.
+ * `is_active` is the authoritative flag; the remaining fields
+ * are informational and may be absent.
  */
 export interface MaintenanceStatus {
   /** Whether maintenance mode is currently active */
-  is_enabled: boolean
+  is_active: boolean
   /** Optional custom message displayed on the maintenance page */
   message?: string
-  /** ISO-8601 timestamp of the last state change */
-  updated_at?: string
-  /** Username of the admin who last toggled maintenance mode */
-  updated_by?: string
+  /** ISO-8601 datetime — estimated time of return from maintenance */
+  estimated_return?: string
+  /** ISO-8601 timestamp of when maintenance was last activated */
+  activated_at?: string
+  /** Numeric ID of the admin who activated maintenance mode */
+  activated_by_admin_id?: number
 }
 
 /**
- * Envelope response shape returned by GET /api/admin/maintenance.
- * Some backend versions may return MaintenanceStatus directly.
+ * Request body for PATCH /api/admin/maintenance/activate.
  */
-export interface MaintenanceResponse {
-  maintenance: MaintenanceStatus
-}
-
-/**
- * Request body for PUT /api/admin/maintenance.
- */
-export interface ToggleMaintenanceRequest {
-  is_enabled: boolean
+export interface ActivateMaintenanceRequest {
+  message: string
+  estimated_return?: string
 }

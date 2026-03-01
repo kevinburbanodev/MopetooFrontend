@@ -30,9 +30,9 @@ npm run test:coverage    # Single run with coverage report
 - Petshops slice (RF-700–RF-709): 203 tests (store 49, usePetshops 45, PetshopCard 29, PetshopList 38, PetshopDetail 42) ✅ — synced with backend model.Store
 - Pro/Monetización slice (RF-800–RF-809): 156 tests (store 24, usePro 37, ProBanner 23, PricingTable 16, ProUpgradeModal 19, DonationForm 37) ✅ — synced with backend PayU Latam
 - Clinics slice (RF-900–RF-909): 186 tests (store 43, useClinics 36, ClinicCard 36, ClinicList 30, ClinicDetail 41) ✅ — synced with backend model.Clinic
-- Admin slice (RF-1000–RF-1009): 327 tests (store 75, useAdmin 76, AdminDashboard 27, AdminUserManager 31, AdminShelterManager 27, AdminStoreManager 27, AdminClinicManager 29, AdminTransactionLog 28, admin middleware 7) ✅
-- Stats slice (RF-1100–RF-1109): 165 tests (store 37, useStats 45, StatsOverview 27, StatsChart 22, RevenueReport 20, ActivityLog 34) ✅
-- Maintenance slice (RF-1200–RF-1209): 163 tests (store 32, useMaintenance 37, MaintenancePage 18, MaintenanceToggle 52, maintenance middleware 24) ✅
+- Admin slice (RF-1000–RF-1009): 330 tests (store 60, useAdmin 85, AdminDashboard 28, AdminUserManager 34, AdminShelterManager 27, AdminStoreManager 27, AdminClinicManager 34, AdminTransactionLog 28, admin middleware 7) ✅ — synced with backend PATCH endpoints (no PUT/DELETE)
+- Stats slice (RF-1100–RF-1109): 117 tests (store 31, useStats 25, StatsOverview 26, StatsChart 14, RevenueReport 21) ✅ — synced with backend nested StatsOverview + RevenueStats; ActivityLog removed (fabricated endpoint)
+- Maintenance slice (RF-1200–RF-1209): 187 tests (store 33, useMaintenance 47, MaintenancePage 18, MaintenanceToggle 65, maintenance middleware 24) ✅ — synced with backend activate/deactivate PATCH endpoints
 
 ## Architecture
 
@@ -56,7 +56,7 @@ app/features/
 ├── pro/             # Monetización: PRO subscriptions, pricing table, donations (RF-800–RF-809)
 ├── clinics/         # Veterinary clinics directory (public: listing + detail) (RF-900–RF-909)
 ├── admin/           # Admin panel: stats, user/shelter/store/clinic management, transactions (RF-1000–RF-1009)
-├── stats/           # Statistics & metrics: KPI overview, revenue chart/table, activity log (RF-1100–RF-1109)
+├── stats/           # Statistics & metrics: KPI overview (nested), revenue chart/table (RF-1100–RF-1109)
 └── maintenance/     # Maintenance mode: toggle (admin), page, x-maintenance header detection (RF-1200–RF-1209)
 ```
 
@@ -93,9 +93,9 @@ This means `useApi()`, `useAuth()`, `useAuthStore()`, etc. are available in any 
 | `usePetshopsStore` | `petshops[]`, `selectedPetshop`, `storeProducts[]`, `isLoading`, `hasPetshops`, `getPremiumPetshops` |
 | `useProStore` | `subscription`, `isLoading`, `isSubscribed` |
 | `useClinicsStore` | `clinics[]`, `selectedClinic`, `isLoading`, `hasClinics`, `getPremiumClinics` |
-| `useAdminStore` | `stats`, `users[]`, `shelters[]`, `petshops[]`, `clinics[]`, `transactions[]`, `selectedUser`, `isLoading`, total-count refs, `hasStats`, `hasUsers` |
-| `useStatsStore` | `overview`, `revenueData[]`, `activityEntries[]`, `totalActivity`, `isLoading`, `hasOverview`, `hasRevenueData`, `hasActivity` |
-| `useMaintenanceStore` | `status` (MaintenanceStatus \| null), `isLoading`, `isEnabled` (computed), `hasStatus` (computed) |
+| `useAdminStore` | `users[]`, `selectedUser`, `shelters[]`, `petshops[]`, `clinics[]`, `transactions[]`, `donations[]`, `isLoading`, total-count refs (Users/Shelters/Petshops/Clinics/Transactions/Donations), `hasUsers` |
+| `useStatsStore` | `overview`, `revenueData[]`, `revenueStats`, `isLoading`, `hasOverview`, `hasRevenueData`, `hasRevenueStats` |
+| `useMaintenanceStore` | `status` (MaintenanceStatus \| null), `isLoading`, `isEnabled` (computed from `status.is_active`), `hasStatus` (computed) |
 
 Token is persisted to `localStorage` under key `mopetoo_token`. The auth store exposes `setSession()`, `clearSession()`, and `restoreFromStorage()`.
 
@@ -247,24 +247,27 @@ Any change to token storage or auth flow warrants a security review.
 - **NuxtLink href assertions:** `{ NuxtLink: false }` or `{ NuxtLink: true }` stubs do not produce plain `<a href>`. Use a custom stub: `{ NuxtLink: { template: '<a :href="to"><slot /></a>', props: ['to'] } }`
 
 **Mocking notes for admin slice:**
-- `useAdmin` composable: mock at module level with reactive refs (`mockStats`, `mockUsers`, `mockShelters`, `mockPetshops`, `mockClinics`, `mockTransactions`, `mockIsLoading`, `mockError`) — canonical pattern from clinics/petshops slices
+- `useAdmin` composable: mock at module level with `reactive()` for store state and `ref()` for error — canonical pattern from clinics/petshops slices
 - `admin.ts` middleware test: same `vi.hoisted()` + `mockNuxtImport('navigateTo', ...)` + `vi.resetModules()` pattern as `auth.test.ts`
-- 2-step delete confirmation: `confirmingDeleteId` ref — first button click sets id, second click calls `deleteUser/deleteShelter/deletePetshop/deleteAdminClinic`. Test both steps independently.
-- Toggle PRO/Admin: click "Dar PRO" → `updateUser(id, { is_pro: true })`; click "Quitar PRO" → `updateUser(id, { is_pro: false })`. Same for Admin/Verificado/Destacado toggles.
-- Self-protection guard: "Quitar Admin" and "Eliminar" buttons are disabled when `user.id === authStore.currentUser.id`. Set `currentUser: { id: 1, is_admin: true }` in `createTestingPinia` and use `user.id = 1` to verify `disabled` attribute.
-- KPI card skeleton: 8 skeleton cards with `aria-busy="true"` visible when `isLoading=true` and no stats loaded yet.
-- Transaction type badges: `subscription` → `.bg-primary`; `donation` → `.bg-success`. Status badges: `completed` → `.bg-success`; `pending` → `.bg-warning`; `failed` → `.bg-danger`; `refunded` → `.bg-secondary`.
-- Transaction log is read-only: assert no Eliminar, Verificar, or Destacar buttons rendered.
+- **AdminDashboard uses `useStats`**: mock `../../stats/composables/useStats` (not `useAdmin`) for KPIs. Overview is nested: `overview.users.total`, `overview.content.total_pets`, `overview.revenue_cop.in_period`, etc. Stub `MaintenanceToggle` component.
+- **No DELETE/PUT endpoints in backend**: All mutations use specific PATCH endpoints (grant-pro, revoke-pro, grant-admin, revoke-admin, activate, deactivate, verify, plan). No 2-step delete confirmation.
+- Toggle PRO: click "Dar PRO" → `grantPro(id, 'pro_monthly')`; click "Quitar PRO" → `revokePro(id)`. Admin: `grantAdmin(id)` / `revokeAdmin(id)`. Activate/Deactivate: `activateUser(id)` / `deactivateUser(id)`.
+- Self-protection guard: "Quitar Admin" and "Desactivar" buttons are disabled when `user.id === authStore.currentUser.id`. Set `currentEntity: { id: 99, is_admin: true }` in `createTestingPinia` and use `user.id = 99` to verify `disabled` attribute.
+- KPI card skeleton: 8 skeleton cards with `aria-busy="true"` visible when `statsStore.isLoading=true` and `!statsStore.hasOverview`.
+- Transaction status badges: `approved` → `.bg-success`; `pending` → `.bg-warning`; `declined` → `.bg-danger`; `error` → `.bg-secondary`. No type column (transactions and donations are separate endpoints).
+- Store plan badges: `featured` → `.bg-warning`; `free` → `.bg-secondary`. Clinic plan: `pro` → `.bg-info`; `free` → `.bg-secondary`.
+- All entity IDs are `number` (not string). All pagination uses `limit` (not `per_page`).
 
 **Mocking notes for maintenance slice:**
-- `useMaintenance` composable: mock at module level with reactive refs (`mockFetchStatus`, `mockToggleMaintenance`, `mockError = ref(null)`, `mockMaintenanceStore = reactive({...})`) — same canonical pattern as stats/clinics slices
+- `useMaintenance` composable: mock at module level with reactive refs (`mockFetchStatus`, `mockActivateMaintenance`, `mockDeactivateMaintenance`, `mockError = ref(null)`, `mockMaintenanceStore = reactive({...})`) — same canonical pattern as stats/clinics slices
 - `maintenance.ts` middleware: same `vi.hoisted()` + `mockNuxtImport('navigateTo', ...)` + `vi.resetModules()` pattern as `admin.test.ts`
-- **Critical**: `maintenanceStore.isEnabled` is a computed from `status.is_enabled`. In `createTestingPinia`, set `maintenance: { status: { is_enabled: true } }` (NOT `maintenance: { isEnabled: true }`) to control the state
+- **Critical**: `maintenanceStore.isEnabled` is a computed from `status.is_active` (NOT `is_enabled`). In `createTestingPinia`, set `maintenance: { status: { is_active: true } }` to control the state
 - Middleware also reads `useAuthStore` — both stores must be set in `initialState` when testing the middleware: `{ auth: { token, currentUser }, maintenance: { status } }`
 - `fetchStatus()` fails **silently** (no `error.value` set) — test that `error.value` stays `null` after API rejection
-- `toggleMaintenance()` **surfaces** errors — test all three error shapes: `{ data: { error: 'msg' } }`, `{ message: 'msg' }`, and fallback generic message
+- `activateMaintenance(request)` takes `{ message, estimated_return? }` and calls `PATCH /api/admin/maintenance/activate`. `deactivateMaintenance()` calls `PATCH /api/admin/maintenance/deactivate` with no body. Both surface errors.
+- Maintenance status fields: `is_active` (not `is_enabled`), `activated_at` (not `updated_at`), `activated_by_admin_id` (number, not `updated_by` string), `estimated_return` (ISO-8601 optional)
 - `MaintenancePage` is a pure presentational component — no composable mock needed; use `mountSuspended` with NuxtLink stub
-- `MaintenanceToggle` calls `fetchStatus()` on mount — ensure `mockFetchStatus` is a `vi.fn()` that resolves immediately to prevent accidental store mutations
+- `MaintenanceToggle` calls `fetchStatus()` on mount — ensure `mockFetchStatus` is a `vi.fn()` that resolves immediately to prevent accidental store mutations. Toggle shows activation form (message input + estimated return input) when confirming enable.
 
 Invoke this agent for any new feature slice tests.
 

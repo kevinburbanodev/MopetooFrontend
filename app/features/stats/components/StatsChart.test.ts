@@ -4,38 +4,38 @@
 //
 // Strategy:
 //   - Component receives data and isLoading as props — no composable mocking needed.
-//   - Tests verify: skeleton (6 rows), bar rendering, metric toggle buttons,
-//     active metric class, COP formatting, month labels, empty state.
+//   - Tests verify: skeleton (6 rows), bar rendering, COP formatting,
+//     date labels, and empty state.
+//   - Uses RevenueSeriesPoint with `revenue` as the single metric.
 // ============================================================
 
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect } from 'vitest'
 import { mountSuspended } from '@nuxt/test-utils/runtime'
 import { createTestingPinia } from '@pinia/testing'
 import StatsChart from './StatsChart.vue'
-import type { RevenueDataPoint } from '../types'
+import type { RevenueSeriesPoint } from '../types'
 
 // ── Fixtures ──────────────────────────────────────────────────
 
-function makePoint(overrides: Partial<RevenueDataPoint> = {}): RevenueDataPoint {
+function makePoint(overrides: Partial<RevenueSeriesPoint> = {}): RevenueSeriesPoint {
   return {
-    month: '2025-01',
-    subscriptions: 1_000_000,
-    donations: 200_000,
-    total: 1_200_000,
+    date: '2025-01-01',
+    revenue: 1_200_000,
+    count: 15,
     ...overrides,
   }
 }
 
-const sampleData: RevenueDataPoint[] = [
-  makePoint({ month: '2025-01', subscriptions: 1_000_000, donations: 200_000, total: 1_200_000 }),
-  makePoint({ month: '2025-02', subscriptions: 1_500_000, donations: 300_000, total: 1_800_000 }),
-  makePoint({ month: '2025-03', subscriptions: 800_000, donations: 100_000, total: 900_000 }),
+const sampleData: RevenueSeriesPoint[] = [
+  makePoint({ date: '2025-01-01', revenue: 1_200_000, count: 10 }),
+  makePoint({ date: '2025-02-01', revenue: 1_800_000, count: 15 }),
+  makePoint({ date: '2025-03-01', revenue: 900_000, count: 8 }),
 ]
 
 // ── Mount helper ──────────────────────────────────────────────
 
 interface MountOptions {
-  data?: RevenueDataPoint[]
+  data?: RevenueSeriesPoint[]
   isLoading?: boolean
 }
 
@@ -93,50 +93,6 @@ describe('StatsChart', () => {
     })
   })
 
-  // ── Metric toggle buttons ────────────────────────────────────
-
-  describe('metric toggle buttons', () => {
-    it('renders three metric buttons: Total, Suscripciones, Donaciones', async () => {
-      const wrapper = await mountChart({ data: sampleData })
-      expect(wrapper.text()).toContain('Total')
-      expect(wrapper.text()).toContain('Suscripciones')
-      expect(wrapper.text()).toContain('Donaciones')
-    })
-
-    it('Total button has btn-primary class by default', async () => {
-      const wrapper = await mountChart({ data: sampleData })
-      const buttons = wrapper.findAll('[role="group"] button')
-      expect(buttons[0].classes()).toContain('btn-primary')
-    })
-
-    it('Suscripciones button has btn-outline-secondary class by default', async () => {
-      const wrapper = await mountChart({ data: sampleData })
-      const buttons = wrapper.findAll('[role="group"] button')
-      expect(buttons[1].classes()).toContain('btn-outline-secondary')
-    })
-
-    it('clicking Suscripciones activates it with btn-primary class', async () => {
-      const wrapper = await mountChart({ data: sampleData })
-      const buttons = wrapper.findAll('[role="group"] button')
-      await buttons[1].trigger('click')
-      expect(buttons[1].classes()).toContain('btn-primary')
-    })
-
-    it('clicking Donaciones activates it with btn-primary class', async () => {
-      const wrapper = await mountChart({ data: sampleData })
-      const buttons = wrapper.findAll('[role="group"] button')
-      await buttons[2].trigger('click')
-      expect(buttons[2].classes()).toContain('btn-primary')
-    })
-
-    it('after clicking Suscripciones, Total button loses btn-primary', async () => {
-      const wrapper = await mountChart({ data: sampleData })
-      const buttons = wrapper.findAll('[role="group"] button')
-      await buttons[1].trigger('click')
-      expect(buttons[0].classes()).not.toContain('btn-primary')
-    })
-  })
-
   // ── Bar rendering ────────────────────────────────────────────
 
   describe('bar chart rendering', () => {
@@ -146,10 +102,10 @@ describe('StatsChart', () => {
       expect(progressBars).toHaveLength(sampleData.length)
     })
 
-    it('the bar with the maximum value has width 100%', async () => {
+    it('the bar with the maximum revenue has width 100%', async () => {
       const wrapper = await mountChart({ data: sampleData })
       const progressInners = wrapper.findAll('.progress-bar')
-      // max total is 1_800_000 (index 1)
+      // max revenue is 1_800_000 (index 1)
       expect(progressInners[1].attributes('style')).toContain('width: 100%')
     })
 
@@ -164,13 +120,21 @@ describe('StatsChart', () => {
       expect(percent).toBeLessThan(100)
     })
 
-    it('shows COP-formatted amounts in the amount column', async () => {
-      const wrapper = await mountChart({ data: [makePoint({ total: 1_200_000 })] })
+    it('all bars use bg-primary class', async () => {
+      const wrapper = await mountChart({ data: sampleData })
+      const progressInners = wrapper.findAll('.progress-bar')
+      progressInners.forEach((bar) => {
+        expect(bar.classes()).toContain('bg-primary')
+      })
+    })
+
+    it('shows COP-formatted revenue amounts', async () => {
+      const wrapper = await mountChart({ data: [makePoint({ revenue: 1_200_000 })] })
       expect(wrapper.text()).toContain('1.200.000')
     })
 
-    it('shows month label text', async () => {
-      const wrapper = await mountChart({ data: [makePoint({ month: '2025-01' })] })
+    it('shows date label text', async () => {
+      const wrapper = await mountChart({ data: [makePoint({ date: '2025-01-01' })] })
       // Intl.DateTimeFormat 'es-ES' short month: "ene." or similar
       expect(wrapper.text()).toMatch(/ene|jan/i)
     })

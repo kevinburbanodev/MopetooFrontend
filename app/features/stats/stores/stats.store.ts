@@ -4,20 +4,19 @@
 // ============================================================
 
 import { defineStore } from 'pinia'
-import type { StatsOverview, RevenueDataPoint, ActivityEntry } from '../types'
+import type { StatsOverview, RevenueSeriesPoint, RevenueStats } from '../types'
 
 export const useStatsStore = defineStore('stats', () => {
   // ── State ──────────────────────────────────────────────────
   const overview = ref<StatsOverview | null>(null)
-  const revenueData = ref<RevenueDataPoint[]>([])
-  const activityEntries = ref<ActivityEntry[]>([])
-  const totalActivity = ref(0)
+  const revenueData = ref<RevenueSeriesPoint[]>([])
+  const revenueStats = ref<RevenueStats | null>(null)
   const isLoading = ref(false)
 
   // ── Getters ────────────────────────────────────────────────
   const hasOverview = computed(() => overview.value !== null)
   const hasRevenueData = computed(() => revenueData.value.length > 0)
-  const hasActivity = computed(() => activityEntries.value.length > 0)
+  const hasRevenueStats = computed(() => revenueStats.value !== null)
 
   // ── Actions ────────────────────────────────────────────────
 
@@ -25,13 +24,12 @@ export const useStatsStore = defineStore('stats', () => {
     overview.value = data
   }
 
-  function setRevenueData(data: RevenueDataPoint[]): void {
+  function setRevenueData(data: RevenueSeriesPoint[]): void {
     revenueData.value = data
   }
 
-  function setActivityEntries(data: ActivityEntry[], total: number): void {
-    activityEntries.value = data
-    totalActivity.value = total
+  function setRevenueStats(data: RevenueStats): void {
+    revenueStats.value = data
   }
 
   function setLoading(val: boolean): void {
@@ -46,8 +44,7 @@ export const useStatsStore = defineStore('stats', () => {
   function clearStats(): void {
     overview.value = null
     revenueData.value = []
-    activityEntries.value = []
-    totalActivity.value = 0
+    revenueStats.value = null
     isLoading.value = false
   }
 
@@ -55,17 +52,16 @@ export const useStatsStore = defineStore('stats', () => {
     // State
     overview,
     revenueData,
-    activityEntries,
-    totalActivity,
+    revenueStats,
     isLoading,
     // Getters
     hasOverview,
     hasRevenueData,
-    hasActivity,
+    hasRevenueStats,
     // Actions
     setOverview,
     setRevenueData,
-    setActivityEntries,
+    setRevenueStats,
     setLoading,
     clearStats,
   }

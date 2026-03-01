@@ -3,66 +3,47 @@
 // Central API surface for all admin management operations.
 // State is owned by useAdminStore; this composable is the
 // API layer that keeps the store in sync.
-// All ID parameters are validated before use in API paths
-// to prevent path traversal attacks.
+//
+// Backend uses specific PATCH endpoints for each action
+// (no generic PUT or DELETE).
+// All ID parameters are validated as positive numbers.
 // ============================================================
 
 import type {
-  AdminStats,
   AdminUser,
   AdminShelter,
   AdminPetshop,
   AdminClinic,
   AdminTransaction,
+  AdminDonation,
   AdminUsersResponse,
   AdminSheltersResponse,
   AdminPetshopsResponse,
   AdminClinicsResponse,
   AdminTransactionsResponse,
+  AdminDonationsResponse,
   AdminUserFilters,
   AdminFilters,
+  AdminTransactionFilters,
+  AdminDonationFilters,
 } from '../types'
 
-/** Validate string IDs before interpolation into API paths. */
-const ID_PATTERN = /^[\w-]{1,64}$/
-
 export function useAdmin() {
-  const { get, put, del } = useApi()
+  const { get, patch } = useApi()
   const adminStore = useAdminStore()
 
   const error = ref<string | null>(null)
 
-  // ── Stats ───────────────────────────────────────────────────
+  // ── Helpers ────────────────────────────────────────────────
 
-  /**
-   * Fetch platform KPI statistics.
-   * Handles both `{ stats: AdminStats }` envelope and a direct AdminStats object.
-   */
-  async function fetchStats(): Promise<void> {
-    adminStore.setLoading(true)
-    error.value = null
-    try {
-      const response = await get<{ stats: AdminStats } | AdminStats>('/api/admin/stats')
-      if ('stats' in response && typeof (response as { stats: AdminStats }).stats === 'object') {
-        adminStore.setStats((response as { stats: AdminStats }).stats)
-      }
-      else {
-        adminStore.setStats(response as AdminStats)
-      }
-    }
-    catch (err: unknown) {
-      error.value = extractErrorMessage(err)
-    }
-    finally {
-      adminStore.setLoading(false)
-    }
+  function isValidId(id: unknown): id is number {
+    return typeof id === 'number' && id > 0
   }
 
-  // ── Users ───────────────────────────────────────────────────
+  // ── Users — fetch ─────────────────────────────────────────
 
   /**
    * Fetch paginated user list, optionally filtered.
-   * Handles both `{ users: AdminUser[] }` envelope and plain `AdminUser[]` shapes.
    */
   async function fetchUsers(filters?: AdminUserFilters): Promise<void> {
     adminStore.setLoading(true)
@@ -70,20 +51,16 @@ export function useAdmin() {
     try {
       const params = new URLSearchParams()
       if (filters?.search) params.set('search', filters.search)
-      if (filters?.is_pro !== undefined) params.set('is_pro', String(filters.is_pro))
-      if (filters?.is_admin !== undefined) params.set('is_admin', String(filters.is_admin))
+      if (filters?.plan) params.set('plan', filters.plan)
+      if (filters?.active !== undefined) params.set('active', String(filters.active))
+      if (filters?.country) params.set('country', filters.country)
       if (filters?.page) params.set('page', String(filters.page))
-      if (filters?.per_page) params.set('per_page', String(filters.per_page))
+      if (filters?.limit) params.set('limit', String(filters.limit))
       const qs = params.toString()
       const path = qs ? `/api/admin/users?${qs}` : '/api/admin/users'
 
-      const response = await get<AdminUsersResponse | AdminUser[]>(path)
-      if (Array.isArray(response)) {
-        adminStore.setUsers(response, response.length)
-      }
-      else {
-        adminStore.setUsers(response.users ?? [], response.total ?? 0)
-      }
+      const response = await get<AdminUsersResponse>(path)
+      adminStore.setUsers(response.users ?? [], response.total ?? 0)
     }
     catch (err: unknown) {
       error.value = extractErrorMessage(err)
@@ -93,56 +70,70 @@ export function useAdmin() {
     }
   }
 
-  /**
-   * Update a user's fields (e.g. is_pro, is_admin toggles).
-   * Validates numeric ID before API call.
-   * Returns true on success, false on failure.
-   */
-  async function updateUser(userId: number, data: Partial<AdminUser>): Promise<boolean> {
-    if (typeof userId !== 'number' || userId <= 0) {
-      error.value = 'ID de usuario inválido.'
-      return false
-    }
+  // ── Users — PATCH actions ─────────────────────────────────
+
+  async function grantPro(userId: number, plan: string): Promise<boolean> {
+    if (!isValidId(userId)) { error.value = 'ID de usuario inválido.'; return false }
     error.value = null
     try {
-      await put<AdminUser>(`/api/admin/users/${userId}`, data)
-      adminStore.updateUser(userId, data)
+      await patch<{ message: string }>(`/api/admin/users/${userId}/grant-pro`, { plan })
+      adminStore.updateUser(userId, { is_pro: true })
       return true
-    }
-    catch (err: unknown) {
-      error.value = extractErrorMessage(err)
-      return false
-    }
+    } catch (err: unknown) { error.value = extractErrorMessage(err); return false }
   }
 
-  /**
-   * Delete a user account permanently.
-   * Validates numeric ID before API call.
-   * Returns true on success, false on failure.
-   */
-  async function deleteUser(userId: number): Promise<boolean> {
-    if (typeof userId !== 'number' || userId <= 0) {
-      error.value = 'ID de usuario inválido.'
-      return false
-    }
+  async function revokePro(userId: number): Promise<boolean> {
+    if (!isValidId(userId)) { error.value = 'ID de usuario inválido.'; return false }
     error.value = null
     try {
-      await del(`/api/admin/users/${userId}`)
-      adminStore.removeUser(userId)
+      await patch<{ message: string }>(`/api/admin/users/${userId}/revoke-pro`, {})
+      adminStore.updateUser(userId, { is_pro: false })
       return true
-    }
-    catch (err: unknown) {
-      error.value = extractErrorMessage(err)
-      return false
-    }
+    } catch (err: unknown) { error.value = extractErrorMessage(err); return false }
   }
 
-  // ── Shelters ────────────────────────────────────────────────
+  async function grantAdmin(userId: number): Promise<boolean> {
+    if (!isValidId(userId)) { error.value = 'ID de usuario inválido.'; return false }
+    error.value = null
+    try {
+      await patch<{ message: string }>(`/api/admin/users/${userId}/grant-admin`, {})
+      adminStore.updateUser(userId, { is_admin: true })
+      return true
+    } catch (err: unknown) { error.value = extractErrorMessage(err); return false }
+  }
 
-  /**
-   * Fetch paginated shelter list.
-   * Handles both `{ shelters: AdminShelter[] }` envelope and plain array.
-   */
+  async function revokeAdmin(userId: number): Promise<boolean> {
+    if (!isValidId(userId)) { error.value = 'ID de usuario inválido.'; return false }
+    error.value = null
+    try {
+      await patch<{ message: string }>(`/api/admin/users/${userId}/revoke-admin`, {})
+      adminStore.updateUser(userId, { is_admin: false })
+      return true
+    } catch (err: unknown) { error.value = extractErrorMessage(err); return false }
+  }
+
+  async function activateUser(userId: number): Promise<boolean> {
+    if (!isValidId(userId)) { error.value = 'ID de usuario inválido.'; return false }
+    error.value = null
+    try {
+      await patch<{ message: string }>(`/api/admin/users/${userId}/activate`, {})
+      adminStore.updateUser(userId, { is_active: true })
+      return true
+    } catch (err: unknown) { error.value = extractErrorMessage(err); return false }
+  }
+
+  async function deactivateUser(userId: number): Promise<boolean> {
+    if (!isValidId(userId)) { error.value = 'ID de usuario inválido.'; return false }
+    error.value = null
+    try {
+      await patch<{ message: string }>(`/api/admin/users/${userId}/deactivate`, {})
+      adminStore.updateUser(userId, { is_active: false })
+      return true
+    } catch (err: unknown) { error.value = extractErrorMessage(err); return false }
+  }
+
+  // ── Shelters — fetch + PATCH actions ──────────────────────
+
   async function fetchShelters(filters?: AdminFilters): Promise<void> {
     adminStore.setLoading(true)
     error.value = null
@@ -150,74 +141,49 @@ export function useAdmin() {
       const params = new URLSearchParams()
       if (filters?.search) params.set('search', filters.search)
       if (filters?.page) params.set('page', String(filters.page))
-      if (filters?.per_page) params.set('per_page', String(filters.per_page))
+      if (filters?.limit) params.set('limit', String(filters.limit))
       const qs = params.toString()
       const path = qs ? `/api/admin/shelters?${qs}` : '/api/admin/shelters'
 
-      const response = await get<AdminSheltersResponse | AdminShelter[]>(path)
-      if (Array.isArray(response)) {
-        adminStore.setShelters(response, response.length)
-      }
-      else {
-        adminStore.setShelters(response.shelters ?? [], response.total ?? 0)
-      }
+      const response = await get<AdminSheltersResponse>(path)
+      adminStore.setShelters(response.shelters ?? [], response.total ?? 0)
     }
-    catch (err: unknown) {
-      error.value = extractErrorMessage(err)
-    }
-    finally {
-      adminStore.setLoading(false)
-    }
+    catch (err: unknown) { error.value = extractErrorMessage(err) }
+    finally { adminStore.setLoading(false) }
   }
 
-  /**
-   * Update a shelter's fields (e.g. is_verified, is_featured toggles).
-   * Validates string ID with ID_PATTERN before API call.
-   */
-  async function updateShelter(shelterId: string, data: Partial<AdminShelter>): Promise<boolean> {
-    if (!ID_PATTERN.test(shelterId)) {
-      error.value = 'ID de refugio inválido.'
-      return false
-    }
+  async function verifyShelter(id: number): Promise<boolean> {
+    if (!isValidId(id)) { error.value = 'ID de refugio inválido.'; return false }
     error.value = null
     try {
-      await put<AdminShelter>(`/api/admin/shelters/${shelterId}`, data)
-      adminStore.updateShelter(shelterId, data)
+      await patch<{ message: string }>(`/api/admin/shelters/${id}/verify`, {})
+      adminStore.updateShelter(id, { is_verified: true })
       return true
-    }
-    catch (err: unknown) {
-      error.value = extractErrorMessage(err)
-      return false
-    }
+    } catch (err: unknown) { error.value = extractErrorMessage(err); return false }
   }
 
-  /**
-   * Delete a shelter permanently.
-   * Validates string ID with ID_PATTERN before API call.
-   */
-  async function deleteShelter(shelterId: string): Promise<boolean> {
-    if (!ID_PATTERN.test(shelterId)) {
-      error.value = 'ID de refugio inválido.'
-      return false
-    }
+  async function activateShelter(id: number): Promise<boolean> {
+    if (!isValidId(id)) { error.value = 'ID de refugio inválido.'; return false }
     error.value = null
     try {
-      await del(`/api/admin/shelters/${shelterId}`)
-      adminStore.removeShelter(shelterId)
+      await patch<{ message: string }>(`/api/admin/shelters/${id}/activate`, {})
+      adminStore.updateShelter(id, { is_active: true })
       return true
-    }
-    catch (err: unknown) {
-      error.value = extractErrorMessage(err)
-      return false
-    }
+    } catch (err: unknown) { error.value = extractErrorMessage(err); return false }
   }
 
-  // ── Petshops ────────────────────────────────────────────────
+  async function deactivateShelter(id: number): Promise<boolean> {
+    if (!isValidId(id)) { error.value = 'ID de refugio inválido.'; return false }
+    error.value = null
+    try {
+      await patch<{ message: string }>(`/api/admin/shelters/${id}/deactivate`, {})
+      adminStore.updateShelter(id, { is_active: false })
+      return true
+    } catch (err: unknown) { error.value = extractErrorMessage(err); return false }
+  }
 
-  /**
-   * Fetch paginated petshop list.
-   * Handles both `{ stores: AdminPetshop[] }` envelope and plain array.
-   */
+  // ── Petshops — fetch + PATCH actions ──────────────────────
+
   async function fetchPetshops(filters?: AdminFilters): Promise<void> {
     adminStore.setLoading(true)
     error.value = null
@@ -225,77 +191,49 @@ export function useAdmin() {
       const params = new URLSearchParams()
       if (filters?.search) params.set('search', filters.search)
       if (filters?.page) params.set('page', String(filters.page))
-      if (filters?.per_page) params.set('per_page', String(filters.per_page))
+      if (filters?.limit) params.set('limit', String(filters.limit))
       const qs = params.toString()
       const path = qs ? `/api/admin/stores?${qs}` : '/api/admin/stores'
 
-      const response = await get<AdminPetshopsResponse | AdminPetshop[]>(path)
-      if (Array.isArray(response)) {
-        adminStore.setPetshops(response, response.length)
-      }
-      else {
-        adminStore.setPetshops(
-          (response as AdminPetshopsResponse).stores ?? [],
-          (response as AdminPetshopsResponse).total ?? 0,
-        )
-      }
+      const response = await get<AdminPetshopsResponse>(path)
+      adminStore.setPetshops(response.stores ?? [], response.total ?? 0)
     }
-    catch (err: unknown) {
-      error.value = extractErrorMessage(err)
-    }
-    finally {
-      adminStore.setLoading(false)
-    }
+    catch (err: unknown) { error.value = extractErrorMessage(err) }
+    finally { adminStore.setLoading(false) }
   }
 
-  /**
-   * Update a petshop's fields (e.g. is_verified, is_featured toggles).
-   * Validates string ID with ID_PATTERN before API call.
-   */
-  async function updatePetshop(petshopId: string, data: Partial<AdminPetshop>): Promise<boolean> {
-    if (!ID_PATTERN.test(petshopId)) {
-      error.value = 'ID de tienda inválido.'
-      return false
-    }
+  async function activateStore(id: number): Promise<boolean> {
+    if (!isValidId(id)) { error.value = 'ID de tienda inválido.'; return false }
     error.value = null
     try {
-      await put<AdminPetshop>(`/api/admin/stores/${petshopId}`, data)
-      adminStore.updatePetshop(petshopId, data)
+      await patch<{ message: string }>(`/api/admin/stores/${id}/activate`, {})
+      adminStore.updatePetshop(id, { is_active: true })
       return true
-    }
-    catch (err: unknown) {
-      error.value = extractErrorMessage(err)
-      return false
-    }
+    } catch (err: unknown) { error.value = extractErrorMessage(err); return false }
   }
 
-  /**
-   * Delete a petshop permanently.
-   * Validates string ID with ID_PATTERN before API call.
-   */
-  async function deletePetshop(petshopId: string): Promise<boolean> {
-    if (!ID_PATTERN.test(petshopId)) {
-      error.value = 'ID de tienda inválido.'
-      return false
-    }
+  async function deactivateStore(id: number): Promise<boolean> {
+    if (!isValidId(id)) { error.value = 'ID de tienda inválido.'; return false }
     error.value = null
     try {
-      await del(`/api/admin/stores/${petshopId}`)
-      adminStore.removePetshop(petshopId)
+      await patch<{ message: string }>(`/api/admin/stores/${id}/deactivate`, {})
+      adminStore.updatePetshop(id, { is_active: false })
       return true
-    }
-    catch (err: unknown) {
-      error.value = extractErrorMessage(err)
-      return false
-    }
+    } catch (err: unknown) { error.value = extractErrorMessage(err); return false }
   }
 
-  // ── Admin Clinics ───────────────────────────────────────────
+  async function setStorePlan(id: number, plan: 'free' | 'featured'): Promise<boolean> {
+    if (!isValidId(id)) { error.value = 'ID de tienda inválido.'; return false }
+    error.value = null
+    try {
+      await patch<{ message: string }>(`/api/admin/stores/${id}/plan`, { plan })
+      adminStore.updatePetshop(id, { plan })
+      return true
+    } catch (err: unknown) { error.value = extractErrorMessage(err); return false }
+  }
 
-  /**
-   * Fetch paginated clinic list for admin management.
-   * Handles both `{ clinics: AdminClinic[] }` envelope and plain array.
-   */
+  // ── Clinics — fetch + PATCH actions ───────────────────────
+
   async function fetchAdminClinics(filters?: AdminFilters): Promise<void> {
     adminStore.setLoading(true)
     error.value = null
@@ -303,118 +241,135 @@ export function useAdmin() {
       const params = new URLSearchParams()
       if (filters?.search) params.set('search', filters.search)
       if (filters?.page) params.set('page', String(filters.page))
-      if (filters?.per_page) params.set('per_page', String(filters.per_page))
+      if (filters?.limit) params.set('limit', String(filters.limit))
       const qs = params.toString()
       const path = qs ? `/api/admin/clinics?${qs}` : '/api/admin/clinics'
 
-      const response = await get<AdminClinicsResponse | AdminClinic[]>(path)
-      if (Array.isArray(response)) {
-        adminStore.setAdminClinics(response, response.length)
-      }
-      else {
-        adminStore.setAdminClinics(response.clinics ?? [], response.total ?? 0)
-      }
+      const response = await get<AdminClinicsResponse>(path)
+      adminStore.setAdminClinics(response.clinics ?? [], response.total ?? 0)
     }
-    catch (err: unknown) {
-      error.value = extractErrorMessage(err)
-    }
-    finally {
-      adminStore.setLoading(false)
-    }
+    catch (err: unknown) { error.value = extractErrorMessage(err) }
+    finally { adminStore.setLoading(false) }
   }
 
-  /**
-   * Update a clinic's fields (e.g. is_verified, is_featured toggles).
-   * Validates string ID with ID_PATTERN before API call.
-   */
-  async function updateAdminClinic(clinicId: string, data: Partial<AdminClinic>): Promise<boolean> {
-    if (!ID_PATTERN.test(clinicId)) {
-      error.value = 'ID de clínica inválido.'
-      return false
-    }
+  async function verifyClinic(id: number): Promise<boolean> {
+    if (!isValidId(id)) { error.value = 'ID de clínica inválido.'; return false }
     error.value = null
     try {
-      await put<AdminClinic>(`/api/admin/clinics/${clinicId}`, data)
-      adminStore.updateAdminClinic(clinicId, data)
+      await patch<{ message: string }>(`/api/admin/clinics/${id}/verify`, {})
+      adminStore.updateAdminClinic(id, { is_verified: true })
       return true
-    }
-    catch (err: unknown) {
-      error.value = extractErrorMessage(err)
-      return false
-    }
+    } catch (err: unknown) { error.value = extractErrorMessage(err); return false }
   }
 
-  /**
-   * Delete a clinic permanently.
-   * Validates string ID with ID_PATTERN before API call.
-   */
-  async function deleteAdminClinic(clinicId: string): Promise<boolean> {
-    if (!ID_PATTERN.test(clinicId)) {
-      error.value = 'ID de clínica inválido.'
-      return false
-    }
+  async function activateClinic(id: number): Promise<boolean> {
+    if (!isValidId(id)) { error.value = 'ID de clínica inválido.'; return false }
     error.value = null
     try {
-      await del(`/api/admin/clinics/${clinicId}`)
-      adminStore.removeAdminClinic(clinicId)
+      await patch<{ message: string }>(`/api/admin/clinics/${id}/activate`, {})
+      adminStore.updateAdminClinic(id, { is_active: true })
       return true
-    }
-    catch (err: unknown) {
-      error.value = extractErrorMessage(err)
-      return false
-    }
+    } catch (err: unknown) { error.value = extractErrorMessage(err); return false }
   }
 
-  // ── Transactions ────────────────────────────────────────────
+  async function deactivateClinic(id: number): Promise<boolean> {
+    if (!isValidId(id)) { error.value = 'ID de clínica inválido.'; return false }
+    error.value = null
+    try {
+      await patch<{ message: string }>(`/api/admin/clinics/${id}/deactivate`, {})
+      adminStore.updateAdminClinic(id, { is_active: false })
+      return true
+    } catch (err: unknown) { error.value = extractErrorMessage(err); return false }
+  }
 
-  /**
-   * Fetch paginated transaction log.
-   * Handles both `{ transactions: AdminTransaction[] }` envelope and plain array.
-   */
-  async function fetchTransactions(filters?: AdminFilters): Promise<void> {
+  async function setClinicPlan(id: number, plan: 'free' | 'pro'): Promise<boolean> {
+    if (!isValidId(id)) { error.value = 'ID de clínica inválido.'; return false }
+    error.value = null
+    try {
+      await patch<{ message: string }>(`/api/admin/clinics/${id}/plan`, { plan })
+      adminStore.updateAdminClinic(id, { plan })
+      return true
+    } catch (err: unknown) { error.value = extractErrorMessage(err); return false }
+  }
+
+  // ── Transactions — fetch ──────────────────────────────────
+
+  async function fetchTransactions(filters?: AdminTransactionFilters): Promise<void> {
     adminStore.setLoading(true)
     error.value = null
     try {
       const params = new URLSearchParams()
-      if (filters?.search) params.set('search', filters.search)
+      if (filters?.user_id) params.set('user_id', String(filters.user_id))
+      if (filters?.plan) params.set('plan', filters.plan)
+      if (filters?.status) params.set('status', filters.status)
+      if (filters?.from) params.set('from', filters.from)
+      if (filters?.to) params.set('to', filters.to)
       if (filters?.page) params.set('page', String(filters.page))
-      if (filters?.per_page) params.set('per_page', String(filters.per_page))
+      if (filters?.limit) params.set('limit', String(filters.limit))
       const qs = params.toString()
       const path = qs ? `/api/admin/transactions?${qs}` : '/api/admin/transactions'
 
-      const response = await get<AdminTransactionsResponse | AdminTransaction[]>(path)
-      if (Array.isArray(response)) {
-        adminStore.setTransactions(response, response.length)
-      }
-      else {
-        adminStore.setTransactions(response.transactions ?? [], response.total ?? 0)
-      }
+      const response = await get<AdminTransactionsResponse>(path)
+      adminStore.setTransactions(response.transactions ?? [], response.total ?? 0)
     }
-    catch (err: unknown) {
-      error.value = extractErrorMessage(err)
+    catch (err: unknown) { error.value = extractErrorMessage(err) }
+    finally { adminStore.setLoading(false) }
+  }
+
+  // ── Donations — fetch ─────────────────────────────────────
+
+  async function fetchDonations(filters?: AdminDonationFilters): Promise<void> {
+    adminStore.setLoading(true)
+    error.value = null
+    try {
+      const params = new URLSearchParams()
+      if (filters?.user_id) params.set('user_id', String(filters.user_id))
+      if (filters?.shelter_id) params.set('shelter_id', String(filters.shelter_id))
+      if (filters?.status) params.set('status', filters.status)
+      if (filters?.from) params.set('from', filters.from)
+      if (filters?.to) params.set('to', filters.to)
+      if (filters?.page) params.set('page', String(filters.page))
+      if (filters?.limit) params.set('limit', String(filters.limit))
+      const qs = params.toString()
+      const path = qs ? `/api/admin/donations?${qs}` : '/api/admin/donations'
+
+      const response = await get<AdminDonationsResponse>(path)
+      adminStore.setDonations(response.donations ?? [], response.total ?? 0)
     }
-    finally {
-      adminStore.setLoading(false)
-    }
+    catch (err: unknown) { error.value = extractErrorMessage(err) }
+    finally { adminStore.setLoading(false) }
   }
 
   return {
     error,
     adminStore,
-    fetchStats,
+    // Users
     fetchUsers,
-    updateUser,
-    deleteUser,
+    grantPro,
+    revokePro,
+    grantAdmin,
+    revokeAdmin,
+    activateUser,
+    deactivateUser,
+    // Shelters
     fetchShelters,
-    updateShelter,
-    deleteShelter,
+    verifyShelter,
+    activateShelter,
+    deactivateShelter,
+    // Petshops
     fetchPetshops,
-    updatePetshop,
-    deletePetshop,
+    activateStore,
+    deactivateStore,
+    setStorePlan,
+    // Clinics
     fetchAdminClinics,
-    updateAdminClinic,
-    deleteAdminClinic,
+    verifyClinic,
+    activateClinic,
+    deactivateClinic,
+    setClinicPlan,
+    // Transactions & Donations
     fetchTransactions,
+    fetchDonations,
   }
 }
 

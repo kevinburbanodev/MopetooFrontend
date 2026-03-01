@@ -5,23 +5,30 @@
 // Self-contained: fetches current status on mount, shows current
 // state, and handles toggling via useMaintenance().
 //
+// Activation requires a message and optionally an estimated return
+// time. Deactivation is a simple confirm action.
+//
 // Follows the two-step inline confirm pattern used across admin
 // components (AdminUserManager, AdminShelterManager, etc.):
-//   1. Operator clicks "Activar mantenimiento" → confirm row appears
+//   1. Operator clicks "Activar/Desactivar mantenimiento" → confirm row appears
 //   2. Operator clicks "Confirmar" → API call fires
 //   3. Operator clicks "Cancelar" → confirm row hides, no API call
 //
 // SSR-safe: no window/document access.
 // Accessible: all interactive elements are <button> with clear labels.
 
-const { fetchStatus, toggleMaintenance, error, maintenanceStore } = useMaintenance()
+const { fetchStatus, activateMaintenance, deactivateMaintenance, error, maintenanceStore } = useMaintenance()
 
 // Whether the two-step confirm UI is visible.
 const confirming = ref(false)
 
-// Formatted date string for updated_at — computed once and cached.
-const formattedUpdatedAt = computed<string | null>(() => {
-  const raw = maintenanceStore.status?.updated_at
+// Fields for the activate form
+const maintenanceMessage = ref('')
+const estimatedReturn = ref('')
+
+// Formatted date string for activated_at — computed once and cached.
+const formattedActivatedAt = computed<string | null>(() => {
+  const raw = maintenanceStore.status?.activated_at
   if (!raw) return null
   try {
     return new Intl.DateTimeFormat('es-ES', {
@@ -37,6 +44,23 @@ const formattedUpdatedAt = computed<string | null>(() => {
   }
 })
 
+// Formatted estimated return
+const formattedEstimatedReturn = computed<string | null>(() => {
+  const raw = maintenanceStore.status?.estimated_return
+  if (!raw) return null
+  try {
+    return new Intl.DateTimeFormat('es-ES', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    }).format(new Date(raw))
+  } catch {
+    return raw
+  }
+})
+
 // ── Handlers ────────────────────────────────────────────────
 
 /** First click on the primary action button. */
@@ -47,12 +71,23 @@ function handleActionClick(): void {
 /** Operator confirms the toggle action. */
 async function handleConfirm(): Promise<void> {
   confirming.value = false
-  await toggleMaintenance(!maintenanceStore.isEnabled)
+  if (maintenanceStore.isEnabled) {
+    await deactivateMaintenance()
+  } else {
+    await activateMaintenance({
+      message: maintenanceMessage.value || 'El sitio se encuentra en mantenimiento.',
+      estimated_return: estimatedReturn.value || undefined,
+    })
+  }
+  maintenanceMessage.value = ''
+  estimatedReturn.value = ''
 }
 
 /** Operator cancels without making any changes. */
 function handleCancel(): void {
   confirming.value = false
+  maintenanceMessage.value = ''
+  estimatedReturn.value = ''
 }
 
 // ── Lifecycle ────────────────────────────────────────────────
@@ -105,23 +140,34 @@ onMounted(async () => {
             {{ maintenanceStore.isEnabled ? 'Activo' : 'Inactivo' }}
           </span>
 
-          <!-- Metadata: who toggled and when -->
+          <!-- Metadata: who activated and when -->
           <span
-            v-if="maintenanceStore.status?.updated_by"
+            v-if="maintenanceStore.status?.activated_by_admin_id"
             class="text-muted small"
           >
-            Actualizado por
-            <strong>{{ maintenanceStore.status.updated_by }}</strong>
-            <template v-if="formattedUpdatedAt">
-              el {{ formattedUpdatedAt }}
+            Activado por admin
+            <strong>#{{ maintenanceStore.status.activated_by_admin_id }}</strong>
+            <template v-if="formattedActivatedAt">
+              el {{ formattedActivatedAt }}
             </template>
           </span>
           <span
-            v-else-if="formattedUpdatedAt"
+            v-else-if="formattedActivatedAt"
             class="text-muted small"
           >
-            Última actualización: {{ formattedUpdatedAt }}
+            Última activación: {{ formattedActivatedAt }}
           </span>
+        </div>
+
+        <!-- Estimated return time -->
+        <div
+          v-if="maintenanceStore.isEnabled && formattedEstimatedReturn"
+          class="alert alert-info py-2 px-3 mb-3 small"
+          role="note"
+          aria-label="Retorno estimado"
+        >
+          <span class="fw-semibold">Retorno estimado:</span>
+          {{ formattedEstimatedReturn }}
         </div>
 
         <!-- Custom message preview -->
@@ -137,6 +183,29 @@ onMounted(async () => {
 
         <!-- Two-step confirm flow -->
         <template v-if="confirming">
+          <!-- Activation form (message + estimated return) — shown when enabling -->
+          <div v-if="!maintenanceStore.isEnabled" class="mb-3">
+            <label for="maintenance-message" class="form-label small fw-semibold">
+              Mensaje de mantenimiento
+            </label>
+            <input
+              id="maintenance-message"
+              v-model="maintenanceMessage"
+              type="text"
+              class="form-control form-control-sm mb-2"
+              placeholder="El sitio se encuentra en mantenimiento."
+            >
+            <label for="maintenance-estimated-return" class="form-label small fw-semibold">
+              Retorno estimado (opcional)
+            </label>
+            <input
+              id="maintenance-estimated-return"
+              v-model="estimatedReturn"
+              type="datetime-local"
+              class="form-control form-control-sm"
+            >
+          </div>
+
           <!-- Confirmation row -->
           <div
             class="d-flex align-items-center gap-2 flex-wrap"

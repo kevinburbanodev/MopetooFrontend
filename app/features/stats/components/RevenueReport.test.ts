@@ -4,37 +4,52 @@
 //
 // Strategy:
 //   - Component is purely data-driven via props — no composable needed.
-//   - Tests verify: skeleton rows, table headers, data rows (badges, totals),
-//     grand totals tfoot row, empty state, and date/COP formatting.
+//   - Tests verify: skeleton rows, table headers, data rows,
+//     grand totals tfoot row (from stats prop), empty state,
+//     and date/COP formatting.
 // ============================================================
 
 import { describe, it, expect } from 'vitest'
 import { mountSuspended } from '@nuxt/test-utils/runtime'
 import { createTestingPinia } from '@pinia/testing'
 import RevenueReport from './RevenueReport.vue'
-import type { RevenueDataPoint } from '../types'
+import type { RevenueSeriesPoint, RevenueStats } from '../types'
 
 // ── Fixtures ──────────────────────────────────────────────────
 
-function makePoint(overrides: Partial<RevenueDataPoint> = {}): RevenueDataPoint {
+function makePoint(overrides: Partial<RevenueSeriesPoint> = {}): RevenueSeriesPoint {
   return {
-    month: '2025-01',
-    subscriptions: 1_000_000,
-    donations: 200_000,
-    total: 1_200_000,
+    date: '2025-01-01',
+    revenue: 1_200_000,
+    count: 15,
     ...overrides,
   }
 }
 
-const sampleData: RevenueDataPoint[] = [
-  makePoint({ month: '2025-01', subscriptions: 1_000_000, donations: 200_000, total: 1_200_000 }),
-  makePoint({ month: '2025-02', subscriptions: 1_500_000, donations: 300_000, total: 1_800_000 }),
+function makeRevenueStats(overrides: Partial<RevenueStats> = {}): RevenueStats {
+  return {
+    generated_at: '2025-01-15T10:00:00Z',
+    period: { from: '2025-01-01', to: '2025-01-31' },
+    total_accumulated_cop: 5_000_000,
+    in_period_cop: 300_000,
+    by_plan: { pro_monthly: { revenue: 200_000, count: 10 } },
+    approved_transactions: 50,
+    arpu: 15_000,
+    series: [],
+    ...overrides,
+  }
+}
+
+const sampleData: RevenueSeriesPoint[] = [
+  makePoint({ date: '2025-01-01', revenue: 1_200_000, count: 10 }),
+  makePoint({ date: '2025-02-01', revenue: 1_800_000, count: 15 }),
 ]
 
 // ── Mount helper ──────────────────────────────────────────────
 
 interface MountOptions {
-  data?: RevenueDataPoint[]
+  data?: RevenueSeriesPoint[]
+  stats?: RevenueStats | null
   isLoading?: boolean
 }
 
@@ -42,6 +57,7 @@ async function mountReport(options: MountOptions = {}) {
   return mountSuspended(RevenueReport, {
     props: {
       data: options.data ?? [],
+      stats: options.stats ?? null,
       isLoading: options.isLoading ?? false,
     },
     global: {
@@ -56,38 +72,33 @@ describe('RevenueReport', () => {
   // ── Section structure ────────────────────────────────────────
 
   describe('section structure', () => {
-    it('renders a section with aria-label "Reporte de ingresos por fuente"', async () => {
+    it('renders a section with aria-label "Reporte de ingresos"', async () => {
       const wrapper = await mountReport({ data: sampleData })
-      expect(wrapper.find('section[aria-label="Reporte de ingresos por fuente"]').exists()).toBe(true)
+      expect(wrapper.find('section[aria-label="Reporte de ingresos"]').exists()).toBe(true)
     })
 
-    it('shows the "Reporte de Ingresos por Fuente" heading', async () => {
+    it('shows the "Reporte de Ingresos" heading', async () => {
       const wrapper = await mountReport({ data: sampleData })
-      expect(wrapper.text()).toContain('Reporte de Ingresos por Fuente')
+      expect(wrapper.text()).toContain('Reporte de Ingresos')
     })
   })
 
   // ── Table headers ────────────────────────────────────────────
 
   describe('table headers', () => {
-    it('renders "Mes" column header', async () => {
+    it('renders "Fecha" column header', async () => {
       const wrapper = await mountReport({ data: sampleData })
-      expect(wrapper.find('thead').text()).toContain('Mes')
+      expect(wrapper.find('thead').text()).toContain('Fecha')
     })
 
-    it('renders "Suscripciones PRO" column header', async () => {
+    it('renders "Ingresos (COP)" column header', async () => {
       const wrapper = await mountReport({ data: sampleData })
-      expect(wrapper.find('thead').text()).toContain('Suscripciones PRO')
+      expect(wrapper.find('thead').text()).toContain('Ingresos (COP)')
     })
 
-    it('renders "Donaciones" column header', async () => {
+    it('renders "Transacciones" column header', async () => {
       const wrapper = await mountReport({ data: sampleData })
-      expect(wrapper.find('thead').text()).toContain('Donaciones')
-    })
-
-    it('renders "Total" column header', async () => {
-      const wrapper = await mountReport({ data: sampleData })
-      expect(wrapper.find('thead').text()).toContain('Total')
+      expect(wrapper.find('thead').text()).toContain('Transacciones')
     })
   })
 
@@ -120,30 +131,23 @@ describe('RevenueReport', () => {
       expect(dataRows).toHaveLength(sampleData.length)
     })
 
-    it('shows the month name in Spanish', async () => {
-      const wrapper = await mountReport({ data: [makePoint({ month: '2025-01' })] })
+    it('shows the date in Spanish month format', async () => {
+      const wrapper = await mountReport({ data: [makePoint({ date: '2025-01-01' })] })
       // Intl formats as "enero de 2025" or similar
       expect(wrapper.find('tbody').text()).toMatch(/enero/i)
     })
 
-    it('renders subscriptions amount with bg-info badge', async () => {
-      const wrapper = await mountReport({ data: [makePoint({ subscriptions: 1_000_000 })] })
-      const badge = wrapper.find('.badge.bg-info')
+    it('renders revenue amount with bg-primary badge', async () => {
+      const wrapper = await mountReport({ data: [makePoint({ revenue: 1_200_000 })] })
+      const badge = wrapper.find('.badge.bg-primary')
       expect(badge.exists()).toBe(true)
-      expect(badge.text()).toContain('1.000.000')
+      expect(badge.text()).toContain('1.200.000')
     })
 
-    it('renders donations amount with bg-success badge', async () => {
-      const wrapper = await mountReport({ data: [makePoint({ donations: 200_000 })] })
-      const badge = wrapper.find('.badge.bg-success')
-      expect(badge.exists()).toBe(true)
-      expect(badge.text()).toContain('200.000')
-    })
-
-    it('renders the total column with COP formatting', async () => {
-      const wrapper = await mountReport({ data: [makePoint({ total: 1_200_000 })] })
+    it('renders the transaction count', async () => {
+      const wrapper = await mountReport({ data: [makePoint({ count: 42 })] })
       const row = wrapper.find('tbody tr')
-      expect(row.text()).toContain('1.200.000')
+      expect(row.text()).toContain('42')
     })
   })
 
@@ -160,22 +164,32 @@ describe('RevenueReport', () => {
       expect(wrapper.find('tfoot').text()).toContain('Total acumulado')
     })
 
-    it('shows the sum of subscriptions in tfoot', async () => {
-      const wrapper = await mountReport({ data: sampleData })
-      // 1_000_000 + 1_500_000 = 2_500_000
-      expect(wrapper.find('tfoot').text()).toContain('2.500.000')
+    it('uses stats.total_accumulated_cop for totals when stats prop is provided', async () => {
+      const wrapper = await mountReport({
+        data: sampleData,
+        stats: makeRevenueStats({ total_accumulated_cop: 9_999_999 }),
+      })
+      expect(wrapper.find('tfoot').text()).toContain('9.999.999')
     })
 
-    it('shows the sum of donations in tfoot', async () => {
-      const wrapper = await mountReport({ data: sampleData })
-      // 200_000 + 300_000 = 500_000
-      expect(wrapper.find('tfoot').text()).toContain('500.000')
+    it('uses stats.approved_transactions for count total when stats prop is provided', async () => {
+      const wrapper = await mountReport({
+        data: sampleData,
+        stats: makeRevenueStats({ approved_transactions: 77 }),
+      })
+      expect(wrapper.find('tfoot').text()).toContain('77')
     })
 
-    it('shows the grand total in tfoot', async () => {
+    it('falls back to computed sum of revenue when no stats prop', async () => {
       const wrapper = await mountReport({ data: sampleData })
       // 1_200_000 + 1_800_000 = 3_000_000
       expect(wrapper.find('tfoot').text()).toContain('3.000.000')
+    })
+
+    it('falls back to computed sum of counts when no stats prop', async () => {
+      const wrapper = await mountReport({ data: sampleData })
+      // 10 + 15 = 25
+      expect(wrapper.find('tfoot').text()).toContain('25')
     })
 
     it('does not render tfoot when data is empty', async () => {

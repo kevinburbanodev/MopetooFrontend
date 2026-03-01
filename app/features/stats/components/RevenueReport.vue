@@ -1,19 +1,21 @@
 <script setup lang="ts">
-// RevenueReport — tabular monthly revenue breakdown.
-// Receives revenue data as a prop (fetched by the parent page) and
-// renders a table with subscriptions + donations per month, plus
-// a totals row with grand sums. All amounts formatted as COP.
+// RevenueReport — tabular revenue breakdown.
+// Receives revenue series data and optional aggregate stats as props.
+// Columns: date, revenue (COP), count. Totals row uses aggregates
+// from the RevenueStats object when available.
 
-import type { RevenueDataPoint } from '../types'
+import type { RevenueSeriesPoint, RevenueStats } from '../types'
 
 // ── Props ─────────────────────────────────────────────────────
 
 interface Props {
-  data: RevenueDataPoint[]
+  data: RevenueSeriesPoint[]
+  stats?: RevenueStats | null
   isLoading?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
+  stats: null,
   isLoading: false,
 })
 
@@ -29,29 +31,28 @@ function formatCOP(amount: number): string {
   return copFormatter.format(amount)
 }
 
-function formatMonthFull(month: string): string {
+function formatDateFull(date: string): string {
   try {
-    const [year, m] = month.split('-')
-    const date = new Date(Number(year), Number(m) - 1, 1)
-    return new Intl.DateTimeFormat('es-ES', { month: 'long', year: 'numeric' }).format(date)
+    const parts = date.split('-')
+    const d = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2] ?? 1))
+    return new Intl.DateTimeFormat('es-ES', { month: 'long', year: 'numeric' }).format(d)
   } catch {
-    return month
+    return date
   }
 }
 
 // ── Totals ─────────────────────────────────────────────────────
 
 const totals = computed(() => ({
-  subscriptions: props.data.reduce((s, d) => s + d.subscriptions, 0),
-  donations: props.data.reduce((s, d) => s + d.donations, 0),
-  total: props.data.reduce((s, d) => s + d.total, 0),
+  revenue: props.stats?.total_accumulated_cop ?? props.data.reduce((s, d) => s + d.revenue, 0),
+  count: props.stats?.approved_transactions ?? props.data.reduce((s, d) => s + d.count, 0),
 }))
 </script>
 
 <template>
-  <section aria-label="Reporte de ingresos por fuente">
+  <section aria-label="Reporte de ingresos">
     <h2 class="h5 fw-bold mb-4">
-      <span aria-hidden="true">💰</span> Reporte de Ingresos por Fuente
+      <span aria-hidden="true">💰</span> Reporte de Ingresos
     </h2>
 
     <div class="card border-0 shadow-sm">
@@ -59,10 +60,9 @@ const totals = computed(() => ({
         <table class="table table-hover align-middle mb-0">
           <thead class="table-light">
             <tr>
-              <th scope="col">Mes</th>
-              <th scope="col" class="text-end">Suscripciones PRO</th>
-              <th scope="col" class="text-end">Donaciones</th>
-              <th scope="col" class="text-end fw-bold">Total</th>
+              <th scope="col">Fecha</th>
+              <th scope="col" class="text-end">Ingresos (COP)</th>
+              <th scope="col" class="text-end">Transacciones</th>
             </tr>
           </thead>
           <tbody>
@@ -76,7 +76,6 @@ const totals = computed(() => ({
                 <td><div class="revenue-skeleton__month skeleton-pulse rounded" /></td>
                 <td class="text-end"><div class="revenue-skeleton__amount skeleton-pulse rounded ms-auto" /></td>
                 <td class="text-end"><div class="revenue-skeleton__amount skeleton-pulse rounded ms-auto" /></td>
-                <td class="text-end"><div class="revenue-skeleton__amount skeleton-pulse rounded ms-auto" /></td>
               </tr>
             </template>
 
@@ -84,19 +83,16 @@ const totals = computed(() => ({
             <template v-else-if="data.length > 0">
               <tr
                 v-for="point in data"
-                :key="point.month"
+                :key="point.date"
               >
                 <td class="fw-semibold small text-capitalize">
-                  {{ formatMonthFull(point.month) }}
+                  {{ formatDateFull(point.date) }}
                 </td>
                 <td class="text-end">
-                  <span class="badge bg-info text-dark">{{ formatCOP(point.subscriptions) }}</span>
+                  <span class="badge bg-primary">{{ formatCOP(point.revenue) }}</span>
                 </td>
-                <td class="text-end">
-                  <span class="badge bg-success">{{ formatCOP(point.donations) }}</span>
-                </td>
-                <td class="text-end fw-bold">
-                  {{ formatCOP(point.total) }}
+                <td class="text-end fw-semibold">
+                  {{ point.count }}
                 </td>
               </tr>
             </template>
@@ -104,7 +100,7 @@ const totals = computed(() => ({
             <!-- Empty state -->
             <tr v-else>
               <td
-                colspan="4"
+                colspan="3"
                 class="text-center py-5 text-muted"
               >
                 <div class="fs-2 mb-2" aria-hidden="true">💰</div>
@@ -120,9 +116,8 @@ const totals = computed(() => ({
           >
             <tr class="fw-bold">
               <td>Total acumulado</td>
-              <td class="text-end text-info">{{ formatCOP(totals.subscriptions) }}</td>
-              <td class="text-end text-success">{{ formatCOP(totals.donations) }}</td>
-              <td class="text-end text-primary">{{ formatCOP(totals.total) }}</td>
+              <td class="text-end text-primary">{{ formatCOP(totals.revenue) }}</td>
+              <td class="text-end">{{ totals.count }}</td>
             </tr>
           </tfoot>
         </table>
