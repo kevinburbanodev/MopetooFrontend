@@ -17,9 +17,6 @@
 // a submit attempt. Validation errors (is-invalid) only appear after
 // submitted.value is set to true, which happens on handleSubmit().
 //
-// Weight validation: weight is optional. Invalid values (>200, <0,
-// non-numeric) make the field invalid after submit.
-//
 // What this suite does NOT cover intentionally:
 //   - SCSS / Bootstrap CSS visual styles.
 //   - Native form constraint validation UI (browser-controlled).
@@ -64,8 +61,8 @@ function makeRecord(overrides: Partial<MedicalRecord> = {}): MedicalRecord {
   return {
     id: '1',
     pet_id: '42',
-    date: '2024-06-15',
-    veterinarian: 'Dr. García',
+    date: '2024-06-15T00:00:00Z',
+    symptoms: 'Tos leve',
     diagnosis: 'Control rutinario',
     treatment: 'Vitaminas y desparasitante',
     created_at: '2026-01-01T00:00:00Z',
@@ -79,10 +76,9 @@ function makeRecord(overrides: Partial<MedicalRecord> = {}): MedicalRecord {
 /** Fill all required fields in the form. */
 async function fillRequiredFields(
   wrapper: Awaited<ReturnType<typeof mountSuspended>>,
-  overrides: { date?: string; veterinarian?: string; diagnosis?: string; treatment?: string } = {},
+  overrides: { date?: string; diagnosis?: string; treatment?: string } = {},
 ) {
   await wrapper.find('#medical-date').setValue(overrides.date ?? '2024-06-15')
-  await wrapper.find('#medical-vet').setValue(overrides.veterinarian ?? 'Dr. García')
   await wrapper.find('#medical-diagnosis').setValue(overrides.diagnosis ?? 'Control rutinario')
   await wrapper.find('#medical-treatment').setValue(overrides.treatment ?? 'Vitaminas y desparasitante')
 }
@@ -120,11 +116,11 @@ describe('MedicalRecordForm', () => {
       expect(wrapper.find('#medical-date').exists()).toBe(true)
     })
 
-    it('renders the veterinarian input', async () => {
+    it('renders the symptoms textarea', async () => {
       const wrapper = await mountSuspended(MedicalRecordForm, {
         props: { petId: '42' },
       })
-      expect(wrapper.find('#medical-vet').exists()).toBe(true)
+      expect(wrapper.find('#medical-symptoms').exists()).toBe(true)
     })
 
     it('renders the diagnosis textarea', async () => {
@@ -148,20 +144,6 @@ describe('MedicalRecordForm', () => {
       expect(wrapper.find('#medical-notes').exists()).toBe(true)
     })
 
-    it('renders the weight input', async () => {
-      const wrapper = await mountSuspended(MedicalRecordForm, {
-        props: { petId: '42' },
-      })
-      expect(wrapper.find('#medical-weight').exists()).toBe(true)
-    })
-
-    it('renders the next_visit date input', async () => {
-      const wrapper = await mountSuspended(MedicalRecordForm, {
-        props: { petId: '42' },
-      })
-      expect(wrapper.find('#medical-next-visit').exists()).toBe(true)
-    })
-
     it('starts with an empty date field', async () => {
       const wrapper = await mountSuspended(MedicalRecordForm, {
         props: { petId: '42' },
@@ -169,11 +151,11 @@ describe('MedicalRecordForm', () => {
       expect((wrapper.find('#medical-date').element as HTMLInputElement).value).toBe('')
     })
 
-    it('starts with an empty veterinarian field', async () => {
+    it('starts with an empty symptoms field', async () => {
       const wrapper = await mountSuspended(MedicalRecordForm, {
         props: { petId: '42' },
       })
-      expect((wrapper.find('#medical-vet').element as HTMLInputElement).value).toBe('')
+      expect((wrapper.find('#medical-symptoms').element as HTMLTextAreaElement).value).toBe('')
     })
 
     it('starts with an empty diagnosis field', async () => {
@@ -197,20 +179,6 @@ describe('MedicalRecordForm', () => {
       expect((wrapper.find('#medical-notes').element as HTMLTextAreaElement).value).toBe('')
     })
 
-    it('starts with an empty weight field', async () => {
-      const wrapper = await mountSuspended(MedicalRecordForm, {
-        props: { petId: '42' },
-      })
-      expect((wrapper.find('#medical-weight').element as HTMLInputElement).value).toBe('')
-    })
-
-    it('starts with an empty next_visit field', async () => {
-      const wrapper = await mountSuspended(MedicalRecordForm, {
-        props: { petId: '42' },
-      })
-      expect((wrapper.find('#medical-next-visit').element as HTMLInputElement).value).toBe('')
-    })
-
     it('shows "Guardar registro" on the submit button in create mode', async () => {
       const wrapper = await mountSuspended(MedicalRecordForm, {
         props: { petId: '42' },
@@ -229,20 +197,20 @@ describe('MedicalRecordForm', () => {
   // ── Edit mode — field pre-population ──────────────────────
 
   describe('edit mode (record prop provided) — field pre-population', () => {
-    it('pre-populates the date field from the record prop', async () => {
-      const record = makeRecord({ date: '2024-06-15' })
+    it('pre-populates the date field from the record prop (sliced to YYYY-MM-DD)', async () => {
+      const record = makeRecord({ date: '2024-06-15T00:00:00Z' })
       const wrapper = await mountSuspended(MedicalRecordForm, {
         props: { petId: '42', record },
       })
       expect((wrapper.find('#medical-date').element as HTMLInputElement).value).toBe('2024-06-15')
     })
 
-    it('pre-populates the veterinarian field from the record prop', async () => {
-      const record = makeRecord({ veterinarian: 'Dra. Rodríguez' })
+    it('pre-populates the symptoms field from the record prop', async () => {
+      const record = makeRecord({ symptoms: 'Fiebre alta' })
       const wrapper = await mountSuspended(MedicalRecordForm, {
         props: { petId: '42', record },
       })
-      expect((wrapper.find('#medical-vet').element as HTMLInputElement).value).toBe('Dra. Rodríguez')
+      expect((wrapper.find('#medical-symptoms').element as HTMLTextAreaElement).value).toBe('Fiebre alta')
     })
 
     it('pre-populates the diagnosis field from the record prop', async () => {
@@ -269,28 +237,12 @@ describe('MedicalRecordForm', () => {
       expect((wrapper.find('#medical-notes').element as HTMLTextAreaElement).value).toBe('Reposo relativo 3 días')
     })
 
-    it('pre-populates the weight field when weight is present', async () => {
-      const record = makeRecord({ weight: 4.5 })
+    it('shows empty symptoms field when symptoms is undefined', async () => {
+      const record = makeRecord({ symptoms: undefined })
       const wrapper = await mountSuspended(MedicalRecordForm, {
         props: { petId: '42', record },
       })
-      expect((wrapper.find('#medical-weight').element as HTMLInputElement).value).toBe('4.5')
-    })
-
-    it('pre-populates the next_visit field when next_visit is present', async () => {
-      const record = makeRecord({ next_visit: '2025-01-15' })
-      const wrapper = await mountSuspended(MedicalRecordForm, {
-        props: { petId: '42', record },
-      })
-      expect((wrapper.find('#medical-next-visit').element as HTMLInputElement).value).toBe('2025-01-15')
-    })
-
-    it('shows empty weight field when weight is undefined', async () => {
-      const record = makeRecord({ weight: undefined })
-      const wrapper = await mountSuspended(MedicalRecordForm, {
-        props: { petId: '42', record },
-      })
-      expect((wrapper.find('#medical-weight').element as HTMLInputElement).value).toBe('')
+      expect((wrapper.find('#medical-symptoms').element as HTMLTextAreaElement).value).toBe('')
     })
 
     it('shows empty notes field when notes is undefined', async () => {
@@ -345,14 +297,6 @@ describe('MedicalRecordForm', () => {
       expect(wrapper.find('#medical-date').classes()).toContain('is-invalid')
     })
 
-    it('applies "is-invalid" to the veterinarian input when empty after submit', async () => {
-      const wrapper = await mountSuspended(MedicalRecordForm, {
-        props: { petId: '42' },
-      })
-      await wrapper.find('form').trigger('submit')
-      expect(wrapper.find('#medical-vet').classes()).toContain('is-invalid')
-    })
-
     it('applies "is-invalid" to the diagnosis textarea when empty after submit', async () => {
       const wrapper = await mountSuspended(MedicalRecordForm, {
         props: { petId: '42' },
@@ -369,24 +313,11 @@ describe('MedicalRecordForm', () => {
       expect(wrapper.find('#medical-treatment').classes()).toContain('is-invalid')
     })
 
-    it('does NOT call createMedicalRecord when veterinarian has only 1 character', async () => {
-      const wrapper = await mountSuspended(MedicalRecordForm, {
-        props: { petId: '42' },
-      })
-      await wrapper.find('#medical-date').setValue('2024-06-15')
-      await wrapper.find('#medical-vet').setValue('A')
-      await wrapper.find('#medical-diagnosis').setValue('Control rutinario')
-      await wrapper.find('#medical-treatment').setValue('Vitaminas')
-      await wrapper.find('form').trigger('submit')
-      expect(mockCreateMedicalRecord).not.toHaveBeenCalled()
-    })
-
     it('does NOT call createMedicalRecord when diagnosis has only 1 character', async () => {
       const wrapper = await mountSuspended(MedicalRecordForm, {
         props: { petId: '42' },
       })
       await wrapper.find('#medical-date').setValue('2024-06-15')
-      await wrapper.find('#medical-vet').setValue('Dr. García')
       await wrapper.find('#medical-diagnosis').setValue('X')
       await wrapper.find('#medical-treatment').setValue('Vitaminas')
       await wrapper.find('form').trigger('submit')
@@ -398,60 +329,17 @@ describe('MedicalRecordForm', () => {
         props: { petId: '42' },
       })
       await wrapper.find('#medical-date').setValue('2024-06-15')
-      await wrapper.find('#medical-vet').setValue('Dr. García')
       await wrapper.find('#medical-diagnosis').setValue('Control rutinario')
       await wrapper.find('#medical-treatment').setValue('X')
       await wrapper.find('form').trigger('submit')
       expect(mockCreateMedicalRecord).not.toHaveBeenCalled()
     })
 
-    it('applies "is-invalid" to weight input when weight is out of range (>200) after submit', async () => {
+    it('symptoms field does not block form submission when empty (optional)', async () => {
       const wrapper = await mountSuspended(MedicalRecordForm, {
         props: { petId: '42' },
       })
-      await fillRequiredFields(wrapper)
-      await wrapper.find('#medical-weight').setValue('250')
-      await wrapper.find('form').trigger('submit')
-      expect(wrapper.find('#medical-weight').classes()).toContain('is-invalid')
-    })
-
-    it('applies "is-invalid" to weight input when weight is negative after submit', async () => {
-      const wrapper = await mountSuspended(MedicalRecordForm, {
-        props: { petId: '42' },
-      })
-      await fillRequiredFields(wrapper)
-      await wrapper.find('#medical-weight').setValue('-1')
-      await wrapper.find('form').trigger('submit')
-      expect(wrapper.find('#medical-weight').classes()).toContain('is-invalid')
-    })
-
-    it('weight field is valid when empty (optional field)', async () => {
-      const wrapper = await mountSuspended(MedicalRecordForm, {
-        props: { petId: '42' },
-      })
-      await fillRequiredFields(wrapper)
-      await wrapper.find('form').trigger('submit')
-      // Empty weight → isWeightValid is true (optional) → no is-invalid
-      expect(wrapper.find('#medical-weight').classes()).not.toContain('is-invalid')
-    })
-
-    it('form submits successfully when weight is exactly 0 (boundary)', async () => {
-      const wrapper = await mountSuspended(MedicalRecordForm, {
-        props: { petId: '42' },
-      })
-      await fillRequiredFields(wrapper)
-      await wrapper.find('#medical-weight').setValue('0')
-      await wrapper.find('form').trigger('submit')
-      expect(mockCreateMedicalRecord).toHaveBeenCalled()
-    })
-
-    it('form submits successfully when weight is exactly 200 (boundary)', async () => {
-      const wrapper = await mountSuspended(MedicalRecordForm, {
-        props: { petId: '42' },
-      })
-      await fillRequiredFields(wrapper)
-      await wrapper.find('#medical-weight').setValue('200')
-      await wrapper.find('form').trigger('submit')
+      await fillAndSubmit(wrapper)
       expect(mockCreateMedicalRecord).toHaveBeenCalled()
     })
   })
@@ -466,21 +354,31 @@ describe('MedicalRecordForm', () => {
       await fillAndSubmit(wrapper)
 
       expect(mockCreateMedicalRecord).toHaveBeenCalledWith('42', expect.objectContaining({
-        date: '2024-06-15',
-        veterinarian: 'Dr. García',
+        pet_id: 42,
+        date: '2024-06-15T00:00:00Z',
         diagnosis: 'Control rutinario',
         treatment: 'Vitaminas y desparasitante',
       }))
     })
 
-    it('trims whitespace from veterinarian in the payload', async () => {
+    it('appends T00:00:00Z to the date in the payload', async () => {
       const wrapper = await mountSuspended(MedicalRecordForm, {
         props: { petId: '42' },
       })
-      await fillAndSubmit(wrapper, { veterinarian: '  Dr. García  ' })
+      await fillAndSubmit(wrapper)
 
       const dto = mockCreateMedicalRecord.mock.calls[0][1] as CreateMedicalRecordDTO
-      expect(dto.veterinarian).toBe('Dr. García')
+      expect(dto.date).toBe('2024-06-15T00:00:00Z')
+    })
+
+    it('includes pet_id as a number in the payload', async () => {
+      const wrapper = await mountSuspended(MedicalRecordForm, {
+        props: { petId: '42' },
+      })
+      await fillAndSubmit(wrapper)
+
+      const dto = mockCreateMedicalRecord.mock.calls[0][1] as CreateMedicalRecordDTO
+      expect(dto.pet_id).toBe(42)
     })
 
     it('trims whitespace from diagnosis in the payload', async () => {
@@ -549,48 +447,38 @@ describe('MedicalRecordForm', () => {
       expect(dto.notes).toBeUndefined()
     })
 
-    it('omits weight from payload when weight field is empty', async () => {
+    it('omits symptoms from payload when symptoms field is empty', async () => {
       const wrapper = await mountSuspended(MedicalRecordForm, {
         props: { petId: '42' },
       })
       await fillAndSubmit(wrapper)
 
       const dto = mockCreateMedicalRecord.mock.calls[0][1] as CreateMedicalRecordDTO
-      expect(dto.weight).toBeUndefined()
+      expect(dto.symptoms).toBeUndefined()
     })
 
-    it('includes weight as a float in payload when weight is provided', async () => {
+    it('includes symptoms in payload when symptoms are provided', async () => {
       const wrapper = await mountSuspended(MedicalRecordForm, {
         props: { petId: '42' },
       })
       await fillRequiredFields(wrapper)
-      await wrapper.find('#medical-weight').setValue('4.5')
+      await wrapper.find('#medical-symptoms').setValue('Fiebre, tos')
       await wrapper.find('form').trigger('submit')
 
       const dto = mockCreateMedicalRecord.mock.calls[0][1] as CreateMedicalRecordDTO
-      expect(dto.weight).toBe(4.5)
+      expect(dto.symptoms).toBe('Fiebre, tos')
     })
 
-    it('omits next_visit from payload when next_visit field is empty', async () => {
-      const wrapper = await mountSuspended(MedicalRecordForm, {
-        props: { petId: '42' },
-      })
-      await fillAndSubmit(wrapper)
-
-      const dto = mockCreateMedicalRecord.mock.calls[0][1] as CreateMedicalRecordDTO
-      expect(dto.next_visit).toBeUndefined()
-    })
-
-    it('includes next_visit in payload when provided', async () => {
+    it('trims whitespace from symptoms in the payload', async () => {
       const wrapper = await mountSuspended(MedicalRecordForm, {
         props: { petId: '42' },
       })
       await fillRequiredFields(wrapper)
-      await wrapper.find('#medical-next-visit').setValue('2025-03-15')
+      await wrapper.find('#medical-symptoms').setValue('  Fiebre  ')
       await wrapper.find('form').trigger('submit')
 
       const dto = mockCreateMedicalRecord.mock.calls[0][1] as CreateMedicalRecordDTO
-      expect(dto.next_visit).toBe('2025-03-15')
+      expect(dto.symptoms).toBe('Fiebre')
     })
 
     it('does NOT call updateMedicalRecord in create mode', async () => {
@@ -605,17 +493,20 @@ describe('MedicalRecordForm', () => {
   // ── Submit payload — edit mode ────────────────────────────
 
   describe('submit payload in edit mode', () => {
-    it('calls updateMedicalRecord with correct petId, recordId, and payload', async () => {
+    it('calls updateMedicalRecord with correct recordId and payload (without pet_id)', async () => {
       const record = makeRecord({ id: '5', pet_id: '42' })
       const wrapper = await mountSuspended(MedicalRecordForm, {
         props: { petId: '42', record },
       })
       await wrapper.find('form').trigger('submit')
 
-      expect(mockUpdateMedicalRecord).toHaveBeenCalledWith('42', '5', expect.objectContaining({
-        date: '2024-06-15',
-        veterinarian: 'Dr. García',
+      expect(mockUpdateMedicalRecord).toHaveBeenCalledWith('5', expect.objectContaining({
+        date: '2024-06-15T00:00:00Z',
+        diagnosis: 'Control rutinario',
       }))
+      // pet_id should NOT be in the update payload
+      const dto = mockUpdateMedicalRecord.mock.calls[0][1]
+      expect(dto.pet_id).toBeUndefined()
     })
 
     it('does NOT call createMedicalRecord in edit mode', async () => {
@@ -627,29 +518,16 @@ describe('MedicalRecordForm', () => {
       expect(mockCreateMedicalRecord).not.toHaveBeenCalled()
     })
 
-    it('sends the updated veterinarian after editing the field', async () => {
-      const record = makeRecord({ veterinarian: 'Dr. García' })
+    it('sends the updated diagnosis after editing the field', async () => {
+      const record = makeRecord({ diagnosis: 'Control rutinario' })
       const wrapper = await mountSuspended(MedicalRecordForm, {
         props: { petId: '42', record },
       })
-      await wrapper.find('#medical-vet').setValue('Dra. López')
+      await wrapper.find('#medical-diagnosis').setValue('Infección bacteriana')
       await wrapper.find('form').trigger('submit')
 
-      const dto = mockUpdateMedicalRecord.mock.calls[0][2]
-      expect(dto.veterinarian).toBe('Dra. López')
-    })
-
-    it('omits weight when cleared in edit mode', async () => {
-      const record = makeRecord({ weight: 4.5 })
-      const wrapper = await mountSuspended(MedicalRecordForm, {
-        props: { petId: '42', record },
-      })
-      // Clear the weight field
-      await wrapper.find('#medical-weight').setValue('')
-      await wrapper.find('form').trigger('submit')
-
-      const dto = mockUpdateMedicalRecord.mock.calls[0][2]
-      expect(dto.weight).toBeUndefined()
+      const dto = mockUpdateMedicalRecord.mock.calls[0][1]
+      expect(dto.diagnosis).toBe('Infección bacteriana')
     })
   })
 
@@ -804,7 +682,6 @@ describe('MedicalRecordForm', () => {
       const wrapper = await mountSuspended(MedicalRecordForm, {
         props: { petId: '42' },
       })
-      // The diagnosis counter is in the form-text after the textarea
       const diagnosisContainer = wrapper.find('#medical-diagnosis').element.closest('.mb-3')
       expect(diagnosisContainer?.textContent).toContain('0/1000')
     })
@@ -821,7 +698,7 @@ describe('MedicalRecordForm', () => {
       const wrapper = await mountSuspended(MedicalRecordForm, {
         props: { petId: '42' },
       })
-      const notesContainer = wrapper.find('#medical-notes').element.closest('.mb-3')
+      const notesContainer = wrapper.find('#medical-notes').element.closest('.mb-4')
       expect(notesContainer?.textContent).toContain('0/500')
     })
 
@@ -839,7 +716,7 @@ describe('MedicalRecordForm', () => {
       const wrapper = await mountSuspended(MedicalRecordForm, {
         props: { petId: '42', record },
       })
-      const notesContainer = wrapper.find('#medical-notes').element.closest('.mb-3')
+      const notesContainer = wrapper.find('#medical-notes').element.closest('.mb-4')
       expect(notesContainer?.textContent).toContain('10/500')
     })
   })
@@ -875,11 +752,11 @@ describe('MedicalRecordForm', () => {
       expect(wrapper.text()).toContain('Fecha de la visita')
     })
 
-    it('renders the "Veterinario" label', async () => {
+    it('renders the "Síntomas" label', async () => {
       const wrapper = await mountSuspended(MedicalRecordForm, {
         props: { petId: '42' },
       })
-      expect(wrapper.text()).toContain('Veterinario')
+      expect(wrapper.text()).toContain('Síntomas')
     })
 
     it('renders the "Diagnóstico" label', async () => {
@@ -901,20 +778,6 @@ describe('MedicalRecordForm', () => {
         props: { petId: '42' },
       })
       expect(wrapper.text()).toContain('Notas adicionales')
-    })
-
-    it('renders the "Peso en la visita" label', async () => {
-      const wrapper = await mountSuspended(MedicalRecordForm, {
-        props: { petId: '42' },
-      })
-      expect(wrapper.text()).toContain('Peso en la visita')
-    })
-
-    it('renders the "Próxima visita" label', async () => {
-      const wrapper = await mountSuspended(MedicalRecordForm, {
-        props: { petId: '42' },
-      })
-      expect(wrapper.text()).toContain('Próxima visita')
     })
   })
 })

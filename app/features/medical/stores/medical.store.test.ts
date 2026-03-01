@@ -22,8 +22,8 @@ function makeRecord(overrides: Partial<MedicalRecord> = {}): MedicalRecord {
   return {
     id: '1',
     pet_id: '42',
-    date: '2024-06-15',
-    veterinarian: 'Dr. García',
+    date: '2024-06-15T00:00:00Z',
+    symptoms: 'Tos leve',
     diagnosis: 'Control rutinario',
     treatment: 'Vitaminas y desparasitante',
     created_at: '2026-01-01T00:00:00Z',
@@ -32,9 +32,9 @@ function makeRecord(overrides: Partial<MedicalRecord> = {}): MedicalRecord {
   }
 }
 
-const recordA = makeRecord({ id: '1', date: '2024-06-15', veterinarian: 'Dr. García', diagnosis: 'Control rutinario' })
-const recordB = makeRecord({ id: '2', date: '2024-07-20', veterinarian: 'Dra. López', diagnosis: 'Vacunación', treatment: 'Vacuna triple' })
-const recordC = makeRecord({ id: '3', date: '2024-08-10', veterinarian: 'Dr. Martínez', diagnosis: 'Infección leve', notes: 'Antibiótico 7 días' })
+const recordA = makeRecord({ id: '1', date: '2024-06-15T00:00:00Z', symptoms: 'Tos leve', diagnosis: 'Control rutinario' })
+const recordB = makeRecord({ id: '2', date: '2024-07-20T00:00:00Z', symptoms: 'Fiebre', diagnosis: 'Vacunación', treatment: 'Vacuna triple' })
+const recordC = makeRecord({ id: '3', date: '2024-08-10T00:00:00Z', symptoms: 'Decaimiento', diagnosis: 'Infección leve', notes: 'Antibiótico 7 días' })
 
 // ── Suite ─────────────────────────────────────────────────────
 
@@ -376,12 +376,11 @@ describe('useMedicalStore', () => {
     })
 
     it('stores the full record object with all fields intact', () => {
-      const richRecord = makeRecord({ id: '5', notes: 'Notas especiales', weight: 4.2, next_visit: '2025-01-01' })
+      const richRecord = makeRecord({ id: '5', notes: 'Notas especiales', symptoms: 'Fiebre alta' })
       const store = useMedicalStore()
       store.setSelectedRecord(richRecord)
       expect(store.selectedRecord?.notes).toBe('Notas especiales')
-      expect(store.selectedRecord?.weight).toBe(4.2)
-      expect(store.selectedRecord?.next_visit).toBe('2025-01-01')
+      expect(store.selectedRecord?.symptoms).toBe('Fiebre alta')
     })
   })
 

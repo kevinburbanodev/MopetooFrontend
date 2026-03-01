@@ -30,7 +30,7 @@ onMounted(async () => {
 })
 
 async function handleDelete(recordId: string): Promise<void> {
-  const ok = await deleteMedicalRecord(props.petId, recordId)
+  const ok = await deleteMedicalRecord(recordId)
   if (ok) {
     successMessage.value = 'Registro eliminado correctamente.'
     setTimeout(() => { successMessage.value = null }, 4000)
@@ -144,9 +144,7 @@ async function handleExportPDF(): Promise<void> {
           <div class="card-header border-0 bg-transparent pt-3 pb-0 d-flex align-items-start gap-2">
             <div class="d-flex flex-column gap-1 flex-grow-1">
               <div class="skeleton-pulse rounded medical-skeleton__date" />
-              <div class="skeleton-pulse rounded medical-skeleton__badge" />
             </div>
-            <div class="skeleton-pulse rounded medical-skeleton__weight" />
           </div>
           <div class="card-body pt-2">
             <div class="skeleton-pulse rounded mb-1 medical-skeleton__label" />
@@ -245,17 +243,6 @@ async function handleExportPDF(): Promise<void> {
   &__date {
     height: 0.85rem;
     width: 55%;
-  }
-
-  &__badge {
-    height: 1.25rem;
-    width: 70%;
-  }
-
-  &__weight {
-    height: 1.25rem;
-    width: 3.5rem;
-    flex-shrink: 0;
   }
 
   &__label {

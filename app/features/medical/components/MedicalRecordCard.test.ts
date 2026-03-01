@@ -10,14 +10,9 @@
 //   - Two-step delete confirmation: clicking the trash button shows
 //     a confirmation panel; clicking "Sí, eliminar" emits delete-record;
 //     clicking "Cancelar" returns to the initial button state.
-//   - Overdue badge: next_visit in the past renders bg-danger + "(Vencida)";
-//     next_visit in the future renders bg-warning.
 //   - NuxtLink is stubbed to avoid a real router dependency in most tests.
 //     For edit link href assertions, NuxtLink: false is used so it renders
 //     as a real <a> element in the test environment.
-//
-// Date handling: future dates (2027-...) make isNextVisitOverdue false by
-// default; clearly past dates (2020-...) make it true.
 //
 // What this suite does NOT cover intentionally:
 //   - CSS transitions / SCSS visual styles.
@@ -36,8 +31,8 @@ function makeRecord(overrides: Partial<MedicalRecord> = {}): MedicalRecord {
   return {
     id: '1',
     pet_id: '42',
-    date: '2024-06-15',
-    veterinarian: 'Dr. García',
+    date: '2024-06-15T00:00:00Z',
+    symptoms: 'Tos leve',
     diagnosis: 'Control rutinario anual',
     treatment: 'Vitaminas y desparasitante oral',
     created_at: '2026-01-01T00:00:00Z',
@@ -62,15 +57,7 @@ describe('MedicalRecordCard', () => {
       })
       const time = wrapper.find('time')
       expect(time.exists()).toBe(true)
-      expect(time.attributes('datetime')).toBe('2024-06-15')
-    })
-
-    it('renders the veterinarian name', async () => {
-      const wrapper = await mountSuspended(MedicalRecordCard, {
-        props: { record: defaultRecord, petId: '42' },
-        global: { stubs: globalStubs },
-      })
-      expect(wrapper.text()).toContain('Dr. García')
+      expect(time.attributes('datetime')).toBe('2024-06-15T00:00:00Z')
     })
 
     it('renders the diagnosis text', async () => {
@@ -115,46 +102,38 @@ describe('MedicalRecordCard', () => {
     })
   })
 
-  // ── Rendering — optional weight ───────────────────────────
+  // ── Rendering — optional symptoms ──────────────────────────
 
-  describe('optional weight field', () => {
-    it('shows the weight badge when weight is provided', async () => {
-      const record = makeRecord({ weight: 4.5 })
+  describe('optional symptoms field', () => {
+    it('shows symptoms when present in the record', async () => {
+      const record = makeRecord({ symptoms: 'Fiebre alta y decaimiento' })
       const wrapper = await mountSuspended(MedicalRecordCard, {
         props: { record, petId: '42' },
         global: { stubs: globalStubs },
       })
-      expect(wrapper.text()).toContain('4.5 kg')
+      expect(wrapper.text()).toContain('Fiebre alta y decaimiento')
     })
 
-    it('shows the weight badge title attribute with the correct value', async () => {
-      const record = makeRecord({ weight: 7.2 })
+    it('shows the "Síntomas" section label when symptoms are present', async () => {
+      const record = makeRecord({ symptoms: 'Fiebre' })
       const wrapper = await mountSuspended(MedicalRecordCard, {
         props: { record, petId: '42' },
         global: { stubs: globalStubs },
       })
-      const badge = wrapper.find('[title*="Peso en la visita"]')
-      expect(badge.exists()).toBe(true)
-      expect(badge.attributes('title')).toContain('7.2')
+      expect(wrapper.text()).toContain('Síntomas')
     })
 
-    it('hides the weight badge when weight is undefined', async () => {
-      const record = makeRecord({ weight: undefined })
+    it('hides the symptoms section when symptoms is undefined', async () => {
+      const record = makeRecord({ symptoms: undefined })
       const wrapper = await mountSuspended(MedicalRecordCard, {
         props: { record, petId: '42' },
         global: { stubs: globalStubs },
       })
-      expect(wrapper.text()).not.toContain('kg')
-    })
-
-    it('shows weight of 0 correctly (valid edge case)', async () => {
-      const record = makeRecord({ weight: 0 })
-      const wrapper = await mountSuspended(MedicalRecordCard, {
-        props: { record, petId: '42' },
-        global: { stubs: globalStubs },
-      })
-      // weight: 0 satisfies `v-if="record.weight !== undefined"` — it SHOULD show
-      expect(wrapper.text()).toContain('0 kg')
+      const symptomsParagraphs = wrapper.findAll('p').filter(p =>
+        p.classes().includes('text-muted') &&
+        p.text().toUpperCase().includes('SÍNTOMAS'),
+      )
+      expect(symptomsParagraphs).toHaveLength(0)
     })
   })
 
@@ -186,103 +165,11 @@ describe('MedicalRecordCard', () => {
         global: { stubs: globalStubs },
       })
       // The notes section is v-if="record.notes" — without notes it must not appear.
-      // Asserting the label is absent avoids brittle text coupling.
       const notesParagraphs = wrapper.findAll('p').filter(p =>
         p.classes().includes('text-muted') &&
         p.text().toUpperCase().includes('NOTAS'),
       )
       expect(notesParagraphs).toHaveLength(0)
-    })
-  })
-
-  // ── Rendering — optional next_visit ───────────────────────
-
-  describe('optional next_visit field', () => {
-    it('shows the "Próxima visita" badge when next_visit is provided', async () => {
-      const record = makeRecord({ next_visit: '2027-09-01' })
-      const wrapper = await mountSuspended(MedicalRecordCard, {
-        props: { record, petId: '42' },
-        global: { stubs: globalStubs },
-      })
-      expect(wrapper.text()).toContain('Próxima visita')
-    })
-
-    it('hides the next_visit badge when next_visit is undefined', async () => {
-      const record = makeRecord({ next_visit: undefined })
-      const wrapper = await mountSuspended(MedicalRecordCard, {
-        props: { record, petId: '42' },
-        global: { stubs: globalStubs },
-      })
-      expect(wrapper.text()).not.toContain('Próxima visita')
-    })
-
-    it('the badge has bg-warning class when next_visit is in the future (not overdue)', async () => {
-      const record = makeRecord({ next_visit: '2027-09-01' })
-      const wrapper = await mountSuspended(MedicalRecordCard, {
-        props: { record, petId: '42' },
-        global: { stubs: globalStubs },
-      })
-      // Target the specific next_visit badge by its aria-label, not the first .badge
-      // (the first .badge is the veterinarian bg-info badge)
-      const badge = wrapper.find('[aria-label*="Próxima visita"]')
-      expect(badge.exists()).toBe(true)
-      // Future date → bg-warning, not bg-danger
-      expect(badge.classes()).toContain('bg-warning')
-      expect(badge.classes()).not.toContain('bg-danger')
-    })
-  })
-
-  // ── Overdue badge (next_visit in the past) ────────────────
-
-  describe('"Vencida" overdue badge', () => {
-    it('shows "(Vencida)" text when next_visit is in the past', async () => {
-      const record = makeRecord({ next_visit: '2020-01-01' })
-      const wrapper = await mountSuspended(MedicalRecordCard, {
-        props: { record, petId: '42' },
-        global: { stubs: globalStubs },
-      })
-      expect(wrapper.text()).toContain('Vencida')
-    })
-
-    it('applies bg-danger class to the badge when next_visit is overdue', async () => {
-      const record = makeRecord({ next_visit: '2020-01-01' })
-      const wrapper = await mountSuspended(MedicalRecordCard, {
-        props: { record, petId: '42' },
-        global: { stubs: globalStubs },
-      })
-      // Find the next_visit badge (the one with aria-label containing "Próxima visita")
-      const badge = wrapper.find('[aria-label*="Próxima visita"]')
-      expect(badge.classes()).toContain('bg-danger')
-    })
-
-    it('does NOT apply bg-danger when next_visit is in the future', async () => {
-      const record = makeRecord({ next_visit: '2027-09-01' })
-      const wrapper = await mountSuspended(MedicalRecordCard, {
-        props: { record, petId: '42' },
-        global: { stubs: globalStubs },
-      })
-      const badge = wrapper.find('[aria-label*="Próxima visita"]')
-      expect(badge.classes()).not.toContain('bg-danger')
-    })
-
-    it('overdue badge has aria-label starting with "Próxima visita vencida"', async () => {
-      const record = makeRecord({ next_visit: '2020-01-01' })
-      const wrapper = await mountSuspended(MedicalRecordCard, {
-        props: { record, petId: '42' },
-        global: { stubs: globalStubs },
-      })
-      const badge = wrapper.find('[aria-label*="vencida"]')
-      expect(badge.exists()).toBe(true)
-    })
-
-    it('future badge has aria-label starting with "Próxima visita:" (no "vencida")', async () => {
-      const record = makeRecord({ next_visit: '2027-09-01' })
-      const wrapper = await mountSuspended(MedicalRecordCard, {
-        props: { record, petId: '42' },
-        global: { stubs: globalStubs },
-      })
-      const badge = wrapper.find('[aria-label*="Próxima visita"]')
-      expect(badge.attributes('aria-label')).not.toContain('vencida')
     })
   })
 
@@ -483,16 +370,6 @@ describe('MedicalRecordCard', () => {
       })
       const hiddenSpans = wrapper.findAll('[aria-hidden="true"]')
       expect(hiddenSpans.length).toBeGreaterThan(0)
-    })
-
-    it('next_visit badge with future date has aria-label mentioning "Próxima visita"', async () => {
-      const record = makeRecord({ next_visit: '2027-09-01' })
-      const wrapper = await mountSuspended(MedicalRecordCard, {
-        props: { record, petId: '42' },
-        global: { stubs: globalStubs },
-      })
-      const badge = wrapper.find('[aria-label*="Próxima visita"]')
-      expect(badge.exists()).toBe(true)
     })
 
     it('the article renders as an article element (semantic HTML)', async () => {

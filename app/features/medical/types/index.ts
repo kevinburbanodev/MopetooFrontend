@@ -6,28 +6,22 @@
 export interface MedicalRecord {
   id: string
   pet_id: string
-  /** ISO date string, e.g. '2024-06-15' */
   date: string
-  veterinarian: string
-  diagnosis: string
-  treatment: string
+  symptoms?: string
+  diagnosis?: string
+  treatment?: string
   notes?: string
-  /** Weight in kg at the time of the visit */
-  weight?: number
-  /** ISO date string for the next scheduled visit */
-  next_visit?: string
   created_at: string
   updated_at: string
 }
 
 export interface CreateMedicalRecordDTO {
+  pet_id: number
   date: string
-  veterinarian: string
-  diagnosis: string
-  treatment: string
+  symptoms?: string
+  diagnosis?: string
+  treatment?: string
   notes?: string
-  weight?: number
-  next_visit?: string
 }
 
-export type UpdateMedicalRecordDTO = Partial<CreateMedicalRecordDTO>
+export type UpdateMedicalRecordDTO = Partial<Omit<CreateMedicalRecordDTO, 'pet_id'>>

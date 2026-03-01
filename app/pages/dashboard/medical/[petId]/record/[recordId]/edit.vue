@@ -20,7 +20,7 @@ useSeoMeta({
 const { fetchMedicalRecord, error, medicalStore } = useMedical()
 
 onMounted(async () => {
-  const record = await fetchMedicalRecord(petId, recordId)
+  const record = await fetchMedicalRecord(recordId)
   if (!record) {
     // Not found or unauthorized — redirect to the pet's medical history
     await navigateTo(`/dashboard/medical/${petId}`)

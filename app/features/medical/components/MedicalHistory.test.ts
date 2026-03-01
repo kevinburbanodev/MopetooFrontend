@@ -36,8 +36,8 @@ function makeRecord(overrides: Partial<MedicalRecord> = {}): MedicalRecord {
   return {
     id: '1',
     pet_id: '42',
-    date: '2024-06-15',
-    veterinarian: 'Dr. García',
+    date: '2024-06-15T00:00:00Z',
+    symptoms: 'Tos leve',
     diagnosis: 'Control rutinario',
     treatment: 'Vitaminas y desparasitante',
     created_at: '2026-01-01T00:00:00Z',
