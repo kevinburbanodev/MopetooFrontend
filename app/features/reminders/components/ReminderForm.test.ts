@@ -33,7 +33,7 @@ function makeReminder(overrides: Partial<Reminder> = {}): Reminder {
     pet_id: 42,
     type: 'vacuna',
     title: 'Vacuna antirrábica',
-    scheduled_date: '2027-06-15T10:00',
+    scheduled_date: '2027-06-15T10:00:00Z',
     created_at: '2026-01-01T00:00:00Z',
     updated_at: '2026-01-01T00:00:00Z',
     ...overrides,
@@ -111,12 +111,12 @@ describe('ReminderForm', () => {
       expect(wrapper.find('#reminder-date').exists()).toBe(true)
     })
 
-    it('renders the recurrence select', async () => {
+    it('does NOT render a recurrence select (removed)', async () => {
       const wrapper = await mountSuspended(ReminderForm, {
         props: { pets: [petLuna] },
         global: { stubs: globalStubs },
       })
-      expect(wrapper.find('#reminder-recurrence').exists()).toBe(true)
+      expect(wrapper.find('#reminder-recurrence').exists()).toBe(false)
     })
 
     it('renders the notes textarea', async () => {
@@ -157,14 +157,6 @@ describe('ReminderForm', () => {
         global: { stubs: globalStubs },
       })
       expect((wrapper.find('#reminder-pet').element as HTMLSelectElement).value).toBe('42')
-    })
-
-    it('defaults recurrence to empty string (no recurrence)', async () => {
-      const wrapper = await mountSuspended(ReminderForm, {
-        props: { pets: [petLuna] },
-        global: { stubs: globalStubs },
-      })
-      expect((wrapper.find('#reminder-recurrence').element as HTMLSelectElement).value).toBe('')
     })
 
     it('starts with an empty notes field', async () => {
@@ -214,7 +206,7 @@ describe('ReminderForm', () => {
     })
 
     it('pre-fills the scheduled_date (truncated to 16 chars)', async () => {
-      const reminder = makeReminder({ scheduled_date: '2027-06-15T10:00' })
+      const reminder = makeReminder({ scheduled_date: '2027-06-15T10:00:00Z' })
       const wrapper = await mountSuspended(ReminderForm, {
         props: { reminder, pets: [petLuna] },
         global: { stubs: globalStubs },
@@ -229,15 +221,6 @@ describe('ReminderForm', () => {
         global: { stubs: globalStubs },
       })
       expect((wrapper.find('#reminder-pet').element as HTMLSelectElement).value).toBe('99')
-    })
-
-    it('pre-selects the recurrence when present', async () => {
-      const reminder = makeReminder({ recurrence: 'monthly' })
-      const wrapper = await mountSuspended(ReminderForm, {
-        props: { reminder, pets: [petLuna] },
-        global: { stubs: globalStubs },
-      })
-      expect((wrapper.find('#reminder-recurrence').element as HTMLSelectElement).value).toBe('monthly')
     })
 
     it('pre-fills the notes textarea when notes is present', async () => {
@@ -348,7 +331,7 @@ describe('ReminderForm', () => {
         pet_id: 42,
         type: 'vacuna',
         title: 'Mi recordatorio',
-        scheduled_date: '2027-06-15T10:00',
+        scheduled_date: '2027-06-15T10:00:00Z',
       })
     })
 
@@ -377,28 +360,26 @@ describe('ReminderForm', () => {
       expect(payload.data.title).toBe('Vacuna importante')
     })
 
-    it('omits recurrence from payload when empty string is selected', async () => {
+    it('emits scheduled_date with :00Z suffix (RFC3339)', async () => {
       const wrapper = await mountSuspended(ReminderForm, {
         props: { pets: [petLuna] },
         global: { stubs: globalStubs },
       })
-      // recurrence defaults to '' — do not change it
-      await fillAndSubmit(wrapper)
+      await fillAndSubmit(wrapper, { date: '2027-06-15T10:00' })
 
       const payload = wrapper.emitted('submit')![0][0] as { data: CreateReminderPayload }
-      expect(payload.data.recurrence).toBeUndefined()
+      expect(payload.data.scheduled_date).toBe('2027-06-15T10:00:00Z')
     })
 
-    it('includes recurrence in payload when a recurrence is selected', async () => {
+    it('does not include recurrence in the emitted payload', async () => {
       const wrapper = await mountSuspended(ReminderForm, {
         props: { pets: [petLuna] },
         global: { stubs: globalStubs },
       })
-      await wrapper.find('#reminder-recurrence').setValue('monthly')
       await fillAndSubmit(wrapper)
 
       const payload = wrapper.emitted('submit')![0][0] as { data: CreateReminderPayload }
-      expect(payload.data.recurrence).toBe('monthly')
+      expect((payload.data as Record<string, unknown>).recurrence).toBeUndefined()
     })
 
     it('omits notes from payload when notes field is empty', async () => {
@@ -671,29 +652,6 @@ describe('ReminderForm', () => {
         global: { stubs: globalStubs },
       })
       expect(wrapper.find('#reminder-type').text()).toContain('Visita veterinaria')
-    })
-  })
-
-  // ── Recurrence options completeness ───────────────────────
-
-  describe('recurrence select options', () => {
-    it('has "Sin recurrencia" as the first/default option', async () => {
-      const wrapper = await mountSuspended(ReminderForm, {
-        props: { pets: [petLuna] },
-        global: { stubs: globalStubs },
-      })
-      const firstOption = wrapper.find('#reminder-recurrence option')
-      expect(firstOption.text()).toBe('Sin recurrencia')
-    })
-
-    it('contains all 4 recurrence options plus the empty option', async () => {
-      const wrapper = await mountSuspended(ReminderForm, {
-        props: { pets: [petLuna] },
-        global: { stubs: globalStubs },
-      })
-      // '' + once + weekly + monthly + yearly = 5
-      const options = wrapper.find('#reminder-recurrence').findAll('option')
-      expect(options).toHaveLength(5)
     })
   })
 })

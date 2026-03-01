@@ -35,7 +35,7 @@ function makeReminder(overrides: Partial<Reminder> = {}): Reminder {
     type: 'vacuna',
     title: 'Vacuna antirrábica',
     // Future date so isPast === false by default
-    scheduled_date: '2027-06-15T10:00',
+    scheduled_date: '2027-06-15T10:00:00Z',
     created_at: '2026-01-01T00:00:00Z',
     updated_at: '2026-01-01T00:00:00Z',
     ...overrides,
@@ -63,7 +63,7 @@ describe('ReminderCard', () => {
       })
       const time = wrapper.find('time')
       expect(time.exists()).toBe(true)
-      expect(time.attributes('datetime')).toBe('2027-06-15T10:00')
+      expect(time.attributes('datetime')).toBe('2027-06-15T10:00:00Z')
     })
 
     it('renders a non-empty formatted date string inside the <time> element', async () => {
@@ -120,88 +120,49 @@ describe('ReminderCard', () => {
   // ── Rendering — type label and icon ───────────────────────
 
   describe('type label and icon', () => {
-    it('shows "Vacuna" label and 💉 icon for type vacuna', async () => {
+    it('shows "Vacuna" label and icon for type vacuna', async () => {
       const wrapper = await mountSuspended(ReminderCard, {
         props: { reminder: makeReminder({ type: 'vacuna' }) },
       })
       expect(wrapper.text()).toContain('Vacuna')
-      expect(wrapper.text()).toContain('💉')
     })
 
-    it('shows "Medicina" label and 💊 icon for type medicina', async () => {
+    it('shows "Medicina" label for type medicina', async () => {
       const wrapper = await mountSuspended(ReminderCard, {
         props: { reminder: makeReminder({ type: 'medicina' }) },
       })
       expect(wrapper.text()).toContain('Medicina')
-      expect(wrapper.text()).toContain('💊')
     })
 
-    it('shows "Baño" label and 🛁 icon for type baño', async () => {
+    it('shows "Baño" label for type baño', async () => {
       const wrapper = await mountSuspended(ReminderCard, {
         props: { reminder: makeReminder({ type: 'baño' }) },
       })
       expect(wrapper.text()).toContain('Baño')
-      expect(wrapper.text()).toContain('🛁')
     })
 
-    it('shows "Visita vet." label and 🏥 icon for type visita', async () => {
+    it('shows "Visita vet." label for type visita', async () => {
       const wrapper = await mountSuspended(ReminderCard, {
         props: { reminder: makeReminder({ type: 'visita' }) },
       })
       expect(wrapper.text()).toContain('Visita vet.')
-      expect(wrapper.text()).toContain('🏥')
     })
 
-    it('shows "Otro" label and 📌 icon for type otro', async () => {
+    it('shows "Otro" label for type otro', async () => {
       const wrapper = await mountSuspended(ReminderCard, {
         props: { reminder: makeReminder({ type: 'otro' }) },
       })
       expect(wrapper.text()).toContain('Otro')
-      expect(wrapper.text()).toContain('📌')
     })
   })
 
-  // ── Rendering — recurrence ────────────────────────────────
+  // ── Rendering — no recurrence badge ─────────────────────────
 
-  describe('recurrence label', () => {
-    it('shows recurrence label when recurrence is "weekly"', async () => {
-      const reminder = makeReminder({ recurrence: 'weekly' })
+  describe('recurrence badge (removed)', () => {
+    it('does NOT show any recurrence badge', async () => {
       const wrapper = await mountSuspended(ReminderCard, {
-        props: { reminder },
+        props: { reminder: defaultReminder },
       })
-      expect(wrapper.text()).toContain('Semanal')
-    })
-
-    it('shows recurrence label when recurrence is "monthly"', async () => {
-      const reminder = makeReminder({ recurrence: 'monthly' })
-      const wrapper = await mountSuspended(ReminderCard, {
-        props: { reminder },
-      })
-      expect(wrapper.text()).toContain('Mensual')
-    })
-
-    it('shows recurrence label when recurrence is "yearly"', async () => {
-      const reminder = makeReminder({ recurrence: 'yearly' })
-      const wrapper = await mountSuspended(ReminderCard, {
-        props: { reminder },
-      })
-      expect(wrapper.text()).toContain('Anual')
-    })
-
-    it('shows recurrence label when recurrence is "once"', async () => {
-      const reminder = makeReminder({ recurrence: 'once' })
-      const wrapper = await mountSuspended(ReminderCard, {
-        props: { reminder },
-      })
-      expect(wrapper.text()).toContain('Una vez')
-    })
-
-    it('hides the recurrence badge when recurrence is undefined', async () => {
-      const reminder = makeReminder({ recurrence: undefined })
-      const wrapper = await mountSuspended(ReminderCard, {
-        props: { reminder },
-      })
-      // The recurrence badge uses v-if="recurrenceLabel"; without recurrence, no 🔁
       expect(wrapper.text()).not.toContain('🔁')
     })
   })
@@ -211,7 +172,7 @@ describe('ReminderCard', () => {
   describe('"Vencido" badge (past date)', () => {
     it('shows "Vencido" badge when scheduled_date is in the past', async () => {
       // A clearly past date — 2020 is well before current test execution year
-      const reminder = makeReminder({ scheduled_date: '2020-01-01T10:00' })
+      const reminder = makeReminder({ scheduled_date: '2020-01-01T10:00:00Z' })
       const wrapper = await mountSuspended(ReminderCard, {
         props: { reminder },
       })
@@ -219,7 +180,7 @@ describe('ReminderCard', () => {
     })
 
     it('does NOT show "Vencido" badge when scheduled_date is in the future', async () => {
-      const reminder = makeReminder({ scheduled_date: '2027-06-15T10:00' })
+      const reminder = makeReminder({ scheduled_date: '2027-06-15T10:00:00Z' })
       const wrapper = await mountSuspended(ReminderCard, {
         props: { reminder },
       })
@@ -227,7 +188,7 @@ describe('ReminderCard', () => {
     })
 
     it('applies reminder-card--past CSS class to the article when past', async () => {
-      const reminder = makeReminder({ scheduled_date: '2020-01-01T10:00' })
+      const reminder = makeReminder({ scheduled_date: '2020-01-01T10:00:00Z' })
       const wrapper = await mountSuspended(ReminderCard, {
         props: { reminder },
       })

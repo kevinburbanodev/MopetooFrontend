@@ -24,7 +24,7 @@ function makeReminder(overrides: Partial<Reminder> = {}): Reminder {
     pet_id: 42,
     type: 'vacuna',
     title: 'Vacuna antirrábica',
-    scheduled_date: '2027-06-15T10:00',
+    scheduled_date: '2027-06-15T10:00:00Z',
     created_at: '2026-01-01T00:00:00Z',
     updated_at: '2026-01-01T00:00:00Z',
     ...overrides,
