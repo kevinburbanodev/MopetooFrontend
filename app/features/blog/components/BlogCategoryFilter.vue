@@ -3,21 +3,21 @@
 // blog posts by category. "Todos" clears the filter (emits null).
 // Active state uses btn-primary; inactive uses btn-outline-secondary.
 
-import type { BlogCategory } from '../types'
-
 const props = defineProps<{
-  categories: BlogCategory[]
-  /** Currently active category slug, or null for "all posts" */
-  activeCategorySlug: string | null
+  categories: { value: string; label: string }[]
+  /** Currently active category value, or null for "all posts" */
+  activeCategory: string | null
+  /** Optional map of category value → post count for badge display */
+  categoryCounts?: Record<string, number>
 }>()
 
 const emit = defineEmits<{
   /** Emitted when the user selects a category. null means "Todos". */
-  (e: 'select', slug: string | null): void
+  (e: 'select', category: string | null): void
 }>()
 
-function select(slug: string | null): void {
-  emit('select', slug)
+function select(category: string | null): void {
+  emit('select', category)
 }
 </script>
 
@@ -28,8 +28,8 @@ function select(slug: string | null): void {
       type="button"
       role="tab"
       class="btn btn-sm blog-category-filter__pill"
-      :class="activeCategorySlug === null ? 'btn-primary' : 'btn-outline-secondary'"
-      :aria-selected="activeCategorySlug === null"
+      :class="activeCategory === null ? 'btn-primary' : 'btn-outline-secondary'"
+      :aria-selected="activeCategory === null"
       @click="select(null)"
     >
       Todos
@@ -38,22 +38,22 @@ function select(slug: string | null): void {
     <!-- One pill per category -->
     <button
       v-for="cat in categories"
-      :key="cat.id"
+      :key="cat.value"
       type="button"
       role="tab"
       class="btn btn-sm blog-category-filter__pill"
-      :class="activeCategorySlug === cat.slug ? 'btn-primary' : 'btn-outline-secondary'"
-      :aria-selected="activeCategorySlug === cat.slug"
-      @click="select(cat.slug)"
+      :class="activeCategory === cat.value ? 'btn-primary' : 'btn-outline-secondary'"
+      :aria-selected="activeCategory === cat.value"
+      @click="select(cat.value)"
     >
-      {{ cat.name }}
+      {{ cat.label }}
       <span
-        v-if="cat.post_count !== undefined"
+        v-if="categoryCounts?.[cat.value] !== undefined"
         class="badge rounded-pill ms-1 blog-category-filter__count"
-        :class="activeCategorySlug === cat.slug ? 'bg-white text-primary' : 'bg-primary-subtle text-primary-emphasis'"
+        :class="activeCategory === cat.value ? 'bg-white text-primary' : 'bg-primary-subtle text-primary-emphasis'"
         aria-hidden="true"
       >
-        {{ cat.post_count }}
+        {{ categoryCounts[cat.value] }}
       </span>
     </button>
   </div>

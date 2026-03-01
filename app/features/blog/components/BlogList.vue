@@ -1,63 +1,60 @@
 <script setup lang="ts">
 // BlogList — public blog post listing.
-// Fetches posts and categories on mount, provides client-side search
-// + category filter pill bar, skeleton loading, empty states,
-// and a "Cargar más" pagination button (append pattern).
+// Fetches all posts on mount, provides client-side search
+// + category filter pill bar, skeleton loading, and empty states.
 // All data fetching happens in this component via useBlog.
 
-const { fetchPosts, fetchCategories, error, blogStore } = useBlog()
+import { BLOG_CATEGORIES } from '../types'
+
+const { fetchPosts, error, blogStore } = useBlog()
 
 // ── Filter state ───────────────────────────────────────────────
-const activeCategorySlug = ref<string | null>(null)
+const activeCategory = ref<string | null>(null)
 const searchQuery = ref('')
-// Track what we last fetched so we can diff on filter change
-const lastFetchedCategory = ref<string | null | undefined>(undefined)
 
-const POSTS_PER_PAGE = 9
 const SKELETON_COUNT = 6
 
 // ── Computed ───────────────────────────────────────────────────
-/**
- * Client-side search filter applied on top of the server-fetched posts.
- * Category filtering is server-side (passed as query param); search is
- * kept client-side to avoid a round-trip on every keystroke.
- */
-const filteredPosts = computed(() => {
-  const q = searchQuery.value.trim().toLowerCase()
-  if (!q) return blogStore.posts
 
-  return blogStore.posts.filter(p =>
-    p.title.toLowerCase().includes(q)
-    || p.excerpt.toLowerCase().includes(q)
-    || p.author.name.toLowerCase().includes(q)
-    || p.tags.some(t => t.toLowerCase().includes(q)),
-  )
+/** Post counts per category for badge display */
+const categoryCounts = computed(() => {
+  const counts: Record<string, number> = {}
+  for (const post of blogStore.posts) {
+    counts[post.category] = (counts[post.category] ?? 0) + 1
+  }
+  return counts
 })
 
-const hasMore = computed(() =>
-  blogStore.currentPage < blogStore.totalPages,
-)
+/**
+ * Client-side filter applied on top of the fetched posts.
+ * Both category and search are client-side — all posts are loaded at once.
+ */
+const filteredPosts = computed(() => {
+  let result = blogStore.posts
+
+  // Category filter
+  if (activeCategory.value) {
+    result = result.filter(p => p.category === activeCategory.value)
+  }
+
+  // Text search filter
+  const q = searchQuery.value.trim().toLowerCase()
+  if (q) {
+    result = result.filter(p =>
+      p.title.toLowerCase().includes(q)
+      || p.content.toLowerCase().includes(q),
+    )
+  }
+
+  return result
+})
 
 // ── Actions ────────────────────────────────────────────────────
 
-async function loadPosts(append = false): Promise<void> {
-  const nextPage = append ? blogStore.currentPage + 1 : 1
-  await fetchPosts({
-    category_slug: activeCategorySlug.value ?? undefined,
-    page: nextPage,
-    limit: POSTS_PER_PAGE,
-  }, append)
-}
-
-async function onCategorySelect(slug: string | null): Promise<void> {
-  if (slug === activeCategorySlug.value) return
-  activeCategorySlug.value = slug
+function onCategorySelect(category: string | null): void {
+  if (category === activeCategory.value) return
+  activeCategory.value = category
   searchQuery.value = '' // reset text search when switching category
-  await loadPosts(false)
-}
-
-async function loadMore(): Promise<void> {
-  await loadPosts(true)
 }
 
 function clearSearch(): void {
@@ -65,9 +62,7 @@ function clearSearch(): void {
 }
 
 onMounted(async () => {
-  // Fetch categories and first page of posts in parallel
-  await Promise.all([fetchCategories(), loadPosts(false)])
-  lastFetchedCategory.value = activeCategorySlug.value
+  await fetchPosts()
 })
 </script>
 
@@ -81,11 +76,12 @@ onMounted(async () => {
       </p>
     </div>
 
-    <!-- Category filter -->
-    <div v-if="blogStore.hasCategories" class="mb-3">
+    <!-- Category filter — always visible (hardcoded categories) -->
+    <div class="mb-3">
       <BlogCategoryFilter
-        :categories="blogStore.categories"
-        :active-category-slug="activeCategorySlug"
+        :categories="BLOG_CATEGORIES"
+        :active-category="activeCategory"
+        :category-counts="categoryCounts"
         @select="onCategorySelect"
       />
     </div>
@@ -146,12 +142,6 @@ onMounted(async () => {
             <div class="skeleton-pulse rounded blog-skeleton__line" />
             <div class="skeleton-pulse rounded blog-skeleton__line blog-skeleton__line--short" />
           </div>
-          <div class="card-footer bg-transparent px-3 pb-3 pt-0 border-top-0">
-            <div class="d-flex align-items-center gap-2">
-              <div class="skeleton-pulse rounded-circle blog-skeleton__avatar" />
-              <div class="skeleton-pulse rounded blog-skeleton__author" />
-            </div>
-          </div>
         </div>
       </div>
     </div>
@@ -200,36 +190,6 @@ onMounted(async () => {
           <BlogCard :post="post" />
         </div>
       </div>
-
-      <!-- Load more button -->
-      <div
-        v-if="hasMore && !searchQuery.trim()"
-        class="text-center mt-5"
-      >
-        <button
-          type="button"
-          class="btn btn-outline-primary px-5"
-          :disabled="blogStore.isLoading"
-          :aria-busy="blogStore.isLoading"
-          @click="loadMore"
-        >
-          <span
-            v-if="blogStore.isLoading"
-            class="spinner-border spinner-border-sm me-2"
-            role="status"
-            aria-hidden="true"
-          />
-          {{ blogStore.isLoading ? 'Cargando…' : 'Cargar más artículos' }}
-        </button>
-      </div>
-
-      <!-- End of results message -->
-      <p
-        v-else-if="!hasMore && blogStore.total > POSTS_PER_PAGE && !searchQuery.trim()"
-        class="text-center text-muted small mt-5"
-      >
-        Has llegado al final. ¡Eso es todo por ahora!
-      </p>
     </template>
   </section>
 </template>
@@ -300,17 +260,6 @@ onMounted(async () => {
     width: 100%;
 
     &--short { width: 65%; }
-  }
-
-  &__avatar {
-    width: 28px;
-    height: 28px;
-    flex-shrink: 0;
-  }
-
-  &__author {
-    height: 0.75rem;
-    width: 6rem;
   }
 }
 </style>

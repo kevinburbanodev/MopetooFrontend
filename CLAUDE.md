@@ -26,7 +26,7 @@ npm run test:coverage    # Single run with coverage report
 - Medical feature slice (RF-300–RF-309): 273 tests (store 44, useMedical 65, MedicalRecordCard 38, MedicalHistory 31, MedicalRecordForm 86) ✅
 - Export/PDF slice (RF-400–RF-409): 24 tests (useExportPDF 24) ✅ — exportProfilePDF tests in usePets, exportRemindersPDF tests in useReminders
 - Shelters slice (RF-500–RF-509): 157 tests (store 35, useShelters 35, ShelterList 22, AdoptionPetCard 25, AdoptionDetail 40) ✅
-- Blog slice (RF-600–RF-609): 208 tests (store 44, useBlog 60, BlogCategoryFilter 18, BlogCard 24, BlogList 28, BlogArticle 34) ✅
+- Blog slice (RF-600–RF-609): 147 tests (store 34, useBlog 26, BlogCategoryFilter 20, BlogCard 16, BlogList 27, BlogArticle 24) ✅ — synced with backend model.BlogPost
 - Petshops slice (RF-700–RF-709): 203 tests (store 49, usePetshops 45, PetshopCard 29, PetshopList 38, PetshopDetail 42) ✅ — synced with backend model.Store
 - Pro/Monetización slice (RF-800–RF-809): 216 tests (store 44, usePro 60, ProBanner 22, PricingTable 30, ProUpgradeModal 26, DonationForm 34) ✅
 - Clinics slice (RF-900–RF-909): 186 tests (store 43, useClinics 36, ClinicCard 36, ClinicList 30, ClinicDetail 41) ✅ — synced with backend model.Clinic
@@ -89,7 +89,7 @@ This means `useApi()`, `useAuth()`, `useAuthStore()`, etc. are available in any 
 | `useRemindersStore` | `reminders[]`, `selectedReminder`, `isLoading` |
 | `useMedicalStore` | `records[]`, `selectedRecord`, `isLoading` |
 | `useSheltersStore` | `adoptionListings[]`, `selectedListing`, `isLoading`, `hasAdoptionListings`, `getAvailableListings` |
-| `useBlogStore` | `posts[]`, `selectedPost`, `categories[]`, `isLoading`, `currentPage`, `totalPages`, `total` |
+| `useBlogStore` | `posts[]`, `selectedPost`, `isLoading`, `hasPosts`, `getPostBySlug` |
 | `usePetshopsStore` | `petshops[]`, `selectedPetshop`, `storeProducts[]`, `isLoading`, `hasPetshops`, `getPremiumPetshops` |
 | `useProStore` | `subscription`, `plans[]`, `isLoading`, `isSubscribed`, `getMonthlyPlan`, `getAnnualPlan` |
 | `useClinicsStore` | `clinics[]`, `selectedClinic`, `isLoading`, `hasClinics`, `getPremiumClinics` |

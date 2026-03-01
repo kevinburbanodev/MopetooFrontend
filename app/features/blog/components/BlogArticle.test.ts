@@ -12,7 +12,7 @@
 //   - "Artículo no encontrado": shown when isLoading=false and selectedPost=null.
 //   - Full article: rendered when selectedPost is non-null.
 //   - isSafeImageUrl guard on hero image: https/http accepted; javascript: rejected.
-//   - Author avatar: safe URL shows <img>; fallback initial letter otherwise.
+//   - Category label via BLOG_CATEGORIES lookup.
 //   - Date formatting: Spanish Intl.DateTimeFormat — not the raw ISO string.
 //   - Content rendered as <p> elements split on '\n'.
 //   - "Actualizado el" shown only when updated_at !== published_at.
@@ -30,39 +30,22 @@ import { describe, it, expect } from 'vitest'
 import { mountSuspended } from '@nuxt/test-utils/runtime'
 import { createTestingPinia } from '@pinia/testing'
 import BlogArticle from './BlogArticle.vue'
-import type { BlogPost, BlogCategory } from '../types'
+import type { BlogPost } from '../types'
 
 // ── Fixtures ─────────────────────────────────────────────────
 
-function makeBlogCategory(overrides: Partial<BlogCategory> = {}): BlogCategory {
-  return {
-    id: 'cat-1',
-    slug: 'salud',
-    name: 'Salud',
-    post_count: 5,
-    ...overrides,
-  }
-}
-
 function makeBlogPost(overrides: Partial<BlogPost> = {}): BlogPost {
   return {
-    id: 'post-1',
+    id: 1,
     slug: 'cuidado-perros',
     title: 'Cuidado de perros en verano',
-    excerpt: 'Consejos para mantener a tu perro fresco durante el verano.',
     content: 'Párrafo uno.\nPárrafo dos.\nPárrafo tres.',
-    featured_image: 'https://example.com/image.jpg',
-    author: {
-      id: 'author-1',
-      name: 'Ana García',
-      avatar: 'https://example.com/avatar.jpg',
-    },
-    category: makeBlogCategory(),
-    tags: ['perros', 'verano', 'salud'],
+    cover_image_url: 'https://example.com/image.jpg',
+    category: 'salud',
+    published: true,
     published_at: '2025-06-15T10:00:00Z',
+    created_at: '2025-06-15T10:00:00Z',
     updated_at: '2025-06-15T10:00:00Z',
-    reading_time_minutes: 5,
-    is_published: true,
     ...overrides,
   }
 }
@@ -228,7 +211,7 @@ describe('BlogArticle', () => {
       expect(timeEl.text()).toContain('2025')
     })
 
-    it('renders the category name badge', async () => {
+    it('renders the category name badge via BLOG_CATEGORIES lookup', async () => {
       // Category name is inside a NuxtLink — use custom stub so slot text is visible
       const wrapper = await mountSuspended(BlogArticle, {
         global: {
@@ -242,40 +225,26 @@ describe('BlogArticle', () => {
       expect(wrapper.text()).toContain('Salud')
     })
 
-    it('renders reading time badge when reading_time_minutes is defined', async () => {
-      const post = makeBlogPost({ reading_time_minutes: 7 })
+    it('falls back to raw category value when not in BLOG_CATEGORIES', async () => {
+      const post = makeBlogPost({ category: 'desconocida' as any })
       const wrapper = await mountSuspended(BlogArticle, {
         global: {
           plugins: [createTestingPinia({
             initialState: { blog: { selectedPost: post, isLoading: false } },
           })],
-          stubs: { NuxtLink: true },
+          stubs: { NuxtLink: NuxtLinkHrefStub },
         },
       })
 
-      expect(wrapper.text()).toContain('7 min de lectura')
-    })
-
-    it('hides reading time badge when reading_time_minutes is undefined', async () => {
-      const post = makeBlogPost({ reading_time_minutes: undefined })
-      const wrapper = await mountSuspended(BlogArticle, {
-        global: {
-          plugins: [createTestingPinia({
-            initialState: { blog: { selectedPost: post, isLoading: false } },
-          })],
-          stubs: { NuxtLink: true },
-        },
-      })
-
-      expect(wrapper.text()).not.toContain('min de lectura')
+      expect(wrapper.text()).toContain('desconocida')
     })
   })
 
   // ── Hero image ─────────────────────────────────────────────
 
   describe('hero image', () => {
-    it('shows hero image when featured_image is a valid https URL', async () => {
-      const post = makeBlogPost({ featured_image: 'https://example.com/hero.jpg' })
+    it('shows hero image when cover_image_url is a valid https URL', async () => {
+      const post = makeBlogPost({ cover_image_url: 'https://example.com/hero.jpg' })
       const wrapper = await mountSuspended(BlogArticle, {
         global: {
           plugins: [createTestingPinia({
@@ -291,8 +260,8 @@ describe('BlogArticle', () => {
       expect(img.attributes('src')).toBe('https://example.com/hero.jpg')
     })
 
-    it('hides hero image when featured_image is undefined', async () => {
-      const post = makeBlogPost({ featured_image: undefined })
+    it('hides hero image when cover_image_url is undefined', async () => {
+      const post = makeBlogPost({ cover_image_url: undefined })
       const wrapper = await mountSuspended(BlogArticle, {
         global: {
           plugins: [createTestingPinia({
@@ -305,8 +274,8 @@ describe('BlogArticle', () => {
       expect(wrapper.find('figure.blog-article__hero-wrap').exists()).toBe(false)
     })
 
-    it('hides hero image when featured_image is a javascript: URI (blocked by isSafeImageUrl)', async () => {
-      const post = makeBlogPost({ featured_image: 'javascript:alert(1)' })
+    it('hides hero image when cover_image_url is a javascript: URI (blocked by isSafeImageUrl)', async () => {
+      const post = makeBlogPost({ cover_image_url: 'javascript:alert(1)' })
       const wrapper = await mountSuspended(BlogArticle, {
         global: {
           plugins: [createTestingPinia({
@@ -320,7 +289,7 @@ describe('BlogArticle', () => {
     })
 
     it('hides hero image after @error event on the hero img element', async () => {
-      const post = makeBlogPost({ featured_image: 'https://example.com/broken.jpg' })
+      const post = makeBlogPost({ cover_image_url: 'https://example.com/broken.jpg' })
       const wrapper = await mountSuspended(BlogArticle, {
         global: {
           plugins: [createTestingPinia({
@@ -334,67 +303,6 @@ describe('BlogArticle', () => {
       await wrapper.vm.$nextTick()
 
       expect(wrapper.find('figure.blog-article__hero-wrap').exists()).toBe(false)
-    })
-  })
-
-  // ── Author avatar ──────────────────────────────────────────
-
-  describe('author avatar', () => {
-    it('shows author avatar img when author.avatar is a safe https URL', async () => {
-      const post = makeBlogPost({
-        author: { id: 'a1', name: 'Ana García', avatar: 'https://example.com/avatar.jpg' },
-      })
-      const wrapper = await mountSuspended(BlogArticle, {
-        global: {
-          plugins: [createTestingPinia({
-            initialState: { blog: { selectedPost: post, isLoading: false } },
-          })],
-          stubs: { NuxtLink: true },
-        },
-      })
-
-      const avatar = wrapper.find('.blog-article__author-avatar')
-      expect(avatar.exists()).toBe(true)
-      expect(avatar.attributes('src')).toBe('https://example.com/avatar.jpg')
-    })
-
-    it('shows initial fallback when author.avatar is undefined', async () => {
-      const post = makeBlogPost({
-        author: { id: 'a1', name: 'Ana García', avatar: undefined },
-      })
-      const wrapper = await mountSuspended(BlogArticle, {
-        global: {
-          plugins: [createTestingPinia({
-            initialState: { blog: { selectedPost: post, isLoading: false } },
-          })],
-          stubs: { NuxtLink: true },
-        },
-      })
-
-      expect(wrapper.find('.blog-article__author-avatar').exists()).toBe(false)
-      const fallback = wrapper.find('.blog-article__author-avatar-fallback')
-      expect(fallback.exists()).toBe(true)
-      expect(fallback.text()).toBe('A') // first letter of "Ana García" uppercased
-    })
-
-    it('shows initial fallback after @error event on avatar img', async () => {
-      const post = makeBlogPost({
-        author: { id: 'a1', name: 'Ana García', avatar: 'https://example.com/broken-avatar.jpg' },
-      })
-      const wrapper = await mountSuspended(BlogArticle, {
-        global: {
-          plugins: [createTestingPinia({
-            initialState: { blog: { selectedPost: post, isLoading: false } },
-          })],
-          stubs: { NuxtLink: true },
-        },
-      })
-
-      await wrapper.find('.blog-article__author-avatar').trigger('error')
-      await wrapper.vm.$nextTick()
-
-      expect(wrapper.find('.blog-article__author-avatar').exists()).toBe(false)
-      expect(wrapper.find('.blog-article__author-avatar-fallback').exists()).toBe(true)
     })
   })
 
@@ -445,40 +353,6 @@ describe('BlogArticle', () => {
 
       // Empty line filtered out — only 2 paragraphs
       expect(wrapper.findAll('.blog-article__paragraph')).toHaveLength(2)
-    })
-  })
-
-  // ── Tags ───────────────────────────────────────────────────
-
-  describe('tags', () => {
-    it('renders each tag as a badge', async () => {
-      const post = makeBlogPost({ tags: ['perros', 'verano', 'salud'] })
-      const wrapper = await mountSuspended(BlogArticle, {
-        global: {
-          plugins: [createTestingPinia({
-            initialState: { blog: { selectedPost: post, isLoading: false } },
-          })],
-          stubs: { NuxtLink: true },
-        },
-      })
-
-      expect(wrapper.text()).toContain('perros')
-      expect(wrapper.text()).toContain('verano')
-      expect(wrapper.text()).toContain('salud')
-    })
-
-    it('renders no tag section when tags array is empty', async () => {
-      const post = makeBlogPost({ tags: [] })
-      const wrapper = await mountSuspended(BlogArticle, {
-        global: {
-          plugins: [createTestingPinia({
-            initialState: { blog: { selectedPost: post, isLoading: false } },
-          })],
-          stubs: { NuxtLink: true },
-        },
-      })
-
-      expect(wrapper.text()).not.toContain('Etiquetas:')
     })
   })
 
@@ -551,6 +425,21 @@ describe('BlogArticle', () => {
       const ctaLinks = wrapper.findAll('a').filter(a => a.text().includes('Ver más artículos'))
       expect(ctaLinks.length).toBeGreaterThan(0)
       expect(ctaLinks[0].attributes('href')).toBe('/blog')
+    })
+
+    it('"Ir al blog" link shown in not-found state goes to /blog', async () => {
+      const wrapper = await mountSuspended(BlogArticle, {
+        global: {
+          plugins: [createTestingPinia({
+            initialState: { blog: { selectedPost: null, isLoading: false } },
+          })],
+          stubs: { NuxtLink: NuxtLinkHrefStub },
+        },
+      })
+
+      const blogLinks = wrapper.findAll('a').filter(a => a.text().includes('Ir al blog'))
+      expect(blogLinks.length).toBeGreaterThan(0)
+      expect(blogLinks[0].attributes('href')).toBe('/blog')
     })
   })
 })

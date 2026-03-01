@@ -1,6 +1,6 @@
 // ============================================================
 // useBlog — Blog editorial feature composable
-// Central API surface for blog post and category operations.
+// Central API surface for blog post operations.
 // State is owned by useBlogStore; this composable is the API
 // layer that keeps the store in sync.
 //
@@ -12,7 +12,6 @@
 
 import type {
   BlogPost,
-  BlogCategory,
   BlogListFilters,
   BlogListResponse,
 } from '../types'
@@ -26,51 +25,26 @@ export function useBlog() {
   // ── Public API ──────────────────────────────────────────────
 
   /**
-   * Fetch a page of blog posts, optionally filtered.
-   * Pass `append: true` to add results to the existing list (load-more pattern).
-   * Handles both the `BlogListResponse` envelope shape and a bare `BlogPost[]`.
+   * Fetch all published blog posts, optionally filtered by category.
+   * Backend returns all posts at once (no pagination).
+   * Handles both the `BlogListResponse` envelope and a bare `BlogPost[]`.
    */
-  async function fetchPosts(
-    filters?: BlogListFilters,
-    append = false,
-  ): Promise<void> {
+  async function fetchPosts(filters?: BlogListFilters): Promise<void> {
     blogStore.setLoading(true)
     error.value = null
     try {
       const params = new URLSearchParams()
-      if (filters?.category_slug) params.set('category_slug', filters.category_slug)
-      if (filters?.search) params.set('search', filters.search)
-      if (filters?.page) params.set('page', String(filters.page))
-      if (filters?.limit) params.set('limit', String(filters.limit))
+      if (filters?.category) params.set('category', filters.category)
       const qs = params.toString()
-      const path = qs ? `/api/blog/posts?${qs}` : '/api/blog/posts'
+      const path = qs ? `/blog/posts?${qs}` : '/blog/posts'
 
-      // Backend may return a paginated envelope or a bare array
       const response = await get<BlogListResponse | BlogPost[]>(path)
 
       if (Array.isArray(response)) {
-        // Bare array — no pagination metadata available
-        if (append) {
-          blogStore.appendPosts(response)
-        }
-        else {
-          blogStore.setPosts(response)
-        }
-        blogStore.setPagination(1, 1, response.length)
+        blogStore.setPosts(response)
       }
       else {
-        // Paginated envelope
-        if (append) {
-          blogStore.appendPosts(response.posts ?? [])
-        }
-        else {
-          blogStore.setPosts(response.posts ?? [])
-        }
-        blogStore.setPagination(
-          response.page ?? 1,
-          response.total_pages ?? 1,
-          response.total ?? (response.posts?.length ?? 0),
-        )
+        blogStore.setPosts(response.posts ?? [])
       }
     }
     catch (err: unknown) {
@@ -97,7 +71,7 @@ export function useBlog() {
         return cached
       }
 
-      const post = await get<BlogPost>(`/api/blog/posts/${slug}`)
+      const post = await get<BlogPost>(`/blog/posts/${slug}`)
       blogStore.setSelectedPost(post)
       return post
     }
@@ -110,36 +84,11 @@ export function useBlog() {
     }
   }
 
-  /**
-   * Fetch all blog categories.
-   * Handles both `{ categories: BlogCategory[] }` and bare `BlogCategory[]` shapes.
-   */
-  async function fetchCategories(): Promise<void> {
-    error.value = null
-    try {
-      const response = await get<{ categories?: BlogCategory[] } | BlogCategory[]>(
-        '/api/blog/categories',
-      )
-
-      if (Array.isArray(response)) {
-        blogStore.setCategories(response)
-      }
-      else {
-        blogStore.setCategories(response.categories ?? [])
-      }
-    }
-    catch (err: unknown) {
-      // Non-critical: category fetch failure should not block post display
-      error.value = extractErrorMessage(err)
-    }
-  }
-
   return {
     error,
     blogStore,
     fetchPosts,
     fetchPostBySlug,
-    fetchCategories,
   }
 }
 

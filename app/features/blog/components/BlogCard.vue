@@ -1,11 +1,12 @@
 <script setup lang="ts">
 // BlogCard — compact card for a single blog post in the listing.
-// Shows: featured image (with safe-URL guard + pet SVG fallback),
-// category badge, title, 3-line-clamped excerpt, author (avatar or
-// initial fallback), published date in Spanish, and reading time badge.
+// Shows: cover image (with safe-URL guard + pet SVG fallback),
+// category badge, title, excerpt (derived from content),
+// and published date in Spanish.
 // Entire card links to /blog/:slug via NuxtLink.
 
 import type { BlogPost } from '../types'
+import { BLOG_CATEGORIES } from '../types'
 
 const props = defineProps<{
   post: BlogPost
@@ -13,7 +14,6 @@ const props = defineProps<{
 
 // ── URL safety guard ──────────────────────────────────────────
 // Rejects javascript:, data:, vbscript: and any other unexpected scheme.
-// Mirrors the pattern established in ShelterCard.vue.
 function isSafeImageUrl(url: string | undefined): boolean {
   if (!url) return false
   if (url.startsWith('blob:')) return true
@@ -27,36 +27,33 @@ function isSafeImageUrl(url: string | undefined): boolean {
   }
 }
 
-const safeFeaturedImage = computed(() =>
-  isSafeImageUrl(props.post.featured_image) ? props.post.featured_image : null,
+const safeCoverUrl = computed(() =>
+  isSafeImageUrl(props.post.cover_image_url) ? props.post.cover_image_url : null,
 )
 
 const imgError = ref(false)
-const showImage = computed(() => !!safeFeaturedImage.value && !imgError.value)
+const showImage = computed(() => !!safeCoverUrl.value && !imgError.value)
 
 function onImgError(): void {
   imgError.value = true
 }
 
 // Reset imgError when the prop changes (e.g. list re-renders with different posts)
-watch(() => props.post.featured_image, () => {
+watch(() => props.post.cover_image_url, () => {
   imgError.value = false
 })
 
-// ── Author avatar ──────────────────────────────────────────────
-const safeAvatarUrl = computed(() =>
-  isSafeImageUrl(props.post.author.avatar) ? props.post.author.avatar : null,
+// ── Category label lookup ───────────────────────────────────────
+const categoryLabel = computed(() =>
+  BLOG_CATEGORIES.find(c => c.value === props.post.category)?.label ?? props.post.category,
 )
 
-const avatarError = ref(false)
-const showAvatar = computed(() => !!safeAvatarUrl.value && !avatarError.value)
-
-function onAvatarError(): void {
-  avatarError.value = true
-}
-
-/** Single initial character for the avatar fallback (always uppercase). */
-const authorInitial = computed(() => props.post.author.name.charAt(0).toUpperCase())
+// ── Excerpt derived from content ────────────────────────────────
+const excerpt = computed(() => {
+  const raw = props.post.content
+  if (raw.length <= 150) return raw
+  return raw.substring(0, 150).trim() + '...'
+})
 
 // ── Date formatting ────────────────────────────────────────────
 /**
@@ -77,14 +74,9 @@ function formatDate(isoString: string): string {
   }
 }
 
-const formattedDate = computed(() => formatDate(props.post.published_at))
-
-// ── Reading time ───────────────────────────────────────────────
-const readingTime = computed(() => {
-  if (!props.post.reading_time_minutes) return null
-  return props.post.reading_time_minutes === 1
-    ? '1 min de lectura'
-    : `${props.post.reading_time_minutes} min de lectura`
+const formattedDate = computed(() => {
+  if (!props.post.published_at) return ''
+  return formatDate(props.post.published_at)
 })
 </script>
 
@@ -93,11 +85,11 @@ const readingTime = computed(() => {
     class="card h-100 border-0 shadow-sm blog-card"
     :aria-label="`Artículo: ${post.title}`"
   >
-    <!-- Featured image / SVG fallback -->
+    <!-- Cover image / SVG fallback -->
     <div class="blog-card__image-wrap">
       <img
         v-if="showImage"
-        :src="safeFeaturedImage!"
+        :src="safeCoverUrl!"
         :alt="`Imagen de portada: ${post.title}`"
         class="blog-card__image"
         width="600"
@@ -131,9 +123,9 @@ const readingTime = computed(() => {
       <!-- Category badge — overlaid on image -->
       <span
         class="badge bg-primary blog-card__category-badge"
-        :aria-label="`Categoría: ${post.category.name}`"
+        :aria-label="`Categoría: ${categoryLabel}`"
       >
-        {{ post.category.name }}
+        {{ categoryLabel }}
       </span>
     </div>
 
@@ -148,74 +140,16 @@ const readingTime = computed(() => {
         </NuxtLink>
       </h3>
 
-      <!-- Excerpt — 3-line clamp -->
+      <!-- Excerpt — derived from content, 3-line clamp -->
       <p class="blog-card__excerpt text-muted small mb-0">
-        {{ post.excerpt }}
+        {{ excerpt }}
       </p>
-
-      <!-- Tags -->
-      <div
-        v-if="post.tags.length > 0"
-        class="d-flex flex-wrap gap-1"
-        aria-label="Etiquetas"
-      >
-        <span
-          v-for="tag in post.tags.slice(0, 3)"
-          :key="tag"
-          class="badge bg-secondary-subtle text-secondary-emphasis fw-normal"
-        >
-          {{ tag }}
-        </span>
-        <span
-          v-if="post.tags.length > 3"
-          class="badge bg-secondary-subtle text-secondary-emphasis fw-normal"
-          :title="`${post.tags.length - 3} etiquetas más`"
-        >
-          +{{ post.tags.length - 3 }}
-        </span>
-      </div>
-
-      <!-- Spacer -->
-      <div class="mt-auto pt-2 border-top d-flex align-items-center justify-content-between gap-2">
-        <!-- Author -->
-        <div class="d-flex align-items-center gap-2">
-          <!-- Avatar -->
-          <img
-            v-if="showAvatar"
-            :src="safeAvatarUrl!"
-            :alt="`Avatar de ${post.author.name}`"
-            class="blog-card__avatar rounded-circle"
-            width="28"
-            height="28"
-            loading="lazy"
-            @error="onAvatarError"
-          />
-          <span
-            v-else
-            class="blog-card__avatar-fallback d-flex align-items-center justify-content-center rounded-circle"
-            aria-hidden="true"
-          >
-            {{ authorInitial }}
-          </span>
-          <span class="small text-muted text-truncate blog-card__author-name">
-            {{ post.author.name }}
-          </span>
-        </div>
-
-        <!-- Reading time badge -->
-        <span
-          v-if="readingTime"
-          class="badge bg-light text-secondary fw-normal flex-shrink-0"
-          :aria-label="readingTime"
-        >
-          {{ readingTime }}
-        </span>
-      </div>
     </div>
 
     <!-- Published date footer -->
     <div class="card-footer bg-transparent border-top-0 px-3 pb-3 pt-0">
       <time
+        v-if="post.published_at"
         :datetime="post.published_at"
         class="text-muted small"
       >
@@ -254,7 +188,7 @@ const readingTime = computed(() => {
   &__placeholder {
     width: 100%;
     height: 100%;
-    background-color: #dff0e8; // brand-green tint — matches ShelterCard pattern
+    background-color: #dff0e8; // brand-green tint
   }
 
   &__placeholder-svg {
@@ -294,28 +228,6 @@ const readingTime = computed(() => {
     -webkit-box-orient: vertical;
     overflow: hidden;
     line-height: 1.5;
-  }
-
-  // ── Author ─────────────────────────────────────────────────
-  &__avatar {
-    width: 28px;
-    height: 28px;
-    object-fit: cover;
-    flex-shrink: 0;
-  }
-
-  &__avatar-fallback {
-    width: 28px;
-    height: 28px;
-    flex-shrink: 0;
-    background-color: var(--bs-primary);
-    color: #fff;
-    font-size: 0.75rem;
-    font-weight: 700;
-  }
-
-  &__author-name {
-    max-width: 9rem;
   }
 }
 </style>

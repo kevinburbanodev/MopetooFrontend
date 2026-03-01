@@ -25,13 +25,13 @@ const post = computed(() => blogStore.selectedPost)
 
 useSeoMeta({
   title: () => post.value ? `${post.value.title} — Mopetoo` : 'Artículo — Mopetoo',
-  description: () => post.value?.excerpt ?? 'Lee este artículo en el blog de Mopetoo.',
+  description: () => post.value ? post.value.content.substring(0, 160).trim() : 'Lee este artículo en el blog de Mopetoo.',
   ogTitle: () => post.value?.title ?? 'Artículo — Mopetoo',
-  ogDescription: () => post.value?.excerpt ?? 'Lee este artículo en el blog de Mopetoo.',
+  ogDescription: () => post.value ? post.value.content.substring(0, 160).trim() : 'Lee este artículo en el blog de Mopetoo.',
   ogType: 'article',
-  // Only set ogImage when the featured_image passes the URL safety check
+  // Only set ogImage when the cover_image_url passes the URL safety check
   ogImage: () => {
-    const img = post.value?.featured_image
+    const img = post.value?.cover_image_url
     if (!img) return undefined
     try {
       const parsed = new URL(img)
@@ -43,7 +43,7 @@ useSeoMeta({
   },
   twitterCard: 'summary_large_image',
   twitterTitle: () => post.value?.title ?? 'Artículo — Mopetoo',
-  twitterDescription: () => post.value?.excerpt ?? 'Lee este artículo en el blog de Mopetoo.',
+  twitterDescription: () => post.value ? post.value.content.substring(0, 160).trim() : 'Lee este artículo en el blog de Mopetoo.',
 })
 
 // ── Fetch on client mount ──────────────────────────────────────

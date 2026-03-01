@@ -1,54 +1,50 @@
 // ============================================================
 // Blog editorial feature — domain types
-// Aligned with Mopetoo backend API (Go + Gin)
+// Aligned with Mopetoo backend API (Go + Gin) model.BlogPost
 // RF-600 to RF-609
 // ============================================================
 
-export interface BlogAuthor {
-  id: string
-  name: string
-  avatar?: string
-}
+/** Blog post category values accepted by the backend */
+export type BlogPostCategory =
+  | 'nutricion'
+  | 'salud'
+  | 'comportamiento'
+  | 'cuidados'
+  | 'otros'
 
-export interface BlogCategory {
-  id: string
-  slug: string
-  name: string
-  description?: string
-  /** Number of published posts in this category (returned by list endpoint) */
-  post_count?: number
-}
+/** Static list of blog categories for filter UI */
+export const BLOG_CATEGORIES: { value: BlogPostCategory; label: string }[] = [
+  { value: 'nutricion', label: 'Nutrición' },
+  { value: 'salud', label: 'Salud' },
+  { value: 'comportamiento', label: 'Comportamiento' },
+  { value: 'cuidados', label: 'Cuidados' },
+  { value: 'otros', label: 'Otros' },
+]
 
+/**
+ * model.BlogPost — aligned with the Go backend.
+ * Backend endpoint: GET /blog/posts, GET /blog/posts/:slug
+ */
 export interface BlogPost {
-  id: string
-  slug: string
+  id: number
   title: string
-  excerpt: string
+  slug: string
   content: string
-  featured_image?: string
-  author: BlogAuthor
-  category: BlogCategory
-  tags: string[]
-  published_at: string
+  cover_image_url?: string
+  category: BlogPostCategory
+  published: boolean
+  published_at?: string
+  created_at: string
   updated_at: string
-  /** Approximate reading time in minutes (may be absent for older posts) */
-  reading_time_minutes?: number
-  is_published: boolean
 }
 
 /** Query parameters for the blog post list endpoint */
 export interface BlogListFilters {
-  category_slug?: string
-  search?: string
-  page?: number
-  limit?: number
+  category?: BlogPostCategory
 }
 
-/** Paginated response envelope from GET /api/blog/posts */
+/** API response envelope for GET /blog/posts */
 export interface BlogListResponse {
   posts: BlogPost[]
-  total: number
-  page: number
-  limit: number
-  total_pages: number
+  message?: string
 }
