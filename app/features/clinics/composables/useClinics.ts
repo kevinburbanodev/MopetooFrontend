@@ -3,6 +3,10 @@
 // Central API surface for the clinic directory.
 // State is owned by useClinicsStore; this composable is the
 // API layer that keeps the store in sync.
+//
+// Public endpoints (no auth required):
+//   GET /clinics?city=&specialty=  → Clinic[] (plain array)
+//   GET /clinics/:id               → Clinic object
 // ============================================================
 
 import type { Clinic, ClinicListFilters, ClinicListResponse } from '../types'
@@ -17,7 +21,8 @@ export function useClinics() {
 
   /**
    * Fetch all clinics, optionally filtered.
-   * Handles both `{ clinics: Clinic[] }` envelope and plain `Clinic[]` shapes.
+   * Handles both plain `Clinic[]` array and `{ clinics: Clinic[] }` envelope
+   * for robustness (backend returns plain array).
    */
   async function fetchClinics(filters?: ClinicListFilters): Promise<void> {
     clinicsStore.setLoading(true)
@@ -25,11 +30,10 @@ export function useClinics() {
     try {
       // Build query string from non-empty filter values
       const params = new URLSearchParams()
-      if (filters?.search) params.set('search', filters.search)
       if (filters?.city) params.set('city', filters.city)
       if (filters?.specialty) params.set('specialty', filters.specialty)
       const qs = params.toString()
-      const path = qs ? `/api/clinics?${qs}` : '/api/clinics'
+      const path = qs ? `/clinics?${qs}` : '/clinics'
 
       const response = await get<ClinicListResponse | Clinic[]>(path)
       if (Array.isArray(response)) {
@@ -54,7 +58,7 @@ export function useClinics() {
    * Calls setSelectedClinic() on success.
    * Returns the clinic or null on failure.
    */
-  async function fetchClinicById(id: string): Promise<Clinic | null> {
+  async function fetchClinicById(id: number): Promise<Clinic | null> {
     // Store-first: if we already loaded this clinic in the list, reuse it.
     const cached = clinicsStore.clinics.find(c => c.id === id)
     if (cached) {
@@ -65,7 +69,7 @@ export function useClinics() {
     clinicsStore.setLoading(true)
     error.value = null
     try {
-      const clinic = await get<Clinic>(`/api/clinics/${id}`)
+      const clinic = await get<Clinic>(`/clinics/${id}`)
       clinicsStore.setSelectedClinic(clinic)
       return clinic
     }

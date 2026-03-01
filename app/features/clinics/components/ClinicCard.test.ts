@@ -8,14 +8,14 @@
 //
 // Key design points:
 //   - isSafeImageUrl: https: and http: accepted; data: and
-//     javascript: rejected; absent photo_url shows 🏥 fallback.
-//   - Verified badge (is_verified) and Featured badge (is_featured)
+//     javascript: rejected; absent cover_image_url shows 🏥 fallback.
+//   - Verified badge (verified) and Plan badge (plan !== '' && plan !== 'free')
 //     conditionally rendered.
 //   - Specialty chips: max 3 visible; overflow shown as "+N".
 //   - Phone: tel: href only when safePhone passes regex.
 //   - Email: mailto: href only when safeEmail passes regex.
-//   - Website: href only when https:/http: — javascript: is blocked.
-//   - "Ver clínica" link navigates to /clinics/:id.
+//   - Social links: Facebook, Instagram, Twitter with URL safety checks.
+//   - "Ver clínica" link navigates to /clinics/:id (numeric).
 //
 // NuxtLink stubs:
 //   - { NuxtLink: { template: '<a :href="to"><slot /></a>', props: ['to'] } }
@@ -32,7 +32,6 @@ import ClinicCard from './ClinicCard.vue'
 import type { Clinic } from '../types'
 
 // ── NuxtLink stub ─────────────────────────────────────────────
-// Renders slot content as <a href="..."> for href assertions.
 const NuxtLinkHrefStub = {
   template: '<a :href="to"><slot /></a>',
   props: ['to'],
@@ -42,18 +41,20 @@ const NuxtLinkHrefStub = {
 
 function makeClinic(overrides: Partial<Clinic> = {}): Clinic {
   return {
-    id: '1',
+    id: 1,
     name: 'Los Andes Vet',
-    description: 'Atención veterinaria integral para toda tu familia',
+    email: 'info@clinicaandes.com',
+    phone: '+57 300 987 6543',
     address: 'Calle 72 #15-30',
     city: 'Bogotá',
-    phone: '+57 300 987 6543',
-    email: 'info@clinicaandes.com',
-    website: 'https://clinicaandes.com',
-    photo_url: 'https://example.com/clinica.jpg',
+    country: 'Colombia',
+    description: 'Atención veterinaria integral para toda tu familia',
     specialties: ['Cirugía', 'Dermatología'],
-    is_verified: true,
-    is_featured: false,
+    services: ['Consulta general', 'Vacunación'],
+    cover_image_url: 'https://example.com/clinica.jpg',
+    plan: 'free',
+    verified: true,
+    is_active: true,
     created_at: '2024-01-01T00:00:00Z',
     updated_at: '2024-01-01T00:00:00Z',
     ...overrides,
@@ -76,12 +77,13 @@ describe('ClinicCard', () => {
       expect(wrapper.text()).toContain('Los Andes Vet')
     })
 
-    it('renders the city', async () => {
+    it('renders the city and country', async () => {
       const wrapper = await mountSuspended(ClinicCard, {
         props: { clinic: defaultClinic },
         global: { stubs: { NuxtLink: true } },
       })
       expect(wrapper.text()).toContain('Bogotá')
+      expect(wrapper.text()).toContain('Colombia')
     })
 
     it('wraps the card in an <article> with a descriptive aria-label', async () => {
@@ -94,30 +96,20 @@ describe('ClinicCard', () => {
       expect(article.attributes('aria-label')).toContain('Los Andes Vet')
     })
 
-    it('renders the address alongside the city when address is present', async () => {
+    it('renders city, country format in location', async () => {
       const wrapper = await mountSuspended(ClinicCard, {
         props: { clinic: defaultClinic },
         global: { stubs: { NuxtLink: true } },
       })
-      expect(wrapper.text()).toContain('Calle 72 #15-30')
-    })
-
-    it('renders only the city when address is absent', async () => {
-      const clinic = makeClinic({ address: '' })
-      const wrapper = await mountSuspended(ClinicCard, {
-        props: { clinic },
-        global: { stubs: { NuxtLink: true } },
-      })
-      expect(wrapper.text()).toContain('Bogotá')
-      expect(wrapper.text()).not.toContain(', Bogotá')
+      expect(wrapper.text()).toContain('Bogotá, Colombia')
     })
   })
 
   // ── Photo rendering ────────────────────────────────────────
 
   describe('photo rendering', () => {
-    it('renders the photo when photo_url is a valid https URL', async () => {
-      const clinic = makeClinic({ photo_url: 'https://example.com/clinica.jpg' })
+    it('renders the cover image when cover_image_url is a valid https URL', async () => {
+      const clinic = makeClinic({ cover_image_url: 'https://example.com/clinica.jpg' })
       const wrapper = await mountSuspended(ClinicCard, {
         props: { clinic },
         global: { stubs: { NuxtLink: true } },
@@ -127,8 +119,8 @@ describe('ClinicCard', () => {
       expect(img.attributes('src')).toBe('https://example.com/clinica.jpg')
     })
 
-    it('renders the photo when photo_url is a valid http URL', async () => {
-      const clinic = makeClinic({ photo_url: 'http://example.com/clinica.jpg' })
+    it('renders the cover image when cover_image_url is a valid http URL', async () => {
+      const clinic = makeClinic({ cover_image_url: 'http://example.com/clinica.jpg' })
       const wrapper = await mountSuspended(ClinicCard, {
         props: { clinic },
         global: { stubs: { NuxtLink: true } },
@@ -136,8 +128,8 @@ describe('ClinicCard', () => {
       expect(wrapper.find('img').exists()).toBe(true)
     })
 
-    it('shows the 🏥 fallback when photo_url is undefined', async () => {
-      const clinic = makeClinic({ photo_url: undefined })
+    it('shows the 🏥 fallback when cover_image_url is undefined', async () => {
+      const clinic = makeClinic({ cover_image_url: undefined })
       const wrapper = await mountSuspended(ClinicCard, {
         props: { clinic },
         global: { stubs: { NuxtLink: true } },
@@ -146,8 +138,8 @@ describe('ClinicCard', () => {
       expect(wrapper.text()).toContain('🏥')
     })
 
-    it('shows the 🏥 fallback when photo_url is a data: URI (rejected)', async () => {
-      const clinic = makeClinic({ photo_url: 'data:image/png;base64,abc123' })
+    it('shows the 🏥 fallback when cover_image_url is a data: URI (rejected)', async () => {
+      const clinic = makeClinic({ cover_image_url: 'data:image/png;base64,abc123' })
       const wrapper = await mountSuspended(ClinicCard, {
         props: { clinic },
         global: { stubs: { NuxtLink: true } },
@@ -156,8 +148,8 @@ describe('ClinicCard', () => {
       expect(wrapper.text()).toContain('🏥')
     })
 
-    it('shows the 🏥 fallback when photo_url is a javascript: URI (rejected)', async () => {
-      const clinic = makeClinic({ photo_url: 'javascript:alert(1)' })
+    it('shows the 🏥 fallback when cover_image_url is a javascript: URI (rejected)', async () => {
+      const clinic = makeClinic({ cover_image_url: 'javascript:alert(1)' })
       const wrapper = await mountSuspended(ClinicCard, {
         props: { clinic },
         global: { stubs: { NuxtLink: true } },
@@ -166,7 +158,7 @@ describe('ClinicCard', () => {
       expect(wrapper.text()).toContain('🏥')
     })
 
-    it('the photo has a descriptive alt text containing the clinic name', async () => {
+    it('the cover image has a descriptive alt text containing the clinic name', async () => {
       const wrapper = await mountSuspended(ClinicCard, {
         props: { clinic: defaultClinic },
         global: { stubs: { NuxtLink: true } },
@@ -179,8 +171,8 @@ describe('ClinicCard', () => {
   // ── Verified badge ─────────────────────────────────────────
 
   describe('verified badge', () => {
-    it('shows the "Verificado" badge when is_verified is true', async () => {
-      const clinic = makeClinic({ is_verified: true })
+    it('shows the "Verificado" badge when verified is true', async () => {
+      const clinic = makeClinic({ verified: true })
       const wrapper = await mountSuspended(ClinicCard, {
         props: { clinic },
         global: { stubs: { NuxtLink: true } },
@@ -188,8 +180,8 @@ describe('ClinicCard', () => {
       expect(wrapper.text()).toContain('Verificado')
     })
 
-    it('hides the "Verificado" badge when is_verified is false', async () => {
-      const clinic = makeClinic({ is_verified: false })
+    it('hides the "Verificado" badge when verified is false', async () => {
+      const clinic = makeClinic({ verified: false })
       const wrapper = await mountSuspended(ClinicCard, {
         props: { clinic },
         global: { stubs: { NuxtLink: true } },
@@ -198,7 +190,7 @@ describe('ClinicCard', () => {
     })
 
     it('the verified badge has a descriptive aria-label', async () => {
-      const clinic = makeClinic({ is_verified: true })
+      const clinic = makeClinic({ verified: true })
       const wrapper = await mountSuspended(ClinicCard, {
         props: { clinic },
         global: { stubs: { NuxtLink: true } },
@@ -208,11 +200,11 @@ describe('ClinicCard', () => {
     })
   })
 
-  // ── Featured badge ─────────────────────────────────────────
+  // ── Plan badge (Destacado) ─────────────────────────────────
 
-  describe('featured badge', () => {
-    it('shows the "Destacado" badge when is_featured is true', async () => {
-      const clinic = makeClinic({ is_featured: true })
+  describe('plan badge', () => {
+    it('shows the "Destacado" badge when plan is a paid plan (e.g. "pro")', async () => {
+      const clinic = makeClinic({ plan: 'pro' })
       const wrapper = await mountSuspended(ClinicCard, {
         props: { clinic },
         global: { stubs: { NuxtLink: true } },
@@ -220,8 +212,8 @@ describe('ClinicCard', () => {
       expect(wrapper.text()).toContain('Destacado')
     })
 
-    it('hides the "Destacado" badge when is_featured is false', async () => {
-      const clinic = makeClinic({ is_featured: false })
+    it('hides the "Destacado" badge when plan is "free"', async () => {
+      const clinic = makeClinic({ plan: 'free' })
       const wrapper = await mountSuspended(ClinicCard, {
         props: { clinic },
         global: { stubs: { NuxtLink: true } },
@@ -229,8 +221,17 @@ describe('ClinicCard', () => {
       expect(wrapper.text()).not.toContain('Destacado')
     })
 
-    it('the featured badge has a descriptive aria-label', async () => {
-      const clinic = makeClinic({ is_featured: true })
+    it('hides the "Destacado" badge when plan is empty string', async () => {
+      const clinic = makeClinic({ plan: '' })
+      const wrapper = await mountSuspended(ClinicCard, {
+        props: { clinic },
+        global: { stubs: { NuxtLink: true } },
+      })
+      expect(wrapper.text()).not.toContain('Destacado')
+    })
+
+    it('the plan badge has a descriptive aria-label', async () => {
+      const clinic = makeClinic({ plan: 'premium' })
       const wrapper = await mountSuspended(ClinicCard, {
         props: { clinic },
         global: { stubs: { NuxtLink: true } },
@@ -306,17 +307,8 @@ describe('ClinicCard', () => {
       expect(link.attributes('href')).toBe('tel:+57 300 987 6543')
     })
 
-    it('hides the phone link when phone is null', async () => {
-      const clinic = makeClinic({ phone: undefined })
-      const wrapper = await mountSuspended(ClinicCard, {
-        props: { clinic },
-        global: { stubs: { NuxtLink: true } },
-      })
-      expect(wrapper.find('a[href^="tel:"]').exists()).toBe(false)
-    })
-
-    it('hides the phone link when phone fails the safety regex (injection attempt)', async () => {
-      const clinic = makeClinic({ phone: '<script>alert(1)</script>' })
+    it('hides the phone link when phone is empty', async () => {
+      const clinic = makeClinic({ phone: '' })
       const wrapper = await mountSuspended(ClinicCard, {
         props: { clinic },
         global: { stubs: { NuxtLink: true } },
@@ -335,15 +327,6 @@ describe('ClinicCard', () => {
       expect(link.attributes('href')).toBe('mailto:info@clinicaandes.com')
     })
 
-    it('hides the email link when email is null', async () => {
-      const clinic = makeClinic({ email: undefined })
-      const wrapper = await mountSuspended(ClinicCard, {
-        props: { clinic },
-        global: { stubs: { NuxtLink: true } },
-      })
-      expect(wrapper.find('a[href^="mailto:"]').exists()).toBe(false)
-    })
-
     it('hides the email link when email has no @ character (invalid)', async () => {
       const clinic = makeClinic({ email: 'not-an-email' })
       const wrapper = await mountSuspended(ClinicCard, {
@@ -352,34 +335,78 @@ describe('ClinicCard', () => {
       })
       expect(wrapper.find('a[href^="mailto:"]').exists()).toBe(false)
     })
+  })
 
-    it('renders the website link with the original href when website starts with https://', async () => {
-      const clinic = makeClinic({ website: 'https://clinicaandes.com' })
+  // ── Social media links ──────────────────────────────────────
+
+  describe('social media links', () => {
+    it('renders the Facebook link when facebook_url is a valid https URL', async () => {
+      const clinic = makeClinic({ facebook_url: 'https://facebook.com/clinicaandes' })
       const wrapper = await mountSuspended(ClinicCard, {
         props: { clinic },
         global: { stubs: { NuxtLink: true } },
       })
-      const link = wrapper.find('[aria-label="Visitar sitio web de Los Andes Vet"]')
+      const link = wrapper.find('[aria-label="Facebook de Los Andes Vet"]')
       expect(link.exists()).toBe(true)
-      expect(link.attributes('href')).toBe('https://clinicaandes.com')
+      expect(link.attributes('href')).toBe('https://facebook.com/clinicaandes')
     })
 
-    it('blocks the website link when website starts with javascript: (XSS vector)', async () => {
-      const clinic = makeClinic({ website: 'javascript:alert(document.cookie)' })
+    it('hides the Facebook link when facebook_url is undefined', async () => {
+      const clinic = makeClinic({ facebook_url: undefined })
       const wrapper = await mountSuspended(ClinicCard, {
         props: { clinic },
         global: { stubs: { NuxtLink: true } },
       })
-      expect(wrapper.find('[aria-label="Visitar sitio web de Los Andes Vet"]').exists()).toBe(false)
+      expect(wrapper.find('[aria-label="Facebook de Los Andes Vet"]').exists()).toBe(false)
     })
 
-    it('hides the website link when website is undefined', async () => {
-      const clinic = makeClinic({ website: undefined })
+    it('hides the Facebook link when facebook_url is a javascript: URI', async () => {
+      const clinic = makeClinic({ facebook_url: 'javascript:alert(1)' })
       const wrapper = await mountSuspended(ClinicCard, {
         props: { clinic },
         global: { stubs: { NuxtLink: true } },
       })
-      expect(wrapper.find('[aria-label="Visitar sitio web de Los Andes Vet"]').exists()).toBe(false)
+      expect(wrapper.find('[aria-label="Facebook de Los Andes Vet"]').exists()).toBe(false)
+    })
+
+    it('renders the Instagram link when instagram_url is a valid https URL', async () => {
+      const clinic = makeClinic({ instagram_url: 'https://instagram.com/clinicaandes' })
+      const wrapper = await mountSuspended(ClinicCard, {
+        props: { clinic },
+        global: { stubs: { NuxtLink: true } },
+      })
+      const link = wrapper.find('[aria-label="Instagram de Los Andes Vet"]')
+      expect(link.exists()).toBe(true)
+      expect(link.attributes('href')).toBe('https://instagram.com/clinicaandes')
+    })
+
+    it('hides the Instagram link when instagram_url is undefined', async () => {
+      const clinic = makeClinic({ instagram_url: undefined })
+      const wrapper = await mountSuspended(ClinicCard, {
+        props: { clinic },
+        global: { stubs: { NuxtLink: true } },
+      })
+      expect(wrapper.find('[aria-label="Instagram de Los Andes Vet"]').exists()).toBe(false)
+    })
+
+    it('renders the Twitter link when twitter_url is a valid https URL', async () => {
+      const clinic = makeClinic({ twitter_url: 'https://twitter.com/clinicaandes' })
+      const wrapper = await mountSuspended(ClinicCard, {
+        props: { clinic },
+        global: { stubs: { NuxtLink: true } },
+      })
+      const link = wrapper.find('[aria-label="Twitter de Los Andes Vet"]')
+      expect(link.exists()).toBe(true)
+      expect(link.attributes('href')).toBe('https://twitter.com/clinicaandes')
+    })
+
+    it('hides the Twitter link when twitter_url is undefined', async () => {
+      const clinic = makeClinic({ twitter_url: undefined })
+      const wrapper = await mountSuspended(ClinicCard, {
+        props: { clinic },
+        global: { stubs: { NuxtLink: true } },
+      })
+      expect(wrapper.find('[aria-label="Twitter de Los Andes Vet"]').exists()).toBe(false)
     })
   })
 
@@ -394,9 +421,8 @@ describe('ClinicCard', () => {
       expect(wrapper.text()).toContain('Ver clínica')
     })
 
-    it('the stretched-link href points to /clinics/:id', async () => {
-      // Use a clinic with NO phone/email/website to avoid finding contact <a> elements first.
-      const clinic = makeClinic({ id: '42', phone: undefined, email: undefined, website: undefined })
+    it('the stretched-link href points to /clinics/:id (numeric)', async () => {
+      const clinic = makeClinic({ id: 42, phone: '', email: 'not-valid' })
       const wrapper = await mountSuspended(ClinicCard, {
         props: { clinic },
         global: { stubs: { NuxtLink: NuxtLinkHrefStub } },

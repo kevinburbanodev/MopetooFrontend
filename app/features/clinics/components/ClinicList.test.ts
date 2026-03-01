@@ -20,16 +20,12 @@
 //   - Empty state (no clinics, no filters) shows "No hay clínicas disponibles".
 //   - Results grid renders ClinicCard per clinic.
 //   - Client-side search filter: name, city, description.
-//   - Specialty filter.
-//   - City filter.
-//   - Featured section visible/hidden logic.
+//   - Specialty filter triggers re-fetch.
+//   - City filter triggers re-fetch.
+//   - Premium section visible/hidden logic.
 //   - Filtered no-results state.
 //   - fetchClinics called on mount.
 //   - Result counter.
-//
-// What this suite does NOT cover intentionally:
-//   - CSS transitions / SCSS visual styles.
-//   - Actual HTTP calls (useClinics is fully mocked).
 // ============================================================
 
 import { describe, it, expect, beforeEach, vi } from 'vitest'
@@ -42,30 +38,29 @@ import type { Clinic } from '../types'
 
 function makeClinic(overrides: Partial<Clinic> = {}): Clinic {
   return {
-    id: '1',
+    id: 1,
     name: 'Los Andes Vet',
-    description: 'Atención veterinaria integral para toda tu familia',
-    address: 'Calle 72 #15-30',
-    city: 'Bogotá',
-    phone: '+57 300 987 6543',
     email: 'info@clinicaandes.com',
-    website: 'https://clinicaandes.com',
-    photo_url: 'https://example.com/clinica.jpg',
+    phone: '+57 300 987 6543',
+    city: 'Bogotá',
+    country: 'Colombia',
+    description: 'Atención veterinaria integral para toda tu familia',
     specialties: ['Cirugía', 'Dermatología'],
-    is_verified: true,
-    is_featured: false,
+    services: ['Consulta general'],
+    plan: 'free',
+    verified: true,
+    is_active: true,
     created_at: '2024-01-01T00:00:00Z',
     updated_at: '2024-01-01T00:00:00Z',
     ...overrides,
   }
 }
 
-const clinicA = makeClinic({ id: '1', name: 'Los Andes Vet', city: 'Bogotá', specialties: ['Cirugía'], is_featured: false })
-const clinicB = makeClinic({ id: '2', name: 'Clínica Animal Sur', city: 'Medellín', specialties: ['Dermatología'], is_featured: true, description: 'Especialistas en piel' })
-const clinicC = makeClinic({ id: '3', name: 'VetSalud', city: 'Cali', specialties: ['Cirugía', 'Cardiología'], is_featured: true })
+const clinicA = makeClinic({ id: 1, name: 'Los Andes Vet', city: 'Bogotá', specialties: ['Cirugía'], plan: 'free' })
+const clinicB = makeClinic({ id: 2, name: 'Clínica Animal Sur', city: 'Medellín', specialties: ['Dermatología'], plan: 'pro', description: 'Especialistas en piel' })
+const clinicC = makeClinic({ id: 3, name: 'VetSalud', city: 'Cali', specialties: ['Cirugía', 'Cardiología'], plan: 'premium' })
 
 // ── useClinics mock ────────────────────────────────────────────
-// Module-level reactive refs control the mock state per test.
 
 const mockFetchClinics = vi.fn()
 const mockError = ref<string | null>(null)
@@ -79,14 +74,13 @@ vi.mock('../composables/useClinics', () => ({
     clinicsStore: {
       get clinics() { return mockClinics.value },
       get isLoading() { return mockIsLoading.value },
-      get getFeaturedClinics() {
-        return mockClinics.value.filter(c => c.is_featured)
+      get getPremiumClinics() {
+        return mockClinics.value.filter(c => c.plan !== '' && c.plan !== 'free')
       },
     },
   }),
 }))
 
-// Custom stub so findAll('.clinic-card-stub') gives a reliable count.
 const ClinicCardStub = { template: '<div class="clinic-card-stub" />' }
 
 // ── Suite ─────────────────────────────────────────────────────
@@ -171,15 +165,12 @@ describe('ClinicList', () => {
   // ── Results grid ───────────────────────────────────────────
 
   describe('results grid', () => {
-    it('renders a ClinicCard for each non-featured clinic when no filters are active', async () => {
+    it('renders a ClinicCard for each non-premium clinic when no filters are active', async () => {
       mockClinics.value = [clinicA, clinicB, clinicC]
       const wrapper = await mountSuspended(ClinicList, {
         global: { stubs: { NuxtLink: true, ClinicCard: ClinicCardStub } },
       })
-      // clinicA is non-featured; clinicB and clinicC are featured (in featured section)
-      // Main grid shows only non-featured when no filters active
       const cards = wrapper.findAll('.clinic-card-stub')
-      // clinicA in main grid + clinicB + clinicC in featured section = 3 total
       expect(cards.length).toBeGreaterThanOrEqual(1)
     })
 
@@ -274,17 +265,18 @@ describe('ClinicList', () => {
       expect(select.text()).toContain('Dermatología')
     })
 
-    it('filters clinics by selected specialty', async () => {
+    it('triggers a re-fetch when specialty filter changes', async () => {
       mockClinics.value = [clinicA, clinicB, clinicC]
       const wrapper = await mountSuspended(ClinicList, {
         global: { stubs: { NuxtLink: true, ClinicCard: ClinicCardStub } },
       })
+      const initialCalls = mockFetchClinics.mock.calls.length
+
       const select = wrapper.find('#clinic-specialty')
-      await select.setValue('Dermatología')
+      await select.setValue('Cirugía')
       await wrapper.vm.$nextTick()
-      // clinicB has Dermatología; clinicC has Cirugía + Cardiología (not Dermatología)
-      const counter = wrapper.find('[role="status"]')
-      expect(counter.text()).toContain('1')
+
+      expect(mockFetchClinics.mock.calls.length).toBeGreaterThan(initialCalls)
     })
   })
 
@@ -302,16 +294,18 @@ describe('ClinicList', () => {
       expect(select.text()).toContain('Cali')
     })
 
-    it('filters clinics by selected city', async () => {
+    it('triggers a re-fetch when city filter changes', async () => {
       mockClinics.value = [clinicA, clinicB, clinicC]
       const wrapper = await mountSuspended(ClinicList, {
         global: { stubs: { NuxtLink: true, ClinicCard: ClinicCardStub } },
       })
+      const initialCalls = mockFetchClinics.mock.calls.length
+
       const select = wrapper.find('#clinic-city')
       await select.setValue('Medellín')
       await wrapper.vm.$nextTick()
-      const counter = wrapper.find('[role="status"]')
-      expect(counter.text()).toContain('1')
+
+      expect(mockFetchClinics.mock.calls.length).toBeGreaterThan(initialCalls)
     })
   })
 
@@ -344,23 +338,20 @@ describe('ClinicList', () => {
       await wrapper.find('#clinic-search').setValue('andes')
       await wrapper.vm.$nextTick()
 
-      // Counter should show 1 (only clinicA matches "andes")
       expect(wrapper.find('[role="status"]').text()).toContain('1')
 
-      // Click the "Limpiar filtros" button
       const clearBtn = wrapper.find('button.btn-outline-secondary')
       await clearBtn.trigger('click')
       await wrapper.vm.$nextTick()
 
-      // Both clinics should show again
       expect(wrapper.find('[role="status"]').text()).toContain('2')
     })
   })
 
-  // ── Featured section ───────────────────────────────────────
+  // ── Premium section ────────────────────────────────────────
 
-  describe('featured section', () => {
-    it('shows the "Clínicas Destacadas" section when featured clinics exist and no filters are active', async () => {
+  describe('premium section', () => {
+    it('shows the "Clínicas Destacadas" section when premium clinics exist and no filters are active', async () => {
       mockClinics.value = [clinicA, clinicB, clinicC]
       const wrapper = await mountSuspended(ClinicList, {
         global: { stubs: { NuxtLink: true, ClinicCard: ClinicCardStub } },
@@ -368,8 +359,8 @@ describe('ClinicList', () => {
       expect(wrapper.text()).toContain('Clínicas Destacadas')
     })
 
-    it('hides the "Clínicas Destacadas" section when no clinics are featured', async () => {
-      mockClinics.value = [clinicA] // non-featured only
+    it('hides the "Clínicas Destacadas" section when no clinics have paid plans', async () => {
+      mockClinics.value = [clinicA] // free only
       const wrapper = await mountSuspended(ClinicList, {
         global: { stubs: { NuxtLink: true, ClinicCard: ClinicCardStub } },
       })
@@ -384,6 +375,15 @@ describe('ClinicList', () => {
       await wrapper.find('#clinic-search').setValue('clinica')
       await wrapper.vm.$nextTick()
       expect(wrapper.text()).not.toContain('Clínicas Destacadas')
+    })
+
+    it('shows the premium count badge', async () => {
+      mockClinics.value = [clinicA, clinicB, clinicC]
+      const wrapper = await mountSuspended(ClinicList, {
+        global: { stubs: { NuxtLink: true, ClinicCard: ClinicCardStub } },
+      })
+      const section = wrapper.find('[aria-label="Clínicas destacadas"]')
+      expect(section.text()).toContain('2')
     })
   })
 

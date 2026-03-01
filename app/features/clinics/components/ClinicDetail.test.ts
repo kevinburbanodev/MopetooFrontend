@@ -13,13 +13,13 @@
 //     selectedClinic, isLoading, and error per test.
 //
 // Key behaviours tested:
-//   - clinicId path traversal guard: invalid IDs do NOT call fetchClinicById.
-//   - Valid clinicId calls clearSelectedClinic() then fetchClinicById().
-//   - Profile content: name, city, address, specialties, description, contact.
-//   - Photo rendering with isSafeImageUrl guard (🏥 fallback on unsafe URLs).
-//   - Verified and featured badges.
-//   - Business hours table (shown only when hours object has data).
-//   - Coordinates / map placeholder (shown only when lat+lng present).
+//   - clinicId numeric validation: NaN, 0, negative → do NOT call fetchClinicById.
+//   - Valid clinicId calls clearSelectedClinic() then fetchClinicById(numericId).
+//   - Profile content: name, city, country, specialties, services, description, contact.
+//   - Cover image rendering with isSafeImageUrl guard (🏥 fallback on unsafe URLs).
+//   - Verified and plan-based badges.
+//   - Schedules section (preformatted text, shown only when schedules is truthy).
+//   - Social media links (facebook, instagram, twitter) with URL safety.
 //   - Loading skeleton while fetching.
 //   - "Not found" state when selectedClinic is null and not loading.
 //   - onUnmounted clears selectedClinic.
@@ -33,40 +33,29 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { mountSuspended } from '@nuxt/test-utils/runtime'
 import { ref } from 'vue'
 import ClinicDetail from './ClinicDetail.vue'
-import type { Clinic, ClinicHours } from '../types'
+import type { Clinic } from '../types'
 
 // ── Fixtures ─────────────────────────────────────────────────
 
-function makeHours(overrides: Partial<ClinicHours> = {}): ClinicHours {
-  return {
-    monday: '8:00 AM - 6:00 PM',
-    tuesday: '8:00 AM - 6:00 PM',
-    wednesday: '8:00 AM - 6:00 PM',
-    thursday: '8:00 AM - 6:00 PM',
-    friday: '8:00 AM - 5:00 PM',
-    saturday: '9:00 AM - 1:00 PM',
-    sunday: undefined,
-    ...overrides,
-  }
-}
-
 function makeClinic(overrides: Partial<Clinic> = {}): Clinic {
   return {
-    id: '1',
+    id: 1,
     name: 'Los Andes Vet',
-    description: 'Atención veterinaria integral para toda tu familia',
+    email: 'info@clinicaandes.com',
+    phone: '+57 300 987 6543',
     address: 'Calle 72 #15-30',
     city: 'Bogotá',
-    phone: '+57 300 987 6543',
-    email: 'info@clinicaandes.com',
-    website: 'https://clinicaandes.com',
-    photo_url: 'https://example.com/clinica.jpg',
+    country: 'Colombia',
+    description: 'Atención veterinaria integral para toda tu familia',
     specialties: ['Cirugía', 'Dermatología'],
-    is_verified: true,
-    is_featured: false,
-    hours: makeHours(),
-    latitude: 4.7109886,
-    longitude: -74.072092,
+    services: ['Consulta general', 'Vacunación', 'Cirugía menor'],
+    schedules: 'Lunes a Viernes: 8:00 AM - 6:00 PM\nSábado: 9:00 AM - 1:00 PM',
+    cover_image_url: 'https://example.com/clinica.jpg',
+    facebook_url: 'https://facebook.com/clinicaandes',
+    instagram_url: 'https://instagram.com/clinicaandes',
+    plan: 'free',
+    verified: true,
+    is_active: true,
     created_at: '2024-01-01T00:00:00Z',
     updated_at: '2024-01-01T00:00:00Z',
     ...overrides,
@@ -74,7 +63,6 @@ function makeClinic(overrides: Partial<Clinic> = {}): Clinic {
 }
 
 // ── useClinics mock ────────────────────────────────────────────
-// Module-level reactive refs so each test can override values before mount.
 
 const mockFetchClinicById = vi.fn()
 const mockClearSelectedClinic = vi.fn()
@@ -109,23 +97,39 @@ describe('ClinicDetail', () => {
   // ── Lifecycle ──────────────────────────────────────────────
 
   describe('lifecycle', () => {
-    it('calls clearSelectedClinic then fetchClinicById on mount with valid id', async () => {
+    it('calls clearSelectedClinic then fetchClinicById on mount with valid numeric id', async () => {
       const callOrder: string[] = []
       mockClearSelectedClinic.mockImplementation(() => callOrder.push('clear'))
       mockFetchClinicById.mockImplementation(async () => { callOrder.push('fetch'); return null })
 
       await mountSuspended(ClinicDetail, {
-        props: { clinicId: 'abc-123' },
+        props: { clinicId: '5' },
         global: { stubs: { NuxtLink: true } },
       })
 
       expect(callOrder).toEqual(['clear', 'fetch'])
-      expect(mockFetchClinicById).toHaveBeenCalledWith('abc-123')
+      expect(mockFetchClinicById).toHaveBeenCalledWith(5)
     })
 
-    it('does NOT call fetchClinicById when clinicId contains path traversal characters', async () => {
+    it('does NOT call fetchClinicById when clinicId is NaN', async () => {
       await mountSuspended(ClinicDetail, {
-        props: { clinicId: '../../../etc/passwd' },
+        props: { clinicId: 'not-a-number' },
+        global: { stubs: { NuxtLink: true } },
+      })
+      expect(mockFetchClinicById).not.toHaveBeenCalled()
+    })
+
+    it('does NOT call fetchClinicById when clinicId is 0', async () => {
+      await mountSuspended(ClinicDetail, {
+        props: { clinicId: '0' },
+        global: { stubs: { NuxtLink: true } },
+      })
+      expect(mockFetchClinicById).not.toHaveBeenCalled()
+    })
+
+    it('does NOT call fetchClinicById when clinicId is negative', async () => {
+      await mountSuspended(ClinicDetail, {
+        props: { clinicId: '-1' },
         global: { stubs: { NuxtLink: true } },
       })
       expect(mockFetchClinicById).not.toHaveBeenCalled()
@@ -139,12 +143,12 @@ describe('ClinicDetail', () => {
       expect(mockFetchClinicById).not.toHaveBeenCalled()
     })
 
-    it('accepts clinicId with hyphens (valid slug format)', async () => {
+    it('parses clinicId as a number before calling fetchClinicById', async () => {
       await mountSuspended(ClinicDetail, {
-        props: { clinicId: 'los-andes-vet-123' },
+        props: { clinicId: '42' },
         global: { stubs: { NuxtLink: true } },
       })
-      expect(mockFetchClinicById).toHaveBeenCalledWith('los-andes-vet-123')
+      expect(mockFetchClinicById).toHaveBeenCalledWith(42)
     })
   })
 
@@ -219,20 +223,23 @@ describe('ClinicDetail', () => {
       expect(wrapper.find('h1').text()).toContain('Los Andes Vet')
     })
 
-    it('renders the city', async () => {
+    it('renders the city and country', async () => {
       const wrapper = await mountSuspended(ClinicDetail, {
         props: { clinicId: '1' },
         global: { stubs: { NuxtLink: true } },
       })
       expect(wrapper.text()).toContain('Bogotá')
+      expect(wrapper.text()).toContain('Colombia')
     })
 
-    it('renders the address and city combined', async () => {
+    it('renders the address, city, and country combined', async () => {
       const wrapper = await mountSuspended(ClinicDetail, {
         props: { clinicId: '1' },
         global: { stubs: { NuxtLink: true } },
       })
       expect(wrapper.text()).toContain('Calle 72 #15-30')
+      expect(wrapper.text()).toContain('Bogotá')
+      expect(wrapper.text()).toContain('Colombia')
     })
 
     it('renders the description as plain text (not v-html)', async () => {
@@ -252,7 +259,7 @@ describe('ClinicDetail', () => {
       expect(wrapper.text()).toContain('Dermatología')
     })
 
-    it('renders the "Verificado" badge when is_verified is true', async () => {
+    it('renders the "Verificado" badge when verified is true', async () => {
       const wrapper = await mountSuspended(ClinicDetail, {
         props: { clinicId: '1' },
         global: { stubs: { NuxtLink: true } },
@@ -260,8 +267,8 @@ describe('ClinicDetail', () => {
       expect(wrapper.text()).toContain('Verificado')
     })
 
-    it('hides the "Verificado" badge when is_verified is false', async () => {
-      mockSelectedClinic.value = makeClinic({ is_verified: false })
+    it('hides the "Verificado" badge when verified is false', async () => {
+      mockSelectedClinic.value = makeClinic({ verified: false })
       const wrapper = await mountSuspended(ClinicDetail, {
         props: { clinicId: '1' },
         global: { stubs: { NuxtLink: true } },
@@ -269,21 +276,86 @@ describe('ClinicDetail', () => {
       expect(wrapper.text()).not.toContain('Verificado')
     })
 
-    it('renders the "Destacado" badge when is_featured is true', async () => {
-      mockSelectedClinic.value = makeClinic({ is_featured: true })
+    it('renders the "Destacado" badge when plan is a paid plan', async () => {
+      mockSelectedClinic.value = makeClinic({ plan: 'pro' })
       const wrapper = await mountSuspended(ClinicDetail, {
         props: { clinicId: '1' },
         global: { stubs: { NuxtLink: true } },
       })
       expect(wrapper.text()).toContain('Destacado')
     })
+
+    it('hides the "Destacado" badge when plan is "free"', async () => {
+      mockSelectedClinic.value = makeClinic({ plan: 'free' })
+      const wrapper = await mountSuspended(ClinicDetail, {
+        props: { clinicId: '1' },
+        global: { stubs: { NuxtLink: true } },
+      })
+      expect(wrapper.text()).not.toContain('Destacado')
+    })
+  })
+
+  // ── Services section ─────────────────────────────────────────
+
+  describe('services section', () => {
+    it('renders the services when services array is non-empty', async () => {
+      mockSelectedClinic.value = makeClinic({ services: ['Consulta general', 'Vacunación'] })
+      const wrapper = await mountSuspended(ClinicDetail, {
+        props: { clinicId: '1' },
+        global: { stubs: { NuxtLink: true } },
+      })
+      expect(wrapper.text()).toContain('Servicios')
+      expect(wrapper.text()).toContain('Consulta general')
+      expect(wrapper.text()).toContain('Vacunación')
+    })
+
+    it('hides the services section when services array is empty', async () => {
+      mockSelectedClinic.value = makeClinic({ services: [] })
+      const wrapper = await mountSuspended(ClinicDetail, {
+        props: { clinicId: '1' },
+        global: { stubs: { NuxtLink: true } },
+      })
+      expect(wrapper.find('[aria-label="Servicios de la clínica"]').exists()).toBe(false)
+    })
+  })
+
+  // ── Schedules section ────────────────────────────────────────
+
+  describe('schedules section', () => {
+    it('renders the schedules section when schedules is truthy', async () => {
+      mockSelectedClinic.value = makeClinic({ schedules: 'Lunes a Viernes: 8:00 AM - 6:00 PM' })
+      const wrapper = await mountSuspended(ClinicDetail, {
+        props: { clinicId: '1' },
+        global: { stubs: { NuxtLink: true } },
+      })
+      expect(wrapper.text()).toContain('Horarios de atención')
+      expect(wrapper.text()).toContain('Lunes a Viernes: 8:00 AM - 6:00 PM')
+    })
+
+    it('hides the schedules section when schedules is undefined', async () => {
+      mockSelectedClinic.value = makeClinic({ schedules: undefined })
+      const wrapper = await mountSuspended(ClinicDetail, {
+        props: { clinicId: '1' },
+        global: { stubs: { NuxtLink: true } },
+      })
+      expect(wrapper.text()).not.toContain('Horarios de atención')
+    })
+
+    it('hides the schedules section when schedules is empty string', async () => {
+      mockSelectedClinic.value = makeClinic({ schedules: '' })
+      const wrapper = await mountSuspended(ClinicDetail, {
+        props: { clinicId: '1' },
+        global: { stubs: { NuxtLink: true } },
+      })
+      expect(wrapper.text()).not.toContain('Horarios de atención')
+    })
   })
 
   // ── Photo rendering ────────────────────────────────────────
 
   describe('photo rendering', () => {
-    it('renders the photo when photo_url is a valid https URL', async () => {
-      mockSelectedClinic.value = makeClinic({ photo_url: 'https://example.com/clinica.jpg' })
+    it('renders the cover image when cover_image_url is a valid https URL', async () => {
+      mockSelectedClinic.value = makeClinic({ cover_image_url: 'https://example.com/clinica.jpg' })
       const wrapper = await mountSuspended(ClinicDetail, {
         props: { clinicId: '1' },
         global: { stubs: { NuxtLink: true } },
@@ -291,8 +363,8 @@ describe('ClinicDetail', () => {
       expect(wrapper.find('img').exists()).toBe(true)
     })
 
-    it('shows the 🏥 fallback when photo_url is undefined', async () => {
-      mockSelectedClinic.value = makeClinic({ photo_url: undefined })
+    it('shows the 🏥 fallback when cover_image_url is undefined', async () => {
+      mockSelectedClinic.value = makeClinic({ cover_image_url: undefined })
       const wrapper = await mountSuspended(ClinicDetail, {
         props: { clinicId: '1' },
         global: { stubs: { NuxtLink: true } },
@@ -301,8 +373,8 @@ describe('ClinicDetail', () => {
       expect(wrapper.text()).toContain('🏥')
     })
 
-    it('shows the 🏥 fallback when photo_url is a javascript: URI (XSS vector)', async () => {
-      mockSelectedClinic.value = makeClinic({ photo_url: 'javascript:alert(1)' })
+    it('shows the 🏥 fallback when cover_image_url is a javascript: URI (XSS vector)', async () => {
+      mockSelectedClinic.value = makeClinic({ cover_image_url: 'javascript:alert(1)' })
       const wrapper = await mountSuspended(ClinicDetail, {
         props: { clinicId: '1' },
         global: { stubs: { NuxtLink: true } },
@@ -310,8 +382,8 @@ describe('ClinicDetail', () => {
       expect(wrapper.find('.clinic-detail__banner-fallback').exists()).toBe(true)
     })
 
-    it('shows the 🏥 fallback when photo_url is a data: URI (rejected)', async () => {
-      mockSelectedClinic.value = makeClinic({ photo_url: 'data:image/png;base64,abc' })
+    it('shows the 🏥 fallback when cover_image_url is a data: URI (rejected)', async () => {
+      mockSelectedClinic.value = makeClinic({ cover_image_url: 'data:image/png;base64,abc' })
       const wrapper = await mountSuspended(ClinicDetail, {
         props: { clinicId: '1' },
         global: { stubs: { NuxtLink: true } },
@@ -333,8 +405,8 @@ describe('ClinicDetail', () => {
       expect(link.exists()).toBe(true)
     })
 
-    it('hides the phone section when phone is undefined', async () => {
-      mockSelectedClinic.value = makeClinic({ phone: undefined })
+    it('hides the phone section when phone is empty', async () => {
+      mockSelectedClinic.value = makeClinic({ phone: '' })
       const wrapper = await mountSuspended(ClinicDetail, {
         props: { clinicId: '1' },
         global: { stubs: { NuxtLink: true } },
@@ -352,107 +424,82 @@ describe('ClinicDetail', () => {
       expect(link.exists()).toBe(true)
     })
 
-    it('hides the email section when email is undefined', async () => {
-      mockSelectedClinic.value = makeClinic({ email: undefined })
+    it('hides the email section when email fails regex', async () => {
+      mockSelectedClinic.value = makeClinic({ email: 'not-an-email' })
       const wrapper = await mountSuspended(ClinicDetail, {
         props: { clinicId: '1' },
         global: { stubs: { NuxtLink: true } },
       })
       expect(wrapper.find('a[href^="mailto:"]').exists()).toBe(false)
     })
+  })
 
-    it('renders the website link when website is an https URL', async () => {
-      mockSelectedClinic.value = makeClinic({ website: 'https://clinicaandes.com' })
+  // ── Social media links ───────────────────────────────────────
+
+  describe('social media links', () => {
+    it('renders the Facebook link when facebook_url is a valid URL', async () => {
+      mockSelectedClinic.value = makeClinic({ facebook_url: 'https://facebook.com/clinicaandes' })
       const wrapper = await mountSuspended(ClinicDetail, {
         props: { clinicId: '1' },
         global: { stubs: { NuxtLink: true } },
       })
-      const link = wrapper.find('a[href="https://clinicaandes.com"]')
+      const link = wrapper.find('[aria-label="Facebook de Los Andes Vet"]')
       expect(link.exists()).toBe(true)
     })
 
-    it('hides the website link when website is a javascript: URI (XSS block)', async () => {
-      mockSelectedClinic.value = makeClinic({ website: 'javascript:alert(1)' })
+    it('hides the Facebook link when facebook_url is undefined', async () => {
+      mockSelectedClinic.value = makeClinic({ facebook_url: undefined })
       const wrapper = await mountSuspended(ClinicDetail, {
         props: { clinicId: '1' },
         global: { stubs: { NuxtLink: true } },
       })
-      expect(wrapper.find('a[href^="javascript:"]').exists()).toBe(false)
+      expect(wrapper.find('[aria-label="Facebook de Los Andes Vet"]').exists()).toBe(false)
     })
-  })
 
-  // ── Business hours ─────────────────────────────────────────
-
-  describe('business hours', () => {
-    it('renders the hours table when the clinic has hours data', async () => {
-      mockSelectedClinic.value = makeClinic({ hours: makeHours() })
+    it('renders the Instagram link when instagram_url is a valid URL', async () => {
+      mockSelectedClinic.value = makeClinic({ instagram_url: 'https://instagram.com/clinicaandes' })
       const wrapper = await mountSuspended(ClinicDetail, {
         props: { clinicId: '1' },
         global: { stubs: { NuxtLink: true } },
       })
-      expect(wrapper.text()).toContain('Horarios de atención')
-      expect(wrapper.find('.clinic-detail__hours-table').exists()).toBe(true)
+      const link = wrapper.find('[aria-label="Instagram de Los Andes Vet"]')
+      expect(link.exists()).toBe(true)
     })
 
-    it('shows "Cerrado" for days with no hours defined', async () => {
-      mockSelectedClinic.value = makeClinic({ hours: { monday: '8:00 AM - 6:00 PM' } })
+    it('renders the Twitter link when twitter_url is a valid URL', async () => {
+      mockSelectedClinic.value = makeClinic({ twitter_url: 'https://twitter.com/clinicaandes' })
       const wrapper = await mountSuspended(ClinicDetail, {
         props: { clinicId: '1' },
         global: { stubs: { NuxtLink: true } },
       })
-      expect(wrapper.text()).toContain('Cerrado')
+      const link = wrapper.find('[aria-label="Twitter de Los Andes Vet"]')
+      expect(link.exists()).toBe(true)
     })
 
-    it('hides the hours section when hours object is undefined', async () => {
-      mockSelectedClinic.value = makeClinic({ hours: undefined })
-      const wrapper = await mountSuspended(ClinicDetail, {
-        props: { clinicId: '1' },
-        global: { stubs: { NuxtLink: true } },
-      })
-      expect(wrapper.text()).not.toContain('Horarios de atención')
-    })
-
-    it('hides the hours section when all days have empty string values', async () => {
+    it('hides the social section when no social URLs are provided', async () => {
       mockSelectedClinic.value = makeClinic({
-        hours: { monday: '', tuesday: '', wednesday: '', thursday: '', friday: '', saturday: '', sunday: '' },
+        facebook_url: undefined,
+        instagram_url: undefined,
+        twitter_url: undefined,
       })
       const wrapper = await mountSuspended(ClinicDetail, {
         props: { clinicId: '1' },
         global: { stubs: { NuxtLink: true } },
       })
-      expect(wrapper.text()).not.toContain('Horarios de atención')
-    })
-  })
-
-  // ── Map placeholder ────────────────────────────────────────
-
-  describe('map placeholder', () => {
-    it('shows the coordinates card when latitude and longitude are present', async () => {
-      mockSelectedClinic.value = makeClinic({ latitude: 4.71, longitude: -74.07 })
-      const wrapper = await mountSuspended(ClinicDetail, {
-        props: { clinicId: '1' },
-        global: { stubs: { NuxtLink: true } },
-      })
-      expect(wrapper.text()).toContain('Ubicación')
-      expect(wrapper.find('.clinic-detail__map-placeholder').exists()).toBe(true)
+      expect(wrapper.text()).not.toContain('Redes sociales')
     })
 
-    it('hides the coordinates card when latitude is absent', async () => {
-      mockSelectedClinic.value = makeClinic({ latitude: undefined, longitude: -74.07 })
+    it('blocks social links with javascript: URI', async () => {
+      mockSelectedClinic.value = makeClinic({
+        facebook_url: 'javascript:alert(1)',
+        instagram_url: 'javascript:alert(2)',
+        twitter_url: 'javascript:alert(3)',
+      })
       const wrapper = await mountSuspended(ClinicDetail, {
         props: { clinicId: '1' },
         global: { stubs: { NuxtLink: true } },
       })
-      expect(wrapper.find('.clinic-detail__map-placeholder').exists()).toBe(false)
-    })
-
-    it('hides the coordinates card when both lat and lng are absent', async () => {
-      mockSelectedClinic.value = makeClinic({ latitude: undefined, longitude: undefined })
-      const wrapper = await mountSuspended(ClinicDetail, {
-        props: { clinicId: '1' },
-        global: { stubs: { NuxtLink: true } },
-      })
-      expect(wrapper.find('.clinic-detail__map-placeholder').exists()).toBe(false)
+      expect(wrapper.text()).not.toContain('Redes sociales')
     })
   })
 

@@ -20,29 +20,30 @@ import type { Clinic } from '../types'
 
 function makeClinic(overrides: Partial<Clinic> = {}): Clinic {
   return {
-    id: '1',
+    id: 1,
     name: 'Clínica Veterinaria Los Andes',
-    description: 'Atención veterinaria integral para toda tu familia',
+    email: 'info@clinicaandes.com',
+    phone: '+57 300 987 6543',
     address: 'Calle 72 #15-30',
     city: 'Bogotá',
-    phone: '+57 300 987 6543',
-    email: 'info@clinicaandes.com',
-    website: 'https://clinicaandes.com',
-    photo_url: 'https://example.com/clinica.jpg',
+    country: 'Colombia',
+    description: 'Atención veterinaria integral para toda tu familia',
     specialties: ['Cirugía', 'Dermatología'],
-    is_verified: true,
-    is_featured: false,
-    latitude: 4.7109886,
-    longitude: -74.072092,
+    services: ['Consulta general', 'Vacunación'],
+    schedules: 'Lunes a Viernes: 8:00 AM - 6:00 PM',
+    cover_image_url: 'https://example.com/clinica.jpg',
+    plan: 'free',
+    verified: true,
+    is_active: true,
     created_at: '2024-01-01T00:00:00Z',
     updated_at: '2024-01-01T00:00:00Z',
     ...overrides,
   }
 }
 
-const clinicA = makeClinic({ id: '1', name: 'Los Andes Vet', city: 'Bogotá', is_featured: false })
-const clinicB = makeClinic({ id: '2', name: 'Clínica Animal Sur', city: 'Medellín', is_featured: true })
-const clinicC = makeClinic({ id: '3', name: 'VetSalud', city: 'Cali', is_featured: true, is_verified: false })
+const clinicA = makeClinic({ id: 1, name: 'Los Andes Vet', city: 'Bogotá', plan: 'free' })
+const clinicB = makeClinic({ id: 2, name: 'Clínica Animal Sur', city: 'Medellín', plan: 'pro' })
+const clinicC = makeClinic({ id: 3, name: 'VetSalud', city: 'Cali', plan: 'premium', verified: false })
 
 // ── Suite ─────────────────────────────────────────────────────
 
@@ -75,9 +76,9 @@ describe('useClinicsStore', () => {
       expect(store.hasClinics).toBe(false)
     })
 
-    it('getFeaturedClinics returns an empty array', () => {
+    it('getPremiumClinics returns an empty array', () => {
       const store = useClinicsStore()
-      expect(store.getFeaturedClinics).toEqual([])
+      expect(store.getPremiumClinics).toEqual([])
     })
   })
 
@@ -109,58 +110,67 @@ describe('useClinicsStore', () => {
     })
   })
 
-  // ── getFeaturedClinics getter ──────────────────────────────
+  // ── getPremiumClinics getter ─────────────────────────────────
 
-  describe('getFeaturedClinics getter', () => {
+  describe('getPremiumClinics getter', () => {
     it('returns an empty array when no clinics are loaded', () => {
       const store = useClinicsStore()
-      expect(store.getFeaturedClinics).toEqual([])
+      expect(store.getPremiumClinics).toEqual([])
     })
 
-    it('returns only clinics with is_featured === true', () => {
+    it('returns only clinics with a paid plan (not empty, not free)', () => {
       const store = useClinicsStore()
       store.setClinics([clinicA, clinicB, clinicC])
-      const featured = store.getFeaturedClinics
-      expect(featured).toHaveLength(2)
-      expect(featured.map(c => c.id)).toEqual(expect.arrayContaining(['2', '3']))
+      const premium = store.getPremiumClinics
+      expect(premium).toHaveLength(2)
+      expect(premium.map(c => c.id)).toEqual(expect.arrayContaining([2, 3]))
     })
 
-    it('excludes clinics with is_featured === false', () => {
+    it('excludes clinics with plan === "free"', () => {
       const store = useClinicsStore()
       store.setClinics([clinicA, clinicB, clinicC])
-      const featured = store.getFeaturedClinics
-      expect(featured.find(c => c.id === '1')).toBeUndefined()
+      const premium = store.getPremiumClinics
+      expect(premium.find(c => c.id === 1)).toBeUndefined()
     })
 
-    it('returns all clinics when all have is_featured === true', () => {
+    it('excludes clinics with plan === "" (empty string)', () => {
       const store = useClinicsStore()
-      const allFeatured = [
-        makeClinic({ id: 'f1', is_featured: true }),
-        makeClinic({ id: 'f2', is_featured: true }),
+      const emptyPlan = makeClinic({ id: 4, plan: '' })
+      store.setClinics([emptyPlan, clinicB])
+      const premium = store.getPremiumClinics
+      expect(premium).toHaveLength(1)
+      expect(premium[0].id).toBe(2)
+    })
+
+    it('returns all clinics when all have paid plans', () => {
+      const store = useClinicsStore()
+      const allPaid = [
+        makeClinic({ id: 10, plan: 'pro' }),
+        makeClinic({ id: 11, plan: 'premium' }),
       ]
-      store.setClinics(allFeatured)
-      expect(store.getFeaturedClinics).toHaveLength(2)
+      store.setClinics(allPaid)
+      expect(store.getPremiumClinics).toHaveLength(2)
     })
 
-    it('returns an empty array when all clinics have is_featured === false', () => {
+    it('returns an empty array when all clinics have free/empty plans', () => {
       const store = useClinicsStore()
-      store.setClinics([clinicA, makeClinic({ id: '5', is_featured: false })])
-      expect(store.getFeaturedClinics).toEqual([])
+      store.setClinics([clinicA, makeClinic({ id: 5, plan: '' })])
+      expect(store.getPremiumClinics).toEqual([])
     })
 
-    it('updates reactively when a featured clinic is added', () => {
+    it('updates reactively when a premium clinic is added', () => {
       const store = useClinicsStore()
-      store.setClinics([clinicA]) // non-featured only
-      expect(store.getFeaturedClinics).toHaveLength(0)
-      store.addClinic(clinicB) // featured
-      expect(store.getFeaturedClinics).toHaveLength(1)
+      store.setClinics([clinicA]) // free only
+      expect(store.getPremiumClinics).toHaveLength(0)
+      store.addClinic(clinicB) // pro
+      expect(store.getPremiumClinics).toHaveLength(1)
     })
 
     it('returns an empty array after clearClinics resets the list', () => {
       const store = useClinicsStore()
-      store.setClinics([clinicB, clinicC]) // both featured
+      store.setClinics([clinicB, clinicC]) // both premium
       store.clearClinics()
-      expect(store.getFeaturedClinics).toEqual([])
+      expect(store.getPremiumClinics).toEqual([])
     })
   })
 
@@ -196,9 +206,9 @@ describe('useClinicsStore', () => {
     it('preserves the order of the provided list', () => {
       const store = useClinicsStore()
       store.setClinics([clinicC, clinicA, clinicB])
-      expect(store.clinics[0].id).toBe('3')
-      expect(store.clinics[1].id).toBe('1')
-      expect(store.clinics[2].id).toBe('2')
+      expect(store.clinics[0].id).toBe(3)
+      expect(store.clinics[1].id).toBe(1)
+      expect(store.clinics[2].id).toBe(2)
     })
   })
 
@@ -255,8 +265,10 @@ describe('useClinicsStore', () => {
       const store = useClinicsStore()
       store.setSelectedClinic(clinicA)
       expect(store.selectedClinic?.name).toBe('Los Andes Vet')
-      expect(store.selectedClinic?.is_verified).toBe(true)
+      expect(store.selectedClinic?.verified).toBe(true)
       expect(store.selectedClinic?.specialties).toEqual(['Cirugía', 'Dermatología'])
+      expect(store.selectedClinic?.services).toEqual(['Consulta general', 'Vacunación'])
+      expect(store.selectedClinic?.country).toBe('Colombia')
     })
 
     it('does not affect the clinics array', () => {
@@ -349,11 +361,11 @@ describe('useClinicsStore', () => {
       expect(store.hasClinics).toBe(false)
     })
 
-    it('makes getFeaturedClinics return an empty array after clearing', () => {
+    it('makes getPremiumClinics return an empty array after clearing', () => {
       const store = useClinicsStore()
-      store.setClinics([clinicB, clinicC]) // both featured
+      store.setClinics([clinicB, clinicC]) // both premium
       store.clearClinics()
-      expect(store.getFeaturedClinics).toEqual([])
+      expect(store.getPremiumClinics).toEqual([])
     })
 
     it('is safe to call when the store is already in initial state', () => {

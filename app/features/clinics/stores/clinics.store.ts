@@ -18,11 +18,12 @@ export const useClinicsStore = defineStore('clinics', () => {
   const hasClinics = computed(() => clinics.value.length > 0)
 
   /**
-   * Clinics where is_featured === true — used to render the
+   * Clinics with an active paid plan — used to render the
    * "Clínicas Destacadas" section above the main grid.
+   * Backend defaults new clinics to plan: "free".
    */
-  const getFeaturedClinics = computed<Clinic[]>(() =>
-    clinics.value.filter(c => c.is_featured),
+  const getPremiumClinics = computed<Clinic[]>(() =>
+    clinics.value.filter(c => c.plan !== '' && c.plan !== 'free'),
   )
 
   // ── Actions ────────────────────────────────────────────────
@@ -63,7 +64,7 @@ export const useClinicsStore = defineStore('clinics', () => {
     isLoading,
     // Getters
     hasClinics,
-    getFeaturedClinics,
+    getPremiumClinics,
     // Actions
     setClinics,
     addClinic,
