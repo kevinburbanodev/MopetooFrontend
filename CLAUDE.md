@@ -25,7 +25,7 @@ npm run test:coverage    # Single run with coverage report
 - Reminders feature slice (RF-200–RF-209): 256 tests (store 44, useReminders 75, ReminderCard 26, ReminderList 29, ReminderForm 46) ✅
 - Medical feature slice (RF-300–RF-309): 273 tests (store 44, useMedical 65, MedicalRecordCard 38, MedicalHistory 31, MedicalRecordForm 86) ✅
 - Export/PDF slice (RF-400–RF-409): 24 tests (useExportPDF 24) ✅ — exportProfilePDF tests in usePets, exportRemindersPDF tests in useReminders
-- Shelters slice (RF-500–RF-509): 252 tests (store 65, useShelters 67, ShelterCard 21, ShelterList 25, AdoptionPetCard 35, AdoptionDetail 39) ✅
+- Shelters slice (RF-500–RF-509): 157 tests (store 35, useShelters 35, ShelterList 22, AdoptionPetCard 25, AdoptionDetail 40) ✅
 - Blog slice (RF-600–RF-609): 208 tests (store 44, useBlog 60, BlogCategoryFilter 18, BlogCard 24, BlogList 28, BlogArticle 34) ✅
 - Petshops slice (RF-700–RF-709): 187 tests (store 44, usePetshops 60, PetshopCard 26, PetshopList 37, PetshopDetail 40) ✅
 - Pro/Monetización slice (RF-800–RF-809): 216 tests (store 44, usePro 60, ProBanner 22, PricingTable 30, ProUpgradeModal 26, DonationForm 34) ✅
@@ -50,7 +50,7 @@ app/features/
 ├── pets/            # Pet profile CRUD
 ├── reminders/       # Reminder CRUD
 ├── medical/         # Medical record CRUD
-├── shelters/        # Shelter directory & adoption pets (public + auth)
+├── shelters/        # Adoption listings directory & detail (public + auth)
 ├── blog/            # Blog editorial (public: listing + article detail)
 ├── petshops/        # Pet-friendly stores directory (public: listing + detail)
 ├── pro/             # Monetización: PRO subscriptions, pricing table, donations (RF-800–RF-809)
@@ -88,7 +88,7 @@ This means `useApi()`, `useAuth()`, `useAuthStore()`, etc. are available in any 
 | `usePetsStore` | `pets[]`, `selectedPet`, `isLoading` |
 | `useRemindersStore` | `reminders[]`, `selectedReminder`, `isLoading` |
 | `useMedicalStore` | `records[]`, `selectedRecord`, `isLoading` |
-| `useSheltersStore` | `shelters[]`, `selectedShelter`, `adoptionPets[]`, `selectedAdoptionPet`, `isLoading` |
+| `useSheltersStore` | `adoptionListings[]`, `selectedListing`, `isLoading`, `hasAdoptionListings`, `getAvailableListings` |
 | `useBlogStore` | `posts[]`, `selectedPost`, `categories[]`, `isLoading`, `currentPage`, `totalPages`, `total` |
 | `usePetshopsStore` | `petshops[]`, `selectedPetshop`, `isLoading` |
 | `useProStore` | `subscription`, `plans[]`, `isLoading`, `isSubscribed`, `getMonthlyPlan`, `getAnnualPlan` |
@@ -236,7 +236,7 @@ Any change to token storage or auth flow warrants a security review.
 - Resetting select filters to null: use clearFilters button click, not `setValue(null)` (happy-dom limitation)
 - `Pet.id` is `string`; `Reminder.pet_id` is `number` — compare with `String(pet_id) === pet.id`
 - `AdoptionDetail` adoption form is wrapped in `<ClientOnly>` — in tests, set `isAuthenticated: true` via `createTestingPinia` and verify the form renders after client hydration
-- `AdoptionPetCard` passes `?shelterId=` query param in its NuxtLink href — verify with `wrapper.find('a').attributes('href')`
+- `AdoptionPetCard` link format is `/shelter/adoptions/${listing.id}` (no shelterId query param)
 - **Auth store reset across tests (critical):** `setActivePinia(createPinia())` in `beforeEach` does NOT reset the Nuxt test env's auth store. Explicitly reset with: `const { useAuthStore } = await import('../../auth/stores/auth.store'); useAuthStore().token = null`
 - **Mount-first, then set token:** Setting `useAuthStore().token` BEFORE `mountSuspended` does NOT work. Mount first, then set token, then `await nextTick()` to trigger re-render of auth-conditional DOM
 - **Form submit in happy-dom:** `wrapper.find('button[type="submit"]').trigger('click')` does NOT propagate to `@submit.prevent`. Use `await wrapper.find('form').trigger('submit')` instead

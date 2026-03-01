@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// Adoption pet detail page — thin wrapper.
+// Adoption listing detail page — thin wrapper.
 // Public route; no auth middleware required.
 // Auth state is evaluated client-side inside AdoptionDetail to show
 // the adoption request form to authenticated users.
@@ -9,7 +9,7 @@ definePageMeta({
 })
 
 const route = useRoute()
-const petId = route.params.id as string
+const listingId = route.params.id as string
 
 useSeoMeta({
   title: 'Adopción — Mopetoo',
@@ -21,6 +21,6 @@ useSeoMeta({
 
 <template>
   <div class="container py-5">
-    <AdoptionDetail :pet-id="petId" />
+    <AdoptionDetail :listing-id="listingId" />
   </div>
 </template>

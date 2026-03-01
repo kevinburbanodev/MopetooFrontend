@@ -1,39 +1,51 @@
 <script setup lang="ts">
-// ShelterList — public shelter directory.
-// Fetches shelters on mount, provides client-side search + species filter,
+// ShelterList — adoption listings directory.
+// Fetches all adoption listings on mount from GET /api/adoption-listings,
+// provides client-side search + species/city/gender filters,
 // displays skeleton loading and empty state.
-// All data fetching happens in this component via useShelters.
 
-const { fetchShelters, error, sheltersStore } = useShelters()
+const { fetchAdoptionListings, error, sheltersStore } = useShelters()
 
 // ── Client-side filters ────────────────────────────────────
 const searchQuery = ref('')
 const selectedSpecies = ref('')
+const selectedCity = ref('')
 
 const SPECIES_OPTIONS = [
   { value: '', label: 'Todas las especies' },
-  { value: 'dogs', label: 'Perros' },
-  { value: 'cats', label: 'Gatos' },
-  { value: 'birds', label: 'Aves' },
-  { value: 'rabbits', label: 'Conejos' },
+  { value: 'dog', label: 'Perros' },
+  { value: 'cat', label: 'Gatos' },
+  { value: 'bird', label: 'Aves' },
+  { value: 'rabbit', label: 'Conejos' },
   { value: 'other', label: 'Otros' },
 ]
 
-const filteredShelters = computed(() => {
-  let result = sheltersStore.shelters
+/** Unique cities derived from the current listings for the filter dropdown */
+const cityOptions = computed(() => {
+  const cities = new Set(sheltersStore.adoptionListings.map(l => l.city))
+  return [
+    { value: '', label: 'Todas las ciudades' },
+    ...[...cities].sort().map(c => ({ value: c, label: c })),
+  ]
+})
 
-  // Filter by species (every shelter must include the selected species)
+const filteredListings = computed(() => {
+  let result = sheltersStore.adoptionListings
+
   if (selectedSpecies.value) {
-    result = result.filter(s => s.species.includes(selectedSpecies.value))
+    result = result.filter(l => l.species === selectedSpecies.value)
   }
 
-  // Filter by search term — matches name, city, or description
+  if (selectedCity.value) {
+    result = result.filter(l => l.city === selectedCity.value)
+  }
+
   const q = searchQuery.value.trim().toLowerCase()
   if (q) {
-    result = result.filter(s =>
-      s.name.toLowerCase().includes(q)
-      || s.city.toLowerCase().includes(q)
-      || s.description.toLowerCase().includes(q),
+    result = result.filter(l =>
+      l.name.toLowerCase().includes(q)
+      || l.species.toLowerCase().includes(q)
+      || l.city.toLowerCase().includes(q),
     )
   }
 
@@ -43,26 +55,27 @@ const filteredShelters = computed(() => {
 function clearFilters(): void {
   searchQuery.value = ''
   selectedSpecies.value = ''
+  selectedCity.value = ''
 }
 
 const hasActiveFilters = computed(() =>
-  searchQuery.value.trim() !== '' || selectedSpecies.value !== '',
+  searchQuery.value.trim() !== '' || selectedSpecies.value !== '' || selectedCity.value !== '',
 )
 
 const SKELETON_COUNT = 6
 
 onMounted(async () => {
-  await fetchShelters()
+  await fetchAdoptionListings()
 })
 </script>
 
 <template>
-  <section aria-label="Directorio de refugios">
+  <section aria-label="Listados de adopción">
     <!-- Page header -->
     <div class="mb-4">
-      <h1 class="h3 fw-bold mb-1">Refugios y Adopciones</h1>
+      <h1 class="h3 fw-bold mb-1">Mascotas en Adopción</h1>
       <p class="text-muted mb-0">
-        Encuentra refugios de animales cerca de ti y da un hogar a una mascota que lo necesita.
+        Encuentra mascotas que buscan un hogar y da un nuevo comienzo a quien lo necesita.
       </p>
     </div>
 
@@ -70,32 +83,32 @@ onMounted(async () => {
     <div class="card border-0 shadow-sm mb-4 p-3">
       <div class="row g-3 align-items-end">
         <!-- Search input -->
-        <div class="col-12 col-md-6">
-          <label for="shelter-search" class="form-label small fw-semibold text-muted">
-            Buscar refugio
+        <div class="col-12 col-md-4">
+          <label for="listing-search" class="form-label small fw-semibold text-muted">
+            Buscar mascota
           </label>
           <div class="input-group">
             <span class="input-group-text bg-transparent border-end-0" aria-hidden="true">
               🔍
             </span>
             <input
-              id="shelter-search"
+              id="listing-search"
               v-model="searchQuery"
               type="search"
               class="form-control border-start-0"
-              placeholder="Nombre, ciudad o descripción..."
-              aria-label="Buscar refugios"
+              placeholder="Nombre, especie o ciudad..."
+              aria-label="Buscar mascotas en adopción"
             />
           </div>
         </div>
 
         <!-- Species filter -->
-        <div class="col-12 col-sm-6 col-md-3">
-          <label for="shelter-species" class="form-label small fw-semibold text-muted">
+        <div class="col-6 col-md-3">
+          <label for="listing-species" class="form-label small fw-semibold text-muted">
             Especie
           </label>
           <select
-            id="shelter-species"
+            id="listing-species"
             v-model="selectedSpecies"
             class="form-select"
             aria-label="Filtrar por especie"
@@ -110,8 +123,29 @@ onMounted(async () => {
           </select>
         </div>
 
+        <!-- City filter -->
+        <div class="col-6 col-md-3">
+          <label for="listing-city" class="form-label small fw-semibold text-muted">
+            Ciudad
+          </label>
+          <select
+            id="listing-city"
+            v-model="selectedCity"
+            class="form-select"
+            aria-label="Filtrar por ciudad"
+          >
+            <option
+              v-for="opt in cityOptions"
+              :key="opt.value"
+              :value="opt.value"
+            >
+              {{ opt.label }}
+            </option>
+          </select>
+        </div>
+
         <!-- Clear filters -->
-        <div class="col-12 col-sm-6 col-md-3 d-flex align-items-end">
+        <div class="col-12 col-md-2 d-flex align-items-end">
           <button
             v-if="hasActiveFilters"
             type="button"
@@ -139,53 +173,53 @@ onMounted(async () => {
       v-if="sheltersStore.isLoading"
       class="row g-4"
       aria-busy="true"
-      aria-label="Cargando refugios"
+      aria-label="Cargando mascotas en adopción"
     >
       <div
         v-for="n in SKELETON_COUNT"
         :key="n"
         class="col-12 col-md-6 col-lg-4"
       >
-        <div class="card border-0 shadow-sm h-100 shelter-skeleton" aria-hidden="true">
-          <div class="shelter-skeleton__photo skeleton-pulse" />
+        <div class="card border-0 shadow-sm h-100 listing-skeleton" aria-hidden="true">
+          <div class="listing-skeleton__photo skeleton-pulse" />
           <div class="card-body p-3 d-flex flex-column gap-2">
-            <div class="skeleton-pulse rounded shelter-skeleton__title" />
-            <div class="skeleton-pulse rounded shelter-skeleton__subtitle" />
-            <div class="skeleton-pulse rounded shelter-skeleton__line" />
-            <div class="skeleton-pulse rounded shelter-skeleton__line shelter-skeleton__line--short" />
+            <div class="skeleton-pulse rounded listing-skeleton__title" />
+            <div class="skeleton-pulse rounded listing-skeleton__subtitle" />
+            <div class="skeleton-pulse rounded listing-skeleton__line" />
+            <div class="skeleton-pulse rounded listing-skeleton__line listing-skeleton__line--short" />
             <div class="d-flex gap-1 mt-1">
-              <div class="skeleton-pulse rounded shelter-skeleton__badge" />
-              <div class="skeleton-pulse rounded shelter-skeleton__badge" />
+              <div class="skeleton-pulse rounded listing-skeleton__badge" />
+              <div class="skeleton-pulse rounded listing-skeleton__badge" />
             </div>
           </div>
           <div class="card-footer bg-transparent border-top-0 px-3 pb-3 pt-0">
-            <div class="skeleton-pulse rounded shelter-skeleton__btn" />
+            <div class="skeleton-pulse rounded listing-skeleton__btn" />
           </div>
         </div>
       </div>
     </div>
 
-    <!-- Empty state — no shelters at all -->
+    <!-- Empty state — no listings at all -->
     <div
-      v-else-if="sheltersStore.shelters.length === 0"
-      class="shelter-empty text-center py-5"
+      v-else-if="sheltersStore.adoptionListings.length === 0"
+      class="listing-empty text-center py-5"
     >
-      <div class="shelter-empty__illustration" aria-hidden="true">🏠</div>
-      <h2 class="h5 fw-bold mt-4 mb-2">No hay refugios disponibles</h2>
+      <div class="listing-empty__illustration" aria-hidden="true">🐾</div>
+      <h2 class="h5 fw-bold mt-4 mb-2">No hay mascotas en adopción</h2>
       <p class="text-muted mb-0">
-        Por el momento no hay refugios registrados. Vuelve a intentarlo más tarde.
+        Por el momento no hay mascotas registradas para adopción. Vuelve a intentarlo más tarde.
       </p>
     </div>
 
     <!-- Empty state — filters returned no results -->
     <div
-      v-else-if="filteredShelters.length === 0"
-      class="shelter-empty text-center py-5"
+      v-else-if="filteredListings.length === 0"
+      class="listing-empty text-center py-5"
     >
-      <div class="shelter-empty__illustration" aria-hidden="true">🔍</div>
+      <div class="listing-empty__illustration" aria-hidden="true">🔍</div>
       <h2 class="h5 fw-bold mt-4 mb-2">Sin resultados</h2>
       <p class="text-muted mb-3">
-        Ningún refugio coincide con tus filtros actuales.
+        Ninguna mascota coincide con tus filtros actuales.
       </p>
       <button type="button" class="btn btn-outline-primary" @click="clearFilters">
         Limpiar filtros
@@ -196,17 +230,17 @@ onMounted(async () => {
     <template v-else>
       <!-- Result count -->
       <p class="text-muted small mb-3" role="status" aria-live="polite">
-        {{ filteredShelters.length }}
-        {{ filteredShelters.length === 1 ? 'refugio encontrado' : 'refugios encontrados' }}
+        {{ filteredListings.length }}
+        {{ filteredListings.length === 1 ? 'mascota encontrada' : 'mascotas encontradas' }}
       </p>
 
       <div class="row g-4">
         <div
-          v-for="shelter in filteredShelters"
-          :key="shelter.id"
+          v-for="listing in filteredListings"
+          :key="listing.id"
           class="col-12 col-md-6 col-lg-4"
         >
-          <ShelterCard :shelter="shelter" />
+          <AdoptionPetCard :listing="listing" />
         </div>
       </div>
     </template>
@@ -215,12 +249,12 @@ onMounted(async () => {
 
 <style scoped lang="scss">
 // ── Empty state ───────────────────────────────────────────────
-.shelter-empty {
+.listing-empty {
   &__illustration {
     font-size: 4rem;
     line-height: 1;
     display: block;
-    animation: shelter-bounce 2s ease-in-out infinite;
+    animation: listing-bounce 2s ease-in-out infinite;
 
     @media (prefers-reduced-motion: reduce) {
       animation: none;
@@ -228,7 +262,7 @@ onMounted(async () => {
   }
 }
 
-@keyframes shelter-bounce {
+@keyframes listing-bounce {
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-8px); }
 }
@@ -255,11 +289,11 @@ onMounted(async () => {
   100% { background-position: -200% 0; }
 }
 
-.shelter-skeleton {
+.listing-skeleton {
   border-radius: var(--bs-border-radius-lg);
 
   &__photo {
-    height: 160px;
+    height: 180px;
     border-radius: var(--bs-border-radius-lg) var(--bs-border-radius-lg) 0 0;
   }
 

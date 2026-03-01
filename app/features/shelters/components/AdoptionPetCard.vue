@@ -1,14 +1,14 @@
 <script setup lang="ts">
-// AdoptionPetCard — compact card for a single pet available for adoption.
+// AdoptionPetCard — compact card for a single adoption listing.
 // Shows: photo (with species emoji fallback), name, species, breed, age,
-// gender, size, status badge, vaccinated/neutered chips.
+// gender, city/country, status badge.
 // "Ver detalles" navigates to /shelter/adoptions/:id
-// (only for non-adopted pets).
+// (only for non-adopted listings).
 
-import type { AdoptionPet } from '../types'
+import type { AdoptionListing } from '../types'
 
 const props = defineProps<{
-  pet: AdoptionPet
+  listing: AdoptionListing
 }>()
 
 // ── Species / display maps ────────────────────────────────
@@ -34,14 +34,8 @@ const GENDER_LABEL: Record<string, string> = {
   unknown: 'Desconocido',
 }
 
-const SIZE_LABEL: Record<string, string> = {
-  small: 'Pequeño',
-  medium: 'Mediano',
-  large: 'Grande',
-}
-
 const STATUS_CONFIG: Record<
-  AdoptionPet['status'],
+  AdoptionListing['status'],
   { label: string; badgeClass: string }
 > = {
   available: { label: 'Disponible', badgeClass: 'bg-success' },
@@ -49,24 +43,17 @@ const STATUS_CONFIG: Record<
   adopted: { label: 'Adoptado', badgeClass: 'bg-secondary' },
 }
 
-const speciesEmoji = computed(() => SPECIES_EMOJI[props.pet.species] ?? '🐾')
-const speciesLabel = computed(() => SPECIES_LABEL[props.pet.species] ?? props.pet.species)
-const genderLabel = computed(() => GENDER_LABEL[props.pet.gender] ?? props.pet.gender)
-const sizeLabel = computed(() => SIZE_LABEL[props.pet.size] ?? props.pet.size)
-const statusConfig = computed(() => STATUS_CONFIG[props.pet.status] ?? STATUS_CONFIG.available)
+const speciesEmoji = computed(() => SPECIES_EMOJI[props.listing.species] ?? '🐾')
+const speciesLabel = computed(() => SPECIES_LABEL[props.listing.species] ?? props.listing.species)
+const genderLabel = computed(() => GENDER_LABEL[props.listing.gender] ?? props.listing.gender)
+const statusConfig = computed(() => STATUS_CONFIG[props.listing.status] ?? STATUS_CONFIG.available)
 
-// ── Age calculation from age_months ─────────────────────
+// ── Age display ──────────────────────────────────────────
 const ageLabel = computed(() => {
-  const m = props.pet.age_months
-  if (m === undefined || m === null) return 'Desconocida'
-  if (m === 0) return 'Recién nacido'
-  const years = Math.floor(m / 12)
-  const months = m % 12
-  if (years === 0) return months === 1 ? '1 mes' : `${months} meses`
-  if (months === 0) return years === 1 ? '1 año' : `${years} años`
-  const yearLabel = years === 1 ? '1 año' : `${years} años`
-  const monthLabel = months === 1 ? '1 mes' : `${months} meses`
-  return `${yearLabel} y ${monthLabel}`
+  const a = props.listing.age
+  if (a === undefined || a === null) return 'Desconocida'
+  if (a === 0) return 'Cachorro'
+  return a === 1 ? '1 año' : `${a} años`
 })
 
 // ── URL safety guard ─────────────────────────────────────
@@ -84,7 +71,7 @@ function isSafeImageUrl(url: string | undefined): boolean {
 }
 
 const safePhotoUrl = computed(() =>
-  isSafeImageUrl(props.pet.photo_url) ? props.pet.photo_url : null,
+  isSafeImageUrl(props.listing.photo_url) ? props.listing.photo_url : null,
 )
 
 const imgError = ref(false)
@@ -94,7 +81,7 @@ function onImgError(): void {
   imgError.value = true
 }
 
-watch(() => props.pet.photo_url, () => {
+watch(() => props.listing.photo_url, () => {
   imgError.value = false
 })
 </script>
@@ -102,14 +89,14 @@ watch(() => props.pet.photo_url, () => {
 <template>
   <article
     class="card h-100 border-0 shadow-sm adoption-pet-card"
-    :aria-label="`Mascota ${pet.name} en adopción`"
+    :aria-label="`Mascota ${listing.name} en adopción`"
   >
     <!-- Photo / fallback -->
     <div class="adoption-pet-card__photo-wrap">
       <img
         v-if="showPhoto"
         :src="safePhotoUrl!"
-        :alt="`Foto de ${pet.name}`"
+        :alt="`Foto de ${listing.name}`"
         class="adoption-pet-card__photo"
         width="400"
         height="220"
@@ -135,11 +122,11 @@ watch(() => props.pet.photo_url, () => {
     <div class="card-body d-flex flex-column gap-2 p-3">
       <!-- Name + species -->
       <div>
-        <h3 class="h6 fw-bold mb-0">{{ pet.name }}</h3>
+        <h3 class="h6 fw-bold mb-0">{{ listing.name }}</h3>
         <p class="text-muted small mb-0">
           <span aria-hidden="true">{{ speciesEmoji }}</span>
           {{ speciesLabel }}
-          <template v-if="pet.breed"> · {{ pet.breed }}</template>
+          <template v-if="listing.breed"> · {{ listing.breed }}</template>
         </p>
       </div>
 
@@ -149,46 +136,26 @@ watch(() => props.pet.photo_url, () => {
         <span class="badge bg-info-subtle text-info-emphasis fw-normal">
           {{ genderLabel }}
         </span>
-        <!-- Size -->
-        <span class="badge bg-secondary-subtle text-secondary-emphasis fw-normal">
-          {{ sizeLabel }}
-        </span>
         <!-- Age -->
         <span class="badge bg-warning-subtle text-warning-emphasis fw-normal">
           {{ ageLabel }}
         </span>
       </div>
 
-      <!-- Health chips -->
-      <div class="d-flex gap-2 flex-wrap">
-        <span
-          :class="[
-            'badge fw-normal small',
-            pet.vaccinated ? 'bg-success-subtle text-success-emphasis' : 'bg-danger-subtle text-danger-emphasis',
-          ]"
-          :aria-label="pet.vaccinated ? 'Vacunado' : 'No vacunado'"
-        >
-          {{ pet.vaccinated ? 'Vacunado' : 'Sin vacuna' }}
-        </span>
-        <span
-          :class="[
-            'badge fw-normal small',
-            pet.neutered ? 'bg-success-subtle text-success-emphasis' : 'bg-secondary-subtle text-secondary-emphasis',
-          ]"
-          :aria-label="pet.neutered ? 'Esterilizado' : 'No esterilizado'"
-        >
-          {{ pet.neutered ? 'Esterilizado' : 'Sin esterilizar' }}
-        </span>
-      </div>
+      <!-- Location -->
+      <p class="text-muted small mb-0">
+        <span aria-hidden="true">📍</span>
+        {{ listing.city }}<template v-if="listing.country">, {{ listing.country }}</template>
+      </p>
     </div>
 
-    <!-- CTA footer — hidden for adopted pets -->
+    <!-- CTA footer — hidden for adopted listings -->
     <div class="card-footer bg-transparent border-top-0 px-3 pb-3 pt-0">
       <NuxtLink
-        v-if="pet.status !== 'adopted'"
-        :to="{ path: `/shelter/adoptions/${pet.id}`, query: { shelterId: pet.shelter_id } }"
+        v-if="listing.status !== 'adopted'"
+        :to="`/shelter/adoptions/${listing.id}`"
         class="btn btn-primary btn-sm w-100"
-        :aria-label="`Ver detalles de ${pet.name}`"
+        :aria-label="`Ver detalles de ${listing.name}`"
       >
         Ver detalles
       </NuxtLink>

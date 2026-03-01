@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// Shelter directory page — thin wrapper.
+// Adoption listings directory page — thin wrapper.
 // Public route; no auth middleware required.
 
 definePageMeta({
@@ -7,10 +7,10 @@ definePageMeta({
 })
 
 useSeoMeta({
-  title: 'Refugios y Adopciones — Mopetoo',
-  description: 'Directorio de refugios de animales y mascotas en adopción. Encuentra un refugio cerca de ti y da un hogar a quien lo necesita.',
-  ogTitle: 'Refugios y Adopciones — Mopetoo',
-  ogDescription: 'Explora refugios de animales y encuentra tu próxima mascota en adopción con Mopetoo.',
+  title: 'Mascotas en Adopción — Mopetoo',
+  description: 'Directorio de mascotas en adopción. Encuentra una mascota que busca un hogar y dale un nuevo comienzo.',
+  ogTitle: 'Mascotas en Adopción — Mopetoo',
+  ogDescription: 'Explora mascotas en adopción y encuentra tu próxima compañera con Mopetoo.',
 })
 </script>
 
