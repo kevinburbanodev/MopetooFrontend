@@ -73,7 +73,7 @@ function makeFakeJwt(payload: Record<string, unknown>): string {
 }
 
 const FAKE_JWT = makeFakeJwt({
-  user_id: '1',
+  user_id: 1,
   email: 'ana@example.com',
   entity_type: 'user',
   is_admin: false,
@@ -506,18 +506,18 @@ describe('useAuth', () => {
       expect(apiPatchMock).toHaveBeenCalledWith('/api/users/1', { name: 'Ana Updated' })
     })
 
-    it('calls authStore.setUser with the updated user on JSON success', async () => {
+    it('calls authStore.setEntity with the updated user and entity type on JSON success', async () => {
       authStore.token = FAKE_JWT
       authStore.entityType = 'user'
       const updatedUser: User = { ...mockUser, name: 'Ana Updated' }
       apiPatchMock.mockResolvedValueOnce(updatedUser)
-      const setUserSpy = vi.spyOn(authStore, 'setUser')
+      const setEntitySpy = vi.spyOn(authStore, 'setEntity')
       const { useAuth } = await import('./useAuth')
       const { updateProfile } = useAuth()
 
       await updateProfile({ name: 'Ana Updated' })
 
-      expect(setUserSpy).toHaveBeenCalledWith(updatedUser)
+      expect(setEntitySpy).toHaveBeenCalledWith(updatedUser, 'user')
     })
 
     it('calls $fetch with FormData when a photo is provided', async () => {
@@ -567,6 +567,32 @@ describe('useAuth', () => {
       await updateProfile({ email: 'bad' })
 
       expect(error.value).toBe('Email inválido')
+    })
+
+    it('calls the shelter endpoint when entityType is shelter', async () => {
+      const shelterJwt = makeFakeJwt({ user_id: 5, email: 'shelter@example.com', entity_type: 'shelter', is_admin: false })
+      authStore.token = shelterJwt
+      authStore.entityType = 'shelter'
+      apiPatchMock.mockResolvedValueOnce({ id: 5, organization_name: 'Refugio' })
+      const setEntitySpy = vi.spyOn(authStore, 'setEntity')
+      const { useAuth } = await import('./useAuth')
+      const { updateProfile } = useAuth()
+
+      await updateProfile({ name: 'Refugio Updated' })
+
+      expect(apiPatchMock).toHaveBeenCalledWith('/api/shelters/5', { name: 'Refugio Updated' })
+      expect(setEntitySpy).toHaveBeenCalledWith(expect.any(Object), 'shelter')
+    })
+
+    it('sets error when token cannot be decoded', async () => {
+      authStore.token = null
+      authStore.entityType = 'user'
+      const { useAuth } = await import('./useAuth')
+      const { updateProfile, error } = useAuth()
+
+      await updateProfile({ name: 'X' })
+
+      expect(error.value).toBe('No se pudo identificar la sesión')
     })
   })
 
@@ -633,6 +659,30 @@ describe('useAuth', () => {
       await deleteAccount()
 
       expect(pending.value).toBe(false)
+    })
+
+    it('calls the store endpoint when entityType is store', async () => {
+      const storeJwt = makeFakeJwt({ user_id: 7, email: 'store@example.com', entity_type: 'store', is_admin: false })
+      authStore.token = storeJwt
+      authStore.entityType = 'store'
+      apiDelMock.mockResolvedValueOnce(undefined)
+      const { useAuth } = await import('./useAuth')
+      const { deleteAccount } = useAuth()
+
+      await deleteAccount()
+
+      expect(apiDelMock).toHaveBeenCalledWith('/api/stores/7')
+    })
+
+    it('sets error when token cannot be decoded', async () => {
+      authStore.token = null
+      authStore.entityType = 'user'
+      const { useAuth } = await import('./useAuth')
+      const { deleteAccount, error } = useAuth()
+
+      await deleteAccount()
+
+      expect(error.value).toBe('No se pudo identificar la sesión')
     })
   })
 })

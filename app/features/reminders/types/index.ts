@@ -5,8 +5,8 @@
 export type ReminderType = 'vacuna' | 'medicina' | 'baño' | 'visita' | 'otro'
 
 export interface Reminder {
-  id: number
-  pet_id: number
+  id: string
+  pet_id: string
   type: ReminderType
   title: string
   scheduled_date: string
@@ -16,7 +16,7 @@ export interface Reminder {
 }
 
 export interface CreateReminderPayload {
-  pet_id: number
+  pet_id: string
   type: ReminderType
   title: string
   scheduled_date: string

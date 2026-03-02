@@ -67,6 +67,7 @@ export interface AuthClinic {
   id: number
   name: string
   email: string
+  phone_country_code: string
   phone: string
   address?: string
   city: string
@@ -152,6 +153,7 @@ export interface RegisterClinicPayload {
   name: string
   email: string
   password: string
+  phone_country_code: string
   phone: string
   address: string
   city: string
@@ -160,7 +162,7 @@ export interface RegisterClinicPayload {
 }
 
 // ── Profile update ─────────────────────────────────────────
-// Used for PATCH /api/me — all fields optional
+// Used for PATCH /api/{entity-type}/:id — all fields optional
 export interface UpdateProfileDTO {
   name?: string
   last_name?: string
@@ -186,7 +188,7 @@ export interface ResetPasswordPayload {
 
 // ── JWT payload (for client-side decoding) ─────────────────
 export interface JwtPayload {
-  user_id: string
+  user_id: number
   email: string
   entity_type: EntityType
   is_admin: boolean

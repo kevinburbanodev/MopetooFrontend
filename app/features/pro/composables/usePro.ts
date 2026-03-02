@@ -17,6 +17,7 @@ import type {
   DonationCheckoutResponse,
   DonationRequest,
 } from '../types'
+import { extractErrorMessage } from '../../shared/utils/extractErrorMessage'
 
 export function usePro() {
   const { get, post } = useApi()
@@ -123,14 +124,13 @@ export function usePro() {
    * Returns DonationCheckoutResponse on success, null on failure.
    */
   async function donate(
-    shelterId: string,
+    shelterId: number,
     data: DonationRequest,
   ): Promise<DonationCheckoutResponse | null> {
     error.value = null
 
-    // Guard: shelterId must be alphanumeric/slug — no path separators.
-    const SHELTER_ID_RE = /^[\w-]{1,64}$/
-    if (!SHELTER_ID_RE.test(shelterId)) {
+    // Guard: shelterId must be a positive integer.
+    if (typeof shelterId !== 'number' || shelterId <= 0 || !Number.isInteger(shelterId)) {
       error.value = 'ID de refugio no válido.'
       return null
     }
@@ -169,22 +169,6 @@ export function usePro() {
 }
 
 // ── Helpers ─────────────────────────────────────────────────
-
-function extractErrorMessage(err: unknown): string {
-  if (typeof err === 'object' && err !== null) {
-    if ('data' in err) {
-      const data = (err as { data: unknown }).data
-      if (typeof data === 'object' && data !== null && 'error' in data) {
-        return String((data as { error: unknown }).error)
-      }
-      if (typeof data === 'string' && data.length > 0) return data
-    }
-    if ('message' in err && typeof (err as { message: unknown }).message === 'string') {
-      return (err as { message: string }).message
-    }
-  }
-  return 'Ocurrió un error inesperado. Intenta de nuevo.'
-}
 
 /**
  * PayU form-based redirect.

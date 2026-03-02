@@ -415,10 +415,10 @@ describe('usePro', () => {
       const { usePro } = await import('./usePro')
       const { donate } = usePro()
 
-      await donate('shelter-abc', { amount: 25000 })
+      await donate(42, { amount: 25000 })
 
       expect(mockPost).toHaveBeenCalledWith(
-        '/api/shelters/shelter-abc/donate',
+        '/api/shelters/42/donate',
         expect.any(Object),
       )
     })
@@ -428,7 +428,7 @@ describe('usePro', () => {
       const { usePro } = await import('./usePro')
       const { donate } = usePro()
 
-      const result = await donate('shelter-abc', { amount: 25000 })
+      const result = await donate(42, { amount: 25000 })
 
       expect(result).toEqual(mockDonationResponse)
     })
@@ -438,7 +438,7 @@ describe('usePro', () => {
       const { usePro } = await import('./usePro')
       const { donate } = usePro()
 
-      await donate('shelter-abc', { amount: 25000 })
+      await donate(42, { amount: 25000 })
 
       expect(mockFormSubmit).toHaveBeenCalledTimes(1)
     })
@@ -448,7 +448,7 @@ describe('usePro', () => {
       const { usePro } = await import('./usePro')
       const { donate } = usePro()
 
-      await donate('shelter-abc', { amount: 50000 })
+      await donate(42, { amount: 50000 })
 
       const body = mockPost.mock.calls[0][1] as Record<string, unknown>
       expect(body.amount).toBe(50000)
@@ -459,7 +459,7 @@ describe('usePro', () => {
       const { usePro } = await import('./usePro')
       const { donate } = usePro()
 
-      await donate('shelter-abc', { amount: 25000 })
+      await donate(42, { amount: 25000 })
 
       const body = mockPost.mock.calls[0][1] as Record<string, unknown>
       expect(body).not.toHaveProperty('message')
@@ -470,7 +470,7 @@ describe('usePro', () => {
       const { usePro } = await import('./usePro')
       const { donate } = usePro()
 
-      await donate('shelter-abc', { amount: 25000, message: '¡Mucho ánimo!' })
+      await donate(42, { amount: 25000, message: '¡Mucho ánimo!' })
 
       const body = mockPost.mock.calls[0][1] as Record<string, unknown>
       expect(body.message).toBe('¡Mucho ánimo!')
@@ -481,7 +481,7 @@ describe('usePro', () => {
       const { usePro } = await import('./usePro')
       const { donate, error } = usePro()
 
-      const result = await donate('shelter-abc', { amount: 25000 })
+      const result = await donate(42, { amount: 25000 })
 
       expect(result).toBeNull()
       expect(error.value).toBe('Donation failed')
@@ -493,7 +493,7 @@ describe('usePro', () => {
       const { donate, error } = usePro()
       error.value = 'previous error'
 
-      await donate('shelter-abc', { amount: 25000 })
+      await donate(42, { amount: 25000 })
 
       expect(error.value).toBeNull()
     })
@@ -504,27 +504,37 @@ describe('usePro', () => {
       const { usePro } = await import('./usePro')
       const { donate } = usePro()
 
-      await donate('shelter-abc', { amount: 25000 })
+      await donate(42, { amount: 25000 })
 
       expect(setSubscription).not.toHaveBeenCalled()
     })
 
-    it('rejects shelter_id with path separators (security guard)', async () => {
+    it('rejects shelter_id of 0 (must be positive integer)', async () => {
       const { usePro } = await import('./usePro')
       const { donate, error } = usePro()
 
-      const result = await donate('../admin', { amount: 25000 })
+      const result = await donate(0, { amount: 25000 })
 
       expect(result).toBeNull()
       expect(error.value).toBe('ID de refugio no válido.')
       expect(mockPost).not.toHaveBeenCalled()
     })
 
-    it('rejects shelter_id with encoded slashes (security guard)', async () => {
+    it('rejects negative shelter_id', async () => {
       const { usePro } = await import('./usePro')
       const { donate, error } = usePro()
 
-      const result = await donate('%2F..%2Fadmin', { amount: 25000 })
+      const result = await donate(-1, { amount: 25000 })
+
+      expect(result).toBeNull()
+      expect(error.value).toBe('ID de refugio no válido.')
+    })
+
+    it('rejects non-integer shelter_id', async () => {
+      const { usePro } = await import('./usePro')
+      const { donate, error } = usePro()
+
+      const result = await donate(1.5, { amount: 25000 })
 
       expect(result).toBeNull()
       expect(error.value).toBe('ID de refugio no válido.')
@@ -535,7 +545,7 @@ describe('usePro', () => {
       const { usePro } = await import('./usePro')
       const { donate, error } = usePro()
 
-      await donate('shelter-abc', { amount: 25000 })
+      await donate(42, { amount: 25000 })
 
       expect(error.value).toBe('Insufficient funds')
     })
@@ -545,7 +555,7 @@ describe('usePro', () => {
       const { usePro } = await import('./usePro')
       const { donate, error } = usePro()
 
-      await donate('shelter-abc', { amount: 25000 })
+      await donate(42, { amount: 25000 })
 
       expect(error.value).toBe('Connection refused')
     })

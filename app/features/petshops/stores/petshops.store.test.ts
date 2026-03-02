@@ -57,8 +57,8 @@ function makeProduct(overrides: Partial<StoreProduct> = {}): StoreProduct {
 }
 
 const shopA = makePetshop({ id: 1, name: 'Mascotas Felices', city: 'Bogotá', plan: '' })
-const shopB = makePetshop({ id: 2, name: 'PetWorld', city: 'Medellín', plan: 'premium' })
-const shopC = makePetshop({ id: 3, name: 'Mundo Animal', city: 'Cali', plan: 'basic', verified: false })
+const shopB = makePetshop({ id: 2, name: 'PetWorld', city: 'Medellín', plan: 'featured' })
+const shopC = makePetshop({ id: 3, name: 'Mundo Animal', city: 'Cali', plan: 'free', verified: false })
 
 const productA = makeProduct({ id: 1, name: 'Alimento Premium' })
 const productB = makeProduct({ id: 2, name: 'Collar LED', category: 'accesorios' })
@@ -141,48 +141,49 @@ describe('usePetshopsStore', () => {
       expect(store.getPremiumPetshops).toEqual([])
     })
 
-    it('returns only petshops with a non-empty plan', () => {
+    it('returns only petshops with plan === "featured"', () => {
       const store = usePetshopsStore()
       store.setPetshops([shopA, shopB, shopC])
       const premium = store.getPremiumPetshops
-      expect(premium).toHaveLength(2)
-      expect(premium.map(p => p.id)).toEqual(expect.arrayContaining([2, 3]))
+      expect(premium).toHaveLength(1)
+      expect(premium[0].id).toBe(2)
     })
 
-    it('excludes petshops with plan === ""', () => {
+    it('excludes petshops with plan === "" and plan === "free"', () => {
       const store = usePetshopsStore()
       store.setPetshops([shopA, shopB, shopC])
       const premium = store.getPremiumPetshops
       expect(premium.find(p => p.id === 1)).toBeUndefined()
+      expect(premium.find(p => p.id === 3)).toBeUndefined()
     })
 
-    it('returns all petshops when all have a non-empty plan', () => {
+    it('returns all petshops when all have plan === "featured"', () => {
       const store = usePetshopsStore()
       const allPremium = [
-        makePetshop({ id: 10, plan: 'premium' }),
-        makePetshop({ id: 11, plan: 'basic' }),
+        makePetshop({ id: 10, plan: 'featured' }),
+        makePetshop({ id: 11, plan: 'featured' }),
       ]
       store.setPetshops(allPremium)
       expect(store.getPremiumPetshops).toHaveLength(2)
     })
 
-    it('returns an empty array when all petshops have plan === ""', () => {
+    it('returns an empty array when no petshops have plan === "featured"', () => {
       const store = usePetshopsStore()
-      store.setPetshops([shopA, makePetshop({ id: 5, plan: '' })])
+      store.setPetshops([shopA, makePetshop({ id: 5, plan: 'free' })])
       expect(store.getPremiumPetshops).toEqual([])
     })
 
-    it('updates reactively when a premium petshop is added', () => {
+    it('updates reactively when a featured petshop is added', () => {
       const store = usePetshopsStore()
-      store.setPetshops([shopA]) // no plan
+      store.setPetshops([shopA]) // plan === ''
       expect(store.getPremiumPetshops).toHaveLength(0)
-      store.addPetshop(shopB) // has plan
+      store.addPetshop(shopB) // plan === 'featured'
       expect(store.getPremiumPetshops).toHaveLength(1)
     })
 
     it('returns an empty array after clearPetshops resets the list', () => {
       const store = usePetshopsStore()
-      store.setPetshops([shopB, shopC]) // both have plan
+      store.setPetshops([shopB]) // plan === 'featured'
       store.clearPetshops()
       expect(store.getPremiumPetshops).toEqual([])
     })

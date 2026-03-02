@@ -10,8 +10,6 @@
 //   (guarded by import.meta.client) to prevent SSR hydration issues.
 // ============================================================
 
-import type { ApiError } from '../types/api.types'
-
 export function useApi() {
   const config = useRuntimeConfig()
   const baseURL = (config.public.apiBase as string) ?? ''

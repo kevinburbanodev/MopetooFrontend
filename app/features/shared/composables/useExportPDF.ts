@@ -30,6 +30,7 @@ export function useExportPDF() {
       method: 'GET',
       responseType: 'blob',
       headers: token ? { Authorization: `Bearer ${token}` } : {},
+      onResponse: onResponseCheck,
     })
 
     const objectUrl = window.URL.createObjectURL(blob)
@@ -54,4 +55,21 @@ export function useExportPDF() {
   }
 
   return { downloadPDF, slugify }
+}
+
+// ── Helpers ─────────────────────────────────────────────────
+
+/**
+ * onResponse hook — mirrors the same maintenance detection in useApi.ts.
+ * If the backend signals maintenance mode via `x-maintenance: true`,
+ * update the store and redirect.
+ */
+function onResponseCheck({ response }: { response: Response }): void {
+  if (!import.meta.client) return
+
+  if (response.headers.get('x-maintenance') === 'true') {
+    const maintenanceStore = useMaintenanceStore()
+    maintenanceStore.setStatus({ is_active: true })
+    navigateTo('/maintenance')
+  }
 }

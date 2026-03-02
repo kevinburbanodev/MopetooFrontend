@@ -47,5 +47,5 @@ export interface PetsState {
 /** Payload emitted by PetForm on submit */
 export interface PetFormSubmitPayload {
   data: CreatePetDTO
-  photo?: File
+  photo: File
 }

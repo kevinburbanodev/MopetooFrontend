@@ -49,8 +49,8 @@ vi.mock('../../pets/stores/pets.store', () => ({
 
 function makeReminder(overrides: Partial<Reminder> = {}): Reminder {
   return {
-    id: 1,
-    pet_id: 42,
+    id: '1',
+    pet_id: '42',
     type: 'vacuna',
     title: 'Vacuna antirrábica',
     scheduled_date: '2027-06-15T10:00:00Z',
@@ -60,8 +60,8 @@ function makeReminder(overrides: Partial<Reminder> = {}): Reminder {
   }
 }
 
-const reminderA = makeReminder({ id: 1, title: 'Vacuna antirrábica', pet_id: 42 })
-const reminderB = makeReminder({ id: 2, title: 'Desparasitación', type: 'medicina', pet_id: 42 })
+const reminderA = makeReminder({ id: '1', title: 'Vacuna antirrábica', pet_id: '42' })
+const reminderB = makeReminder({ id: '2', title: 'Desparasitación', type: 'medicina', pet_id: '42' })
 
 // ── Suite ─────────────────────────────────────────────────────
 
@@ -106,7 +106,7 @@ describe('useReminders', () => {
     })
 
     it('merges reminders from all pets into the store', async () => {
-      const reminderC = makeReminder({ id: 3, title: 'Baño Max', pet_id: 99 })
+      const reminderC = makeReminder({ id: '3', title: 'Baño Max', pet_id: '99' })
       mockPets.value = [{ id: '42', name: 'Luna' }, { id: '99', name: 'Max' }]
       mockGet
         .mockResolvedValueOnce([reminderA, reminderB])
@@ -224,7 +224,7 @@ describe('useReminders', () => {
       const { useReminders } = await import('./useReminders')
       const { fetchReminders } = useReminders()
 
-      await fetchReminders(42)
+      await fetchReminders('42')
 
       expect(mockGet).toHaveBeenCalledWith('/api/pets/42/reminders')
     })
@@ -235,21 +235,21 @@ describe('useReminders', () => {
       const { useReminders } = await import('./useReminders')
       const { fetchReminders } = useReminders()
 
-      await fetchReminders(42)
+      await fetchReminders('42')
 
       expect(setRemindersSpy).toHaveBeenCalledWith([reminderA])
     })
 
-    it('uses the nested route for petId = 0 (falsy edge case — 0 treated as valid petId)', async () => {
-      // petId of 0 is falsy in JS; the condition is `petId != null`
-      // so 0 IS a valid petId and should use the nested route
+    it('uses the nested route for petId = "0" (falsy edge case — "0" treated as valid petId)', async () => {
+      // petId of "0" is falsy in JS; the condition is `petId != null`
+      // so "0" IS a valid petId and should use the nested route
       mockGet.mockResolvedValueOnce([])
       const { useReminders } = await import('./useReminders')
       const { fetchReminders } = useReminders()
 
-      await fetchReminders(0)
+      await fetchReminders('0')
 
-      // 0 != null is true, so it should call the pet-specific URL
+      // "0" != null is true, so it should call the pet-specific URL
       expect(mockGet).toHaveBeenCalledWith('/api/pets/0/reminders')
     })
   })
@@ -262,7 +262,7 @@ describe('useReminders', () => {
       const { useReminders } = await import('./useReminders')
       const { fetchReminderById } = useReminders()
 
-      await fetchReminderById(1)
+      await fetchReminderById('1')
 
       expect(mockGet).toHaveBeenCalledWith('/api/reminders/1')
     })
@@ -273,7 +273,7 @@ describe('useReminders', () => {
       const { useReminders } = await import('./useReminders')
       const { fetchReminderById } = useReminders()
 
-      await fetchReminderById(1)
+      await fetchReminderById('1')
 
       expect(setSelectedReminderSpy).toHaveBeenCalledWith(reminderA)
     })
@@ -283,7 +283,7 @@ describe('useReminders', () => {
       const { useReminders } = await import('./useReminders')
       const { fetchReminderById } = useReminders()
 
-      const result = await fetchReminderById(1)
+      const result = await fetchReminderById('1')
 
       expect(result).toEqual(reminderA)
     })
@@ -293,7 +293,7 @@ describe('useReminders', () => {
       const { useReminders } = await import('./useReminders')
       const { fetchReminderById } = useReminders()
 
-      const result = await fetchReminderById(999)
+      const result = await fetchReminderById('999')
 
       expect(result).toBeNull()
     })
@@ -303,7 +303,7 @@ describe('useReminders', () => {
       const { useReminders } = await import('./useReminders')
       const { fetchReminderById, error } = useReminders()
 
-      await fetchReminderById(999)
+      await fetchReminderById('999')
 
       expect(error.value).toBe('No encontrado')
     })
@@ -314,7 +314,7 @@ describe('useReminders', () => {
       const { useReminders } = await import('./useReminders')
       const { fetchReminderById } = useReminders()
 
-      await fetchReminderById(999)
+      await fetchReminderById('999')
 
       expect(setSelectedReminderSpy).not.toHaveBeenCalled()
     })
@@ -324,7 +324,7 @@ describe('useReminders', () => {
       const { useReminders } = await import('./useReminders')
       const { fetchReminderById } = useReminders()
 
-      await fetchReminderById(1)
+      await fetchReminderById('1')
 
       expect(remindersStore.isLoading).toBe(false)
     })
@@ -334,7 +334,7 @@ describe('useReminders', () => {
       const { useReminders } = await import('./useReminders')
       const { fetchReminderById } = useReminders()
 
-      await fetchReminderById(1)
+      await fetchReminderById('1')
 
       expect(remindersStore.isLoading).toBe(false)
     })
@@ -345,7 +345,7 @@ describe('useReminders', () => {
       const { fetchReminderById, error } = useReminders()
 
       error.value = 'error previo'
-      await fetchReminderById(1)
+      await fetchReminderById('1')
 
       expect(error.value).toBeNull()
     })
@@ -355,7 +355,7 @@ describe('useReminders', () => {
 
   describe('createReminder()', () => {
     const payload = {
-      pet_id: 42,
+      pet_id: '42',
       type: 'vacuna' as const,
       title: 'Nueva vacuna',
       scheduled_date: '2027-06-15T10:00:00Z',
@@ -480,7 +480,7 @@ describe('useReminders', () => {
       const { useReminders } = await import('./useReminders')
       const { updateReminder } = useReminders()
 
-      await updateReminder(1, patchPayload)
+      await updateReminder('1', patchPayload)
 
       expect(mockPut).toHaveBeenCalledWith('/api/reminders/1', patchPayload)
     })
@@ -491,7 +491,7 @@ describe('useReminders', () => {
       const { useReminders } = await import('./useReminders')
       const { updateReminder } = useReminders()
 
-      await updateReminder(1, patchPayload)
+      await updateReminder('1', patchPayload)
 
       expect(updateStoreSpy).toHaveBeenCalledWith(updatedReminder)
     })
@@ -501,7 +501,7 @@ describe('useReminders', () => {
       const { useReminders } = await import('./useReminders')
       const { updateReminder } = useReminders()
 
-      const result = await updateReminder(1, patchPayload)
+      const result = await updateReminder('1', patchPayload)
 
       expect(result).toEqual(updatedReminder)
     })
@@ -511,7 +511,7 @@ describe('useReminders', () => {
       const { useReminders } = await import('./useReminders')
       const { updateReminder } = useReminders()
 
-      const result = await updateReminder(999, patchPayload)
+      const result = await updateReminder('999', patchPayload)
 
       expect(result).toBeNull()
     })
@@ -521,7 +521,7 @@ describe('useReminders', () => {
       const { useReminders } = await import('./useReminders')
       const { updateReminder, error } = useReminders()
 
-      await updateReminder(999, patchPayload)
+      await updateReminder('999', patchPayload)
 
       expect(error.value).toBe('Not found')
     })
@@ -532,7 +532,7 @@ describe('useReminders', () => {
       const { useReminders } = await import('./useReminders')
       const { updateReminder } = useReminders()
 
-      await updateReminder(1, patchPayload)
+      await updateReminder('1', patchPayload)
 
       expect(updateStoreSpy).not.toHaveBeenCalled()
     })
@@ -542,7 +542,7 @@ describe('useReminders', () => {
       const { useReminders } = await import('./useReminders')
       const { updateReminder } = useReminders()
 
-      await updateReminder(1, patchPayload)
+      await updateReminder('1', patchPayload)
 
       expect(remindersStore.isLoading).toBe(false)
     })
@@ -552,7 +552,7 @@ describe('useReminders', () => {
       const { useReminders } = await import('./useReminders')
       const { updateReminder } = useReminders()
 
-      await updateReminder(1, patchPayload)
+      await updateReminder('1', patchPayload)
 
       expect(remindersStore.isLoading).toBe(false)
     })
@@ -563,7 +563,7 @@ describe('useReminders', () => {
       const { updateReminder, error } = useReminders()
 
       error.value = 'error previo'
-      await updateReminder(1, patchPayload)
+      await updateReminder('1', patchPayload)
 
       expect(error.value).toBeNull()
     })
@@ -577,7 +577,7 @@ describe('useReminders', () => {
       const { useReminders } = await import('./useReminders')
       const { deleteReminder } = useReminders()
 
-      await deleteReminder(1)
+      await deleteReminder('1')
 
       expect(mockDel).toHaveBeenCalledWith('/api/reminders/1')
     })
@@ -588,9 +588,9 @@ describe('useReminders', () => {
       const { useReminders } = await import('./useReminders')
       const { deleteReminder } = useReminders()
 
-      await deleteReminder(1)
+      await deleteReminder('1')
 
-      expect(removeReminderSpy).toHaveBeenCalledWith(1)
+      expect(removeReminderSpy).toHaveBeenCalledWith('1')
     })
 
     it('returns true on success', async () => {
@@ -598,7 +598,7 @@ describe('useReminders', () => {
       const { useReminders } = await import('./useReminders')
       const { deleteReminder } = useReminders()
 
-      const result = await deleteReminder(1)
+      const result = await deleteReminder('1')
 
       expect(result).toBe(true)
     })
@@ -608,7 +608,7 @@ describe('useReminders', () => {
       const { useReminders } = await import('./useReminders')
       const { deleteReminder } = useReminders()
 
-      const result = await deleteReminder(1)
+      const result = await deleteReminder('1')
 
       expect(result).toBe(false)
     })
@@ -619,7 +619,7 @@ describe('useReminders', () => {
       const { useReminders } = await import('./useReminders')
       const { deleteReminder } = useReminders()
 
-      await deleteReminder(1)
+      await deleteReminder('1')
 
       expect(removeReminderSpy).not.toHaveBeenCalled()
     })
@@ -629,7 +629,7 @@ describe('useReminders', () => {
       const { useReminders } = await import('./useReminders')
       const { deleteReminder, error } = useReminders()
 
-      await deleteReminder(1)
+      await deleteReminder('1')
 
       expect(error.value).toBe('Forbidden')
     })
@@ -642,7 +642,7 @@ describe('useReminders', () => {
       const { useReminders } = await import('./useReminders')
       const { deleteReminder } = useReminders()
 
-      await deleteReminder(1)
+      await deleteReminder('1')
 
       expect(loadingDuringCall).toBe(true)
     })
@@ -652,7 +652,7 @@ describe('useReminders', () => {
       const { useReminders } = await import('./useReminders')
       const { deleteReminder } = useReminders()
 
-      await deleteReminder(1)
+      await deleteReminder('1')
 
       expect(remindersStore.isLoading).toBe(false)
     })
@@ -662,7 +662,7 @@ describe('useReminders', () => {
       const { useReminders } = await import('./useReminders')
       const { deleteReminder } = useReminders()
 
-      await deleteReminder(1)
+      await deleteReminder('1')
 
       expect(remindersStore.isLoading).toBe(false)
     })
@@ -673,7 +673,7 @@ describe('useReminders', () => {
       const { deleteReminder, error } = useReminders()
 
       error.value = 'error previo'
-      await deleteReminder(1)
+      await deleteReminder('1')
 
       expect(error.value).toBeNull()
     })
@@ -683,7 +683,7 @@ describe('useReminders', () => {
       const { useReminders } = await import('./useReminders')
       const { deleteReminder, error } = useReminders()
 
-      await deleteReminder(1)
+      await deleteReminder('1')
 
       expect(error.value).toBe('Ocurrió un error inesperado. Intenta de nuevo.')
     })

@@ -20,15 +20,15 @@ npm run test:coverage    # Single run with coverage report
 **Config:** `vitest.config.ts` at project root (environment: `nuxt`, `globals: true`, `env.NUXT_PUBLIC_API_BASE` set to avoid `useRuntimeConfig` mock pitfalls)
 **Colocation rule:** test files live next to the source file inside the feature slice.
 **Status:**
-- Auth feature slice (RF-001–RF-009): 85 tests (store 41, composable 36, auth middleware 4, guest middleware 4)
-- Pets feature slice (RF-100–RF-109): 244 tests (store 44, usePets 63, usePetAge 17, PetAvatar 21, PetCard 22, PetList 16, PetForm 32, PetDetail 29)
-- Reminders feature slice (RF-200–RF-209): 256 tests (store 44, useReminders 75, ReminderCard 26, ReminderList 29, ReminderForm 46) ✅
+- Auth feature slice (RF-001–RF-009): 90 tests (store 42, composable 40, auth middleware 4, guest middleware 4) ✅ — multi-entity updateProfile/deleteAccount, JWT user_id number
+- Pets feature slice (RF-100–RF-109): 255 tests (store 40, usePets 64, usePetAge 8, PetAvatar 22, PetCard 24, PetList 19, PetForm 48, PetDetail 30) ✅ — createPet photo required, pending ref removed
+- Reminders feature slice (RF-200–RF-209): 228 tests (store 53, useReminders 57, ReminderCard 25, ReminderList 38, ReminderForm 55) ✅ — IDs normalized to string
 - Medical feature slice (RF-300–RF-309): 273 tests (store 44, useMedical 65, MedicalRecordCard 38, MedicalHistory 31, MedicalRecordForm 86) ✅
-- Export/PDF slice (RF-400–RF-409): 24 tests (useExportPDF 24) ✅ — exportProfilePDF tests in usePets, exportRemindersPDF tests in useReminders
+- Export/PDF slice (RF-400–RF-409): 25 tests (useExportPDF 25) ✅ — maintenance header detection added; exportProfilePDF tests in usePets, exportRemindersPDF tests in useReminders
 - Shelters slice (RF-500–RF-509): 157 tests (store 35, useShelters 35, ShelterList 22, AdoptionPetCard 25, AdoptionDetail 40) ✅
 - Blog slice (RF-600–RF-609): 147 tests (store 34, useBlog 26, BlogCategoryFilter 20, BlogCard 16, BlogList 27, BlogArticle 24) ✅ — synced with backend model.BlogPost
-- Petshops slice (RF-700–RF-709): 203 tests (store 49, usePetshops 45, PetshopCard 29, PetshopList 38, PetshopDetail 42) ✅ — synced with backend model.Store
-- Pro/Monetización slice (RF-800–RF-809): 156 tests (store 24, usePro 37, ProBanner 23, PricingTable 16, ProUpgradeModal 19, DonationForm 37) ✅ — synced with backend PayU Latam
+- Petshops slice (RF-700–RF-709): 203 tests (store 49, usePetshops 45, PetshopCard 29, PetshopList 38, PetshopDetail 42) ✅ — getPremiumPetshops filters plan === 'featured'; plan typed as union
+- Pro/Monetización slice (RF-800–RF-809): 157 tests (store 24, usePro 38, ProBanner 23, PricingTable 16, ProUpgradeModal 19, DonationForm 37) ✅ — donate(shelterId: number); SubscribeRequest removed
 - Clinics slice (RF-900–RF-909): 186 tests (store 43, useClinics 36, ClinicCard 36, ClinicList 30, ClinicDetail 41) ✅ — synced with backend model.Clinic
 - Admin slice (RF-1000–RF-1009): 330 tests (store 60, useAdmin 85, AdminDashboard 28, AdminUserManager 34, AdminShelterManager 27, AdminStoreManager 27, AdminClinicManager 34, AdminTransactionLog 28, admin middleware 7) ✅ — synced with backend PATCH endpoints (no PUT/DELETE)
 - Stats slice (RF-1100–RF-1109): 117 tests (store 31, useStats 25, StatsOverview 26, StatsChart 14, RevenueReport 21) ✅ — synced with backend nested StatsOverview + RevenueStats; ActivityLog removed (fabricated endpoint)
@@ -228,7 +228,7 @@ Any change to token storage or auth flow warrants a security review.
 - PayU form redirect testing: `vi.spyOn(HTMLFormElement.prototype, 'submit').mockImplementation(mockFormSubmit)` to verify form submission without navigation
 - `DonationForm` auth gate: form is wrapped in `<ClientOnly>` — mount first with `isAuthenticated: true` in `createTestingPinia`, then `await nextTick()` to see form render
 - `DonationForm` redirect state: `isRedirecting` ref replaces inline success state — shows "Redirigiendo al pago..." + spinner after successful donate
-- Security fix: `donate()` in `usePro.ts` validates `shelter_id` against `/^[\w-]{1,64}$/` before API call — test invalid IDs return null with error
+- Security fix: `donate()` in `usePro.ts` validates `shelterId` is a positive integer before API call — test 0, negative, and non-integer IDs return null with error
 - `subscribe()` validates HTTPS on `checkout_url` — test `http://` URLs return null with security error
 
 **Mocking notes for pets and reminders slices:**
@@ -238,7 +238,7 @@ Any change to token storage or auth flow warrants a security review.
 - `URL.createObjectURL` / `URL.revokeObjectURL` must be spied on via `vi.spyOn(URL, 'createObjectURL')` — do NOT replace the entire `URL` global or Nuxt internals break
 - `NuxtLink` should be stubbed via `global.stubs: { NuxtLink: true }` in component tests
 - Resetting select filters to null: use clearFilters button click, not `setValue(null)` (happy-dom limitation)
-- `Pet.id` is `string`; `Reminder.pet_id` is `number` — compare with `String(pet_id) === pet.id`
+- `Pet.id` is `string`; `Reminder.id` and `Reminder.pet_id` are `string` (normalized from backend `number` via `normalizeReminder()`)
 - `AdoptionDetail` adoption form is wrapped in `<ClientOnly>` — in tests, set `isAuthenticated: true` via `createTestingPinia` and verify the form renders after client hydration
 - `AdoptionPetCard` link format is `/shelter/adoptions/${listing.id}` (no shelterId query param)
 - **Auth store reset across tests (critical):** `setActivePinia(createPinia())` in `beforeEach` does NOT reset the Nuxt test env's auth store. Explicitly reset with: `const { useAuthStore } = await import('../../auth/stores/auth.store'); useAuthStore().token = null`

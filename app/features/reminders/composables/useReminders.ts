@@ -6,6 +6,7 @@
 // ============================================================
 
 import type { Reminder, CreateReminderPayload, UpdateReminderPayload } from '../types'
+import { extractErrorMessage } from '../../shared/utils/extractErrorMessage'
 
 export function useReminders() {
   const { get, post, put, del } = useApi()
@@ -21,17 +22,17 @@ export function useReminders() {
    * When petId is omitted, iterates over all pets in petsStore
    * and fetches reminders for each one in parallel.
    */
-  async function fetchReminders(petId?: number): Promise<void> {
+  async function fetchReminders(petId?: string): Promise<void> {
     remindersStore.setLoading(true)
     error.value = null
     try {
       if (petId != null) {
         const response = await get<{ reminders?: Reminder[] } | Reminder[]>(`/api/pets/${petId}/reminders`)
         if (Array.isArray(response)) {
-          remindersStore.setReminders(response)
+          remindersStore.setReminders(normalizeReminders(response))
         }
         else {
-          remindersStore.setReminders(response.reminders ?? [])
+          remindersStore.setReminders(normalizeReminders(response.reminders ?? []))
         }
       }
       else {
@@ -43,10 +44,10 @@ export function useReminders() {
         const allReminders: Reminder[] = []
         for (const response of results) {
           if (Array.isArray(response)) {
-            allReminders.push(...response)
+            allReminders.push(...normalizeReminders(response))
           }
           else {
-            allReminders.push(...(response.reminders ?? []))
+            allReminders.push(...normalizeReminders(response.reminders ?? []))
           }
         }
         remindersStore.setReminders(allReminders)
@@ -64,11 +65,11 @@ export function useReminders() {
    * Fetch a single reminder by id and store it as selectedReminder.
    * Returns the reminder or null on failure.
    */
-  async function fetchReminderById(id: number): Promise<Reminder | null> {
+  async function fetchReminderById(id: string): Promise<Reminder | null> {
     remindersStore.setLoading(true)
     error.value = null
     try {
-      const reminder = await get<Reminder>(`/api/reminders/${id}`)
+      const reminder = normalizeReminder(await get<Reminder>(`/api/reminders/${id}`))
       remindersStore.setSelectedReminder(reminder)
       return reminder
     }
@@ -89,7 +90,7 @@ export function useReminders() {
     remindersStore.setLoading(true)
     error.value = null
     try {
-      const reminder = await post<Reminder>('/api/reminders', payload)
+      const reminder = normalizeReminder(await post<Reminder>('/api/reminders', payload))
       remindersStore.addReminder(reminder)
       return reminder
     }
@@ -106,11 +107,11 @@ export function useReminders() {
    * Update a reminder by id and sync the store.
    * Returns the updated reminder or null on failure.
    */
-  async function updateReminder(id: number, payload: UpdateReminderPayload): Promise<Reminder | null> {
+  async function updateReminder(id: string, payload: UpdateReminderPayload): Promise<Reminder | null> {
     remindersStore.setLoading(true)
     error.value = null
     try {
-      const reminder = await put<Reminder>(`/api/reminders/${id}`, payload)
+      const reminder = normalizeReminder(await put<Reminder>(`/api/reminders/${id}`, payload))
       remindersStore.updateReminder(reminder)
       return reminder
     }
@@ -127,7 +128,7 @@ export function useReminders() {
    * Delete a reminder by id and remove it from the store.
    * Returns true on success, false on failure.
    */
-  async function deleteReminder(id: number): Promise<boolean> {
+  async function deleteReminder(id: string): Promise<boolean> {
     remindersStore.setLoading(true)
     error.value = null
     try {
@@ -157,18 +158,10 @@ export function useReminders() {
 
 // ── Helpers ─────────────────────────────────────────────────
 
-function extractErrorMessage(err: unknown): string {
-  if (typeof err === 'object' && err !== null) {
-    if ('data' in err) {
-      const data = (err as { data: unknown }).data
-      if (typeof data === 'object' && data !== null && 'error' in data) {
-        return String((data as { error: unknown }).error)
-      }
-      if (typeof data === 'string' && data.length > 0) return data
-    }
-    if ('message' in err && typeof (err as { message: unknown }).message === 'string') {
-      return (err as { message: string }).message
-    }
-  }
-  return 'Ocurrió un error inesperado. Intenta de nuevo.'
+function normalizeReminder(reminder: Reminder): Reminder {
+  return { ...reminder, id: String(reminder.id), pet_id: String(reminder.pet_id) }
+}
+
+function normalizeReminders(reminders: Reminder[]): Reminder[] {
+  return reminders.map(normalizeReminder)
 }

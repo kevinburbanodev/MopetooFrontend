@@ -23,6 +23,7 @@ import type {
   AuthStore as AuthStoreType,
   AuthClinic,
 } from '../types'
+import { extractErrorMessage } from '../../shared/utils/extractErrorMessage'
 
 export function useAuth() {
   const { post, get, patch, del } = useApi()
@@ -79,6 +80,8 @@ export function useAuth() {
     }
     catch (err: unknown) {
       error.value = extractErrorMessage(err)
+    }
+    finally {
       pending.value = false
     }
   }
@@ -92,6 +95,8 @@ export function useAuth() {
     }
     catch (err: unknown) {
       error.value = extractErrorMessage(err)
+    }
+    finally {
       pending.value = false
     }
   }
@@ -105,6 +110,8 @@ export function useAuth() {
     }
     catch (err: unknown) {
       error.value = extractErrorMessage(err)
+    }
+    finally {
       pending.value = false
     }
   }
@@ -118,6 +125,8 @@ export function useAuth() {
     }
     catch (err: unknown) {
       error.value = extractErrorMessage(err)
+    }
+    finally {
       pending.value = false
     }
   }
@@ -184,12 +193,18 @@ export function useAuth() {
     pending.value = true
     error.value = null
     try {
-      let user: User
+      const type = authStore.entityType ?? 'user'
+      const entityId = decodeEntityIdFromToken()
+      if (!entityId) {
+        error.value = 'No se pudo identificar la sesión'
+        return
+      }
+      const endpoint = getProfileEndpoint(type, entityId)
+      let entity: AuthEntity
       if (photo) {
         const formData = buildProfileFormData(data, photo)
         const storedToken = authStore.token
-        const entityId = decodeEntityIdFromToken()
-        user = await $fetch<User>(`${baseURL}/api/users/${entityId}`, {
+        entity = await $fetch<AuthEntity>(`${baseURL}${endpoint}`, {
           method: 'PATCH',
           headers: storedToken
             ? { Authorization: `Bearer ${storedToken}` }
@@ -198,11 +213,9 @@ export function useAuth() {
         })
       }
       else {
-        const entityId = decodeEntityIdFromToken()
-        // PATCH /api/users/:id — JSON path via the shared useApi wrapper
-        user = await patch<User>(`/api/users/${entityId}`, data)
+        entity = await patch<AuthEntity>(endpoint, data)
       }
-      authStore.setUser(user)
+      authStore.setEntity(entity, type)
     }
     catch (err: unknown) {
       error.value = extractErrorMessage(err)
@@ -216,8 +229,13 @@ export function useAuth() {
     pending.value = true
     error.value = null
     try {
+      const type = authStore.entityType ?? 'user'
       const entityId = decodeEntityIdFromToken()
-      await del<void>(`/api/users/${entityId}`)
+      if (!entityId) {
+        error.value = 'No se pudo identificar la sesión'
+        return
+      }
+      await del<void>(getProfileEndpoint(type, entityId))
       authStore.clearSession()
       await router.push('/')
     }
@@ -286,7 +304,7 @@ function decodeEntityIdFromToken(): string | null {
   if (!authStore.token) return null
   try {
     const payload = JSON.parse(atob(authStore.token.split('.')[1]))
-    return payload.user_id ?? null
+    return payload.user_id != null ? String(payload.user_id) : null
   }
   catch {
     return null
@@ -334,22 +352,3 @@ function extractStatus(err: unknown): number | null {
   return null
 }
 
-function extractErrorMessage(err: unknown): string {
-  if (typeof err === 'object' && err !== null) {
-    // ofetch / $fetch wraps the response body in .data
-    if ('data' in err) {
-      const data = (err as { data: unknown }).data
-      if (typeof data === 'object' && data !== null && 'error' in data) {
-        return String((data as { error: unknown }).error)
-      }
-      if (typeof data === 'string' && data.length > 0) {
-        return data
-      }
-    }
-    // Plain Error object
-    if ('message' in err && typeof (err as { message: unknown }).message === 'string') {
-      return (err as { message: string }).message
-    }
-  }
-  return 'Ocurrió un error inesperado. Intenta de nuevo.'
-}

@@ -67,7 +67,7 @@ const fetchMock = vi.fn()
 // getEntityIdFromToken(). This helper produces a decodable JWT
 // so fetchPets() can resolve the correct endpoint.
 
-function makeFakeJwt(userId = '1'): string {
+function makeFakeJwt(userId: number = 1): string {
   const header = btoa(JSON.stringify({ alg: 'HS256' }))
   const payload = btoa(JSON.stringify({ user_id: userId, email: 'test@test.com', entity_type: 'user', is_admin: false }))
   return `${header}.${payload}.fake-signature`
@@ -334,62 +334,7 @@ describe('usePets', () => {
   // ── createPet ──────────────────────────────────────────────
 
   describe('createPet()', () => {
-    describe('without a photo (multipart/form-data)', () => {
-      it('calls $fetch with FormData and POST method', async () => {
-        fetchMock.mockResolvedValueOnce(petA)
-        const { usePets } = await import('./usePets')
-        const { createPet } = usePets()
-
-        await createPet(minimalCreateDTO)
-
-        expect(fetchMock).toHaveBeenCalledWith(
-          'http://localhost:4000/api/pets',
-          expect.objectContaining({
-            method: 'POST',
-            body: expect.any(FormData),
-          }),
-        )
-      })
-
-      it('sends the Authorization header with the store token', async () => {
-        fetchMock.mockResolvedValueOnce(petA)
-        const { usePets } = await import('./usePets')
-        const { createPet } = usePets()
-
-        await createPet(minimalCreateDTO)
-
-        const fakeToken = makeFakeJwt()
-        expect(fetchMock).toHaveBeenCalledWith(
-          expect.any(String),
-          expect.objectContaining({
-            headers: { Authorization: `Bearer ${fakeToken}` },
-          }),
-        )
-      })
-
-      it('calls addPet on the store with the returned pet', async () => {
-        fetchMock.mockResolvedValueOnce(petA)
-        const addPetSpy = vi.spyOn(petsStore, 'addPet')
-        const { usePets } = await import('./usePets')
-        const { createPet } = usePets()
-
-        await createPet(minimalCreateDTO)
-
-        expect(addPetSpy).toHaveBeenCalledWith(petA)
-      })
-
-      it('returns the created pet on success', async () => {
-        fetchMock.mockResolvedValueOnce(petA)
-        const { usePets } = await import('./usePets')
-        const { createPet } = usePets()
-
-        const result = await createPet(minimalCreateDTO)
-
-        expect(result).toEqual(petA)
-      })
-    })
-
-    describe('with a photo (multipart/form-data)', () => {
+    describe('with required photo (multipart/form-data)', () => {
       it('calls $fetch with FormData and POST method', async () => {
         fetchMock.mockResolvedValueOnce(petA)
         const { usePets } = await import('./usePets')
@@ -450,7 +395,7 @@ describe('usePets', () => {
         const { usePets } = await import('./usePets')
         const { createPet } = usePets()
 
-        const result = await createPet(minimalCreateDTO)
+        const result = await createPet(minimalCreateDTO, makeFile())
 
         expect(result).toBeNull()
       })
@@ -460,7 +405,7 @@ describe('usePets', () => {
         const { usePets } = await import('./usePets')
         const { createPet, error } = usePets()
 
-        await createPet(minimalCreateDTO)
+        await createPet(minimalCreateDTO, makeFile())
 
         expect(error.value).toBe('Validation failed')
       })
@@ -471,7 +416,7 @@ describe('usePets', () => {
         const { usePets } = await import('./usePets')
         const { createPet } = usePets()
 
-        await createPet(minimalCreateDTO)
+        await createPet(minimalCreateDTO, makeFile())
 
         expect(addPetSpy).not.toHaveBeenCalled()
       })
@@ -481,7 +426,7 @@ describe('usePets', () => {
         const { usePets } = await import('./usePets')
         const { createPet } = usePets()
 
-        await createPet(minimalCreateDTO)
+        await createPet(minimalCreateDTO, makeFile())
 
         expect(petsStore.isLoading).toBe(false)
       })
@@ -679,7 +624,7 @@ describe('usePets', () => {
       const { usePets } = await import('./usePets')
       const { createPet } = usePets()
 
-      await createPet(minimalCreateDTO)
+      await createPet(minimalCreateDTO, makeFile())
 
       const normalizedPet = addPetSpy.mock.calls[0][0] as Pet
       expect(normalizedPet.id).toBe('99')

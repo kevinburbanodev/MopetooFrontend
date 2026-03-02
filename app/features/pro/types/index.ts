@@ -80,11 +80,6 @@ export interface DonationCheckoutResponse extends PayUCheckoutResponse {
   shelter_amount: number
 }
 
-/** Body for POST /api/users/{id}/subscribe. */
-export interface SubscribeRequest {
-  plan: PlanValue
-}
-
 /** Body for POST /api/shelters/{id}/donate. */
 export interface DonationRequest {
   amount: number

@@ -19,11 +19,11 @@ export const usePetshopsStore = defineStore('petshops', () => {
   const hasPetshops = computed(() => petshops.value.length > 0)
 
   /**
-   * Stores with a non-empty plan — used to render the
+   * Stores with plan === 'featured' — used to render the
    * "Tiendas Destacadas" section above the main grid.
    */
   const getPremiumPetshops = computed<Petshop[]>(() =>
-    petshops.value.filter(p => p.plan !== ''),
+    petshops.value.filter(p => p.plan === 'featured'),
   )
 
   // ── Actions ────────────────────────────────────────────────

@@ -11,6 +11,7 @@
 // ============================================================
 
 import type { Pet, CreatePetDTO, UpdatePetDTO } from '../types'
+import { extractErrorMessage } from '../../shared/utils/extractErrorMessage'
 
 export function usePets() {
   const { get, del } = useApi()
@@ -19,7 +20,6 @@ export function usePets() {
   const config = useRuntimeConfig()
   const baseURL = (config.public.apiBase as string) ?? ''
 
-  const pending = ref(false)
   const error = ref<string | null>(null)
 
   // ── Public API ──────────────────────────────────────────────
@@ -84,7 +84,7 @@ export function usePets() {
    * Create a new pet. Always sent as multipart/form-data because
    * the backend uses `form:""` struct tags and requires a photo file.
    */
-  async function createPet(data: CreatePetDTO, photo?: File): Promise<Pet | null> {
+  async function createPet(data: CreatePetDTO, photo: File): Promise<Pet | null> {
     petsStore.setLoading(true)
     error.value = null
     try {
@@ -171,7 +171,6 @@ export function usePets() {
   }
 
   return {
-    pending,
     error,
     fetchPets,
     fetchPetById,
@@ -194,7 +193,7 @@ function getEntityIdFromToken(): string | null {
   if (!authStore.token) return null
   try {
     const payload = JSON.parse(atob(authStore.token.split('.')[1]))
-    return payload.user_id ?? null
+    return payload.user_id != null ? String(payload.user_id) : null
   }
   catch {
     return null
@@ -255,18 +254,3 @@ async function multipartRequest<T>(
   })
 }
 
-function extractErrorMessage(err: unknown): string {
-  if (typeof err === 'object' && err !== null) {
-    if ('data' in err) {
-      const data = (err as { data: unknown }).data
-      if (typeof data === 'object' && data !== null && 'error' in data) {
-        return String((data as { error: unknown }).error)
-      }
-      if (typeof data === 'string' && data.length > 0) return data
-    }
-    if ('message' in err && typeof (err as { message: unknown }).message === 'string') {
-      return (err as { message: string }).message
-    }
-  }
-  return 'Ocurrió un error inesperado. Intenta de nuevo.'
-}

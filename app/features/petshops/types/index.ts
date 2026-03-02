@@ -41,7 +41,7 @@ export interface Petshop {
   website?: string
   verified: boolean
   is_active: boolean
-  plan: string
+  plan: 'free' | 'featured' | ''
   created_at: string
   updated_at: string
 }
