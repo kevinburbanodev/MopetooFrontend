@@ -1,4 +1,8 @@
 <script setup lang="ts">
+definePageMeta({
+  middleware: 'guest',
+})
+
 useHead({
   title: 'Mopetoo — Cuidá a tus mascotas como nunca',
   link: [
@@ -17,7 +21,8 @@ useHead({
     <HeroSection />
     <FeaturesSection />
     <HowItWorksSection />
-    <CommunitySection />
+    <EcosystemSection />
+    <DonationsSection />
     <ProSection />
     <CtaBand />
   </div>

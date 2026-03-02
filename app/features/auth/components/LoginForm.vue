@@ -44,7 +44,7 @@ const form = reactive<LoginPayload>({
             <div class="mb-4">
               <div class="d-flex justify-content-between align-items-center">
                 <label for="password" class="form-label fw-semibold">Contraseña</label>
-                <NuxtLink to="/auth/forgot-password" class="small text-primary">
+                <NuxtLink to="/forgot-password" class="small text-primary">
                   ¿Olvidaste tu contraseña?
                 </NuxtLink>
               </div>
@@ -72,7 +72,7 @@ const form = reactive<LoginPayload>({
           <!-- Register link -->
           <p class="text-center mt-4 mb-0 small text-muted">
             ¿No tienes cuenta?
-            <NuxtLink to="/auth/register" class="text-primary fw-semibold">
+            <NuxtLink to="/register" class="text-primary fw-semibold">
               Regístrate gratis
             </NuxtLink>
           </p>

@@ -13,7 +13,7 @@
           Registrarte es completamente gratis. Sin tarjeta de crédito. Sin compromisos.
         </p>
         <div class="cta-band__actions">
-          <NuxtLink to="/auth/register" class="cta-band__btn cta-band__btn--primary">
+          <NuxtLink to="/register" class="cta-band__btn cta-band__btn--primary">
             Crear cuenta gratis
           </NuxtLink>
           <NuxtLink to="/pricing" class="cta-band__btn cta-band__btn--ghost">

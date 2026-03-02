@@ -25,13 +25,13 @@
           </p>
 
           <div class="hero__actions">
-            <NuxtLink to="/auth/register" class="hero__btn hero__btn--primary">
+            <NuxtLink to="/register" class="hero__btn hero__btn--primary">
               Empezar gratis
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
                 <path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" />
               </svg>
             </NuxtLink>
-            <NuxtLink to="/auth/login" class="hero__btn hero__btn--ghost">
+            <NuxtLink to="/login" class="hero__btn hero__btn--ghost">
               Iniciar sesión
             </NuxtLink>
           </div>

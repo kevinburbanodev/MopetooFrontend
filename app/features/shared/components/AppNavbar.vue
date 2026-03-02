@@ -2,15 +2,20 @@
 const route = useRoute()
 const authStore = useAuthStore()
 
-// Public nav links always visible
-const publicLinks = [
-  { label: 'Inicio', to: '/' },
-  { label: 'Blog', to: '/blog' },
-  { label: 'Adopciones', to: '/shelter' },
-  { label: 'Tiendas', to: '/stores' },
-  { label: 'Clínicas', to: '/clinics' },
-  { label: 'Precios', to: '/pricing' },
-]
+// Public nav links — minimal for guests, full for authenticated users
+const publicLinks = computed(() => {
+  if (!authStore.isAuthenticated) {
+    return [{ label: 'Inicio', to: '/' }]
+  }
+  return [
+    { label: 'Inicio', to: '/' },
+    { label: 'Blog', to: '/blog' },
+    { label: 'Adopciones', to: '/shelter' },
+    { label: 'Tiendas', to: '/stores' },
+    { label: 'Clínicas', to: '/clinics' },
+    { label: 'Precios', to: '/pricing' },
+  ]
+})
 
 // Authenticated nav links — dynamic based on entity type
 const authLinks = computed(() => {
@@ -50,12 +55,15 @@ function logout(): void {
 </script>
 
 <template>
-  <nav class="navbar navbar-expand-lg navbar-dark bg-primary shadow-sm">
+  <nav
+    class="navbar navbar-expand-lg shadow-sm"
+    :class="authStore.isAuthenticated ? 'navbar-dark bg-primary' : 'navbar-landing'"
+  >
     <div class="container">
       <!-- Brand -->
       <NuxtLink class="navbar-brand fw-bold d-flex align-items-center gap-2" to="/">
         <span class="fs-4" aria-hidden="true">🐾</span>
-        <span>Mopetoo</span>
+        <span class="navbar-brand__text">Mopetoo</span>
       </NuxtLink>
 
       <!-- Mobile toggler -->
@@ -150,10 +158,10 @@ function logout(): void {
             </button>
           </template>
           <template v-else>
-            <NuxtLink to="/login" class="btn btn-outline-light btn-sm">
+            <NuxtLink to="/login" class="btn navbar-btn--login btn-sm">
               Iniciar sesión
             </NuxtLink>
-            <NuxtLink to="/register" class="btn btn-light btn-sm text-primary fw-semibold">
+            <NuxtLink to="/register" class="btn navbar-btn--register btn-sm fw-semibold">
               Registrarse
             </NuxtLink>
           </template>
@@ -162,3 +170,92 @@ function logout(): void {
     </div>
   </nav>
 </template>
+
+<style scoped>
+/* ── Landing navbar (unauthenticated) ─────────────────────────── */
+.navbar-landing {
+  --nav-forest: #1e2a38;
+  --nav-green: #4caf82;
+  --nav-green-dark: #3a9166;
+  --nav-cream: #faf7f2;
+
+  background: var(--nav-cream);
+  border-bottom: 1px solid rgba(30, 42, 56, 0.06);
+}
+
+.navbar-landing .navbar-brand {
+  color: var(--nav-forest);
+}
+
+.navbar-landing .navbar-brand:hover {
+  color: var(--nav-forest);
+}
+
+.navbar-landing .navbar-brand__text {
+  font-family: 'Fraunces', Georgia, serif;
+  font-size: 1.25rem;
+  letter-spacing: -0.01em;
+}
+
+.navbar-landing .nav-link {
+  color: var(--nav-forest);
+  font-weight: 500;
+  opacity: 0.7;
+  transition: opacity 0.2s ease;
+}
+
+.navbar-landing .nav-link:hover,
+.navbar-landing .nav-link.active {
+  color: var(--nav-forest);
+  opacity: 1;
+}
+
+.navbar-landing .navbar-toggler {
+  border-color: rgba(30, 42, 56, 0.15);
+}
+
+.navbar-landing .navbar-toggler-icon {
+  filter: invert(1) grayscale(100%) brightness(0.2);
+}
+
+/* ── Guest action buttons ─────────────────────────────────────── */
+.navbar-btn--login {
+  color: var(--nav-forest, #1e2a38);
+  background: transparent;
+  border: 1.5px solid rgba(30, 42, 56, 0.18);
+  border-radius: 100px;
+  padding: 6px 18px;
+  font-weight: 500;
+  transition: border-color 0.2s ease, color 0.2s ease;
+}
+
+.navbar-btn--login:hover {
+  border-color: var(--nav-green, #4caf82);
+  color: var(--nav-green, #4caf82);
+}
+
+.navbar-btn--register {
+  color: #fff;
+  background: var(--nav-green, #4caf82);
+  border: 1.5px solid var(--nav-green, #4caf82);
+  border-radius: 100px;
+  padding: 6px 20px;
+  box-shadow: 0 2px 12px rgba(76, 175, 130, 0.3);
+  transition: background 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.navbar-btn--register:hover {
+  background: var(--nav-green-dark, #3a9166);
+  border-color: var(--nav-green-dark, #3a9166);
+  color: #fff;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 18px rgba(76, 175, 130, 0.4);
+}
+
+/* ── Authenticated navbar refinements ─────────────────────────── */
+.navbar-dark .navbar-brand__text {
+  font-family: 'Fraunces', Georgia, serif;
+  font-size: 1.25rem;
+  letter-spacing: -0.01em;
+}
+</style>

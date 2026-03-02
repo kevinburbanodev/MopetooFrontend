@@ -150,7 +150,7 @@ const form = reactive<RegisterPayload>({
           <!-- Login link -->
           <p class="text-center mt-4 mb-0 small text-muted">
             ¿Ya tienes cuenta?
-            <NuxtLink to="/auth/login" class="text-primary fw-semibold">
+            <NuxtLink to="/login" class="text-primary fw-semibold">
               Iniciar sesión
             </NuxtLink>
           </p>

@@ -33,7 +33,7 @@
       </div>
 
       <div class="how__cta">
-        <NuxtLink to="/auth/register" class="how__btn">
+        <NuxtLink to="/register" class="how__btn">
           Crear mi cuenta gratis
         </NuxtLink>
         <p class="how__cta-note">Sin tarjeta de crédito. Sin compromisos.</p>

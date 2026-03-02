@@ -26,7 +26,7 @@
             <NuxtLink to="/pricing" class="pro__btn pro__btn--primary">
               Ver planes y precios
             </NuxtLink>
-            <NuxtLink to="/auth/register" class="pro__btn pro__btn--ghost">
+            <NuxtLink to="/register" class="pro__btn pro__btn--ghost">
               Empezar gratis
             </NuxtLink>
           </div>
