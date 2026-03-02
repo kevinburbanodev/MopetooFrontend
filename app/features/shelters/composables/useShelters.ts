@@ -1,16 +1,18 @@
 // ============================================================
-// useShelters — Adoption Listings feature composable
-// Central API surface for adoption listing operations.
+// useShelters — Shelters & Adoption Listings feature composable
+// Central API surface for shelter and adoption listing operations.
 // State is owned by useSheltersStore; this composable is the
 // API layer that keeps the store in sync.
 //
 // Backend endpoints:
-//   GET  /api/adoption-listings        → list all available
-//   GET  /api/adoption-listings/:id    → single listing
-//   POST /api/adoption-listings/:id/requests → adoption request
+//   GET  /shelters                          → public directory
+//   GET  /shelters/:id                      → public detail
+//   GET  /adoption-listings                 → public (with shelter embedded)
+//   GET  /adoption-listings/:id             → public (with shelter embedded)
+//   POST /api/adoption-listings/:id/requests → protected
 // ============================================================
 
-import type { AdoptionListing, AdoptionRequest } from '../types'
+import type { AdoptionListing, AdoptionRequest, Shelter } from '../types'
 import { extractErrorMessage } from '../../shared/utils/extractErrorMessage'
 
 export function useShelters() {
@@ -19,10 +21,10 @@ export function useShelters() {
 
   const error = ref<string | null>(null)
 
-  // ── Public API ──────────────────────────────────────────────
+  // ── Adoption listings (public) ────────────────────────────
 
   /**
-   * Fetch all adoption listings.
+   * Fetch all adoption listings (public endpoint, with shelter embedded).
    * Handles both `{ adoption_listings: AdoptionListing[] }` and bare array shapes.
    */
   async function fetchAdoptionListings(): Promise<void> {
@@ -30,7 +32,7 @@ export function useShelters() {
     error.value = null
     try {
       const response = await get<{ adoption_listings?: AdoptionListing[] } | AdoptionListing[]>(
-        '/api/adoption-listings',
+        '/adoption-listings',
       )
       if (Array.isArray(response)) {
         sheltersStore.setAdoptionListings(response)
@@ -48,14 +50,14 @@ export function useShelters() {
   }
 
   /**
-   * Fetch a single adoption listing by id and store it as selectedListing.
+   * Fetch a single adoption listing by id (public, with shelter embedded).
    * Returns the listing or null on failure.
    */
   async function fetchAdoptionListingById(id: number): Promise<AdoptionListing | null> {
     sheltersStore.setLoading(true)
     error.value = null
     try {
-      const listing = await get<AdoptionListing>(`/api/adoption-listings/${id}`)
+      const listing = await get<AdoptionListing>(`/adoption-listings/${id}`)
       sheltersStore.setSelectedListing(listing)
       return listing
     }
@@ -94,12 +96,69 @@ export function useShelters() {
     }
   }
 
+  // ── Shelters (public) ──────────────────────────────────────
+
+  /**
+   * Fetch all public shelters (active + verified).
+   * Handles both `{ shelters: Shelter[] }` and bare array shapes.
+   */
+  async function fetchShelters(): Promise<void> {
+    sheltersStore.setLoading(true)
+    error.value = null
+    try {
+      const response = await get<{ shelters?: Shelter[] } | Shelter[]>(
+        '/shelters',
+      )
+      if (Array.isArray(response)) {
+        sheltersStore.setShelters(response)
+      }
+      else {
+        sheltersStore.setShelters(response.shelters ?? [])
+      }
+    }
+    catch (err: unknown) {
+      error.value = extractErrorMessage(err)
+    }
+    finally {
+      sheltersStore.setLoading(false)
+    }
+  }
+
+  /**
+   * Fetch a single shelter by id (public). Uses store-first cache.
+   * Returns the shelter or null on failure.
+   */
+  async function fetchShelterById(id: number): Promise<Shelter | null> {
+    // Cache-first: check if already in store
+    const cached = sheltersStore.shelters.find(s => s.id === id) ?? null
+    if (cached) {
+      sheltersStore.setSelectedShelter(cached)
+      return cached
+    }
+
+    sheltersStore.setLoading(true)
+    error.value = null
+    try {
+      const shelter = await get<Shelter>(`/shelters/${id}`)
+      sheltersStore.setSelectedShelter(shelter)
+      return shelter
+    }
+    catch (err: unknown) {
+      error.value = extractErrorMessage(err)
+      return null
+    }
+    finally {
+      sheltersStore.setLoading(false)
+    }
+  }
+
   return {
     error,
     sheltersStore,
     fetchAdoptionListings,
     fetchAdoptionListingById,
     submitAdoptionRequest,
+    fetchShelters,
+    fetchShelterById,
   }
 }
-

@@ -3,12 +3,40 @@
 // Aligned with Mopetoo backend API (Go + Gin)
 // RF-500 to RF-509
 //
-// Backend model: flat "Adoption Listings" — no public shelter
-// directory endpoints. All data comes from:
-//   GET  /api/adoption-listings
-//   GET  /api/adoption-listings/:id
-//   POST /api/adoption-listings/:id/requests
+// Backend endpoints:
+//   GET  /shelters                          → public directory
+//   GET  /shelters/:id                      → public detail
+//   GET  /adoption-listings                 → public (with shelter embedded)
+//   GET  /adoption-listings/:id             → public (with shelter embedded)
+//   POST /api/adoption-listings/:id/requests → protected
 // ============================================================
+
+/** Full shelter model — matches backend Shelter struct */
+export interface Shelter {
+  id: number
+  organization_name: string
+  email: string
+  description?: string
+  country: string
+  city: string
+  phone_country_code: string
+  phone: string
+  logo_url?: string
+  website?: string
+  verified: boolean
+  is_active: boolean
+  created_at: string
+  updated_at: string
+}
+
+/** Lightweight shelter summary embedded in adoption listings */
+export interface ShelterInfo {
+  id: number
+  name: string
+  city?: string
+  email?: string
+  phone?: string
+}
 
 export interface AdoptionListing {
   id: number
@@ -24,6 +52,7 @@ export interface AdoptionListing {
   city: string
   country: string
   status: 'available' | 'pending' | 'adopted'
+  shelter?: ShelterInfo
   created_at: string
   updated_at: string
 }

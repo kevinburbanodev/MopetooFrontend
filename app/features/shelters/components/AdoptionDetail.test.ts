@@ -50,6 +50,7 @@ function makeAdoptionListing(overrides: Partial<AdoptionListing> = {}): Adoption
     city: 'Bogotá',
     country: 'Colombia',
     status: 'available',
+    shelter: { id: 1, name: 'Refugio Esperanza', city: 'Bogotá', email: 'contacto@refugio.com', phone: '+57 300 1234567' },
     created_at: '2024-01-01T00:00:00Z',
     updated_at: '2024-01-01T00:00:00Z',
     ...overrides,
@@ -83,6 +84,19 @@ vi.mock('../composables/useShelters', () => ({
   }),
 }))
 
+// ── useToast mock ──────────────────────────────────────────────
+
+const mockToastError = vi.fn()
+const mockToastSuccess = vi.fn()
+
+vi.mock('../../shared/composables/useToast', () => ({
+  useToast: () => ({
+    toastError: mockToastError,
+    toastSuccess: mockToastSuccess,
+    toastInfo: vi.fn(),
+  }),
+}))
+
 // ── Suite ─────────────────────────────────────────────────────
 
 describe('AdoptionDetail', () => {
@@ -93,6 +107,8 @@ describe('AdoptionDetail', () => {
     mockError.value = null
     mockSelectedListing.value = null
     mockIsLoading.value = false
+    mockToastError.mockReset()
+    mockToastSuccess.mockReset()
     localStorageMock.getItem.mockReturnValue(null)
 
     const { useAuthStore } = await import('../../auth/stores/auth.store')
@@ -165,6 +181,82 @@ describe('AdoptionDetail', () => {
         global: { stubs: { NuxtLink: true } },
       })
       expect(wrapper.text()).toContain('Mascota no encontrada')
+    })
+  })
+
+  // ── Shelter info card ──────────────────────────────────────
+
+  describe('shelter info card', () => {
+    it('renders the shelter name when shelter data is present', async () => {
+      mockSelectedListing.value = makeAdoptionListing()
+      const wrapper = await mountSuspended(AdoptionDetail, {
+        props: { listingId: '1' },
+        global: { stubs: { NuxtLink: true } },
+      })
+      expect(wrapper.text()).toContain('Refugio Esperanza')
+    })
+
+    it('renders the shelter city when shelter.city is present', async () => {
+      mockSelectedListing.value = makeAdoptionListing()
+      const wrapper = await mountSuspended(AdoptionDetail, {
+        props: { listingId: '1' },
+        global: { stubs: { NuxtLink: true } },
+      })
+      const shelterCard = wrapper.find('.adoption-detail__shelter-card')
+      expect(shelterCard.text()).toContain('Bogotá')
+    })
+
+    it('renders a tel: link when shelter.phone is a valid phone', async () => {
+      mockSelectedListing.value = makeAdoptionListing()
+      const wrapper = await mountSuspended(AdoptionDetail, {
+        props: { listingId: '1' },
+        global: { stubs: { NuxtLink: true } },
+      })
+      const telLink = wrapper.find('a[href^="tel:"]')
+      expect(telLink.exists()).toBe(true)
+      expect(telLink.text()).toContain('+57 300 1234567')
+    })
+
+    it('renders a mailto: link when shelter.email is a valid email', async () => {
+      mockSelectedListing.value = makeAdoptionListing()
+      const wrapper = await mountSuspended(AdoptionDetail, {
+        props: { listingId: '1' },
+        global: { stubs: { NuxtLink: true } },
+      })
+      const mailLink = wrapper.find('a[href^="mailto:"]')
+      expect(mailLink.exists()).toBe(true)
+      expect(mailLink.text()).toContain('contacto@refugio.com')
+    })
+
+    it('does NOT render the shelter card when shelter is undefined', async () => {
+      mockSelectedListing.value = makeAdoptionListing({ shelter: undefined })
+      const wrapper = await mountSuspended(AdoptionDetail, {
+        props: { listingId: '1' },
+        global: { stubs: { NuxtLink: true } },
+      })
+      expect(wrapper.find('.adoption-detail__shelter-card').exists()).toBe(false)
+    })
+
+    it('does NOT render a tel: link when shelter.phone contains injection characters', async () => {
+      mockSelectedListing.value = makeAdoptionListing({
+        shelter: { id: 1, name: 'Refugio', phone: 'javascript:alert(1)' },
+      })
+      const wrapper = await mountSuspended(AdoptionDetail, {
+        props: { listingId: '1' },
+        global: { stubs: { NuxtLink: true } },
+      })
+      expect(wrapper.find('a[href^="tel:"]').exists()).toBe(false)
+    })
+
+    it('does NOT render a mailto: link when shelter.email contains injection characters', async () => {
+      mockSelectedListing.value = makeAdoptionListing({
+        shelter: { id: 1, name: 'Refugio', email: 'not an email <script>' },
+      })
+      const wrapper = await mountSuspended(AdoptionDetail, {
+        props: { listingId: '1' },
+        global: { stubs: { NuxtLink: true } },
+      })
+      expect(wrapper.find('a[href^="mailto:"]').exists()).toBe(false)
     })
   })
 
@@ -419,7 +511,7 @@ describe('AdoptionDetail', () => {
       )
     })
 
-    it('shows the submission error alert when submitAdoptionRequest returns null', async () => {
+    it('triggers toastError when submitAdoptionRequest returns null', async () => {
       mockSubmitAdoptionRequest.mockResolvedValue(null)
       mockSelectedListing.value = availableListing
 
@@ -436,7 +528,35 @@ describe('AdoptionDetail', () => {
       await wrapper.find('form').trigger('submit')
       await nextTick()
 
-      expect(wrapper.text()).toContain('No se pudo enviar la solicitud')
+      expect(mockToastError).toHaveBeenCalledWith('No se pudo enviar la solicitud. Intenta de nuevo.')
+    })
+
+    it('triggers toastSuccess when submitAdoptionRequest succeeds', async () => {
+      const successRequest: AdoptionRequest = {
+        id: 2, adoption_listing_id: 1, user_id: 1,
+        message: 'Quiero adoptar', status: 'pending',
+        created_at: '2024-01-01T00:00:00Z', updated_at: '2024-01-01T00:00:00Z',
+      }
+      mockSubmitAdoptionRequest.mockResolvedValue(successRequest)
+      mockSelectedListing.value = availableListing
+
+      const wrapper = await mountSuspended(AdoptionDetail, {
+        props: { listingId: '1' },
+        global: { stubs: { NuxtLink: true } },
+      })
+      const { useAuthStore } = await import('../../auth/stores/auth.store')
+      useAuthStore().token = 'test-jwt-token'
+      await nextTick()
+
+      const validMessage = 'Quiero darle un hogar a Max, tengo experiencia con mascotas.'
+      await wrapper.find('textarea').setValue(validMessage)
+      await wrapper.find('form').trigger('submit')
+      await nextTick()
+
+      expect(mockToastSuccess).toHaveBeenCalledWith(
+        'El refugio revisará tu mensaje y se pondrá en contacto contigo.',
+        '¡Solicitud enviada!',
+      )
     })
   })
 

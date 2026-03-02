@@ -368,7 +368,10 @@ describe('useReminders', () => {
 
       await createReminder(payload)
 
-      expect(mockPost).toHaveBeenCalledWith('/api/reminders', payload)
+      expect(mockPost).toHaveBeenCalledWith('/api/reminders', {
+        ...payload,
+        pet_id: 42,
+      })
     })
 
     it('calls addReminder on the store with the returned reminder', async () => {

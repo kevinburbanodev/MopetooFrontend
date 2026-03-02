@@ -9,6 +9,10 @@
       <slot />
     </main>
 
+    <ClientOnly>
+      <Toaster position="top-right" :duration="4000" rich-colors />
+    </ClientOnly>
+
     <footer class="footer mt-auto">
       <div class="container">
         <div class="row align-items-center">

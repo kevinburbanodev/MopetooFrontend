@@ -50,6 +50,7 @@ mockNuxtImport('useRouter', () => () => ({
 const apiPostMock = vi.fn()
 const apiGetMock = vi.fn()
 const apiPatchMock = vi.fn()
+const apiPutMock = vi.fn()
 const apiDelMock = vi.fn()
 
 vi.mock('../../shared/composables/useApi', () => ({
@@ -57,6 +58,7 @@ vi.mock('../../shared/composables/useApi', () => ({
     post: apiPostMock,
     get: apiGetMock,
     patch: apiPatchMock,
+    put: apiPutMock,
     del: apiDelMock,
   }),
 }))
@@ -133,6 +135,7 @@ describe('useAuth', () => {
     apiPostMock.mockReset()
     apiGetMock.mockReset()
     apiPatchMock.mockReset()
+    apiPutMock.mockReset()
     apiDelMock.mockReset()
     routerPushMock.mockReset()
     navigateToMock.mockReset()
@@ -257,17 +260,22 @@ describe('useAuth', () => {
   // ── register ───────────────────────────────────────────────
 
   describe('register()', () => {
-    it('calls POST /users with JSON body when no photo is provided', async () => {
-      apiPostMock
-        .mockResolvedValueOnce(undefined) // POST /users
-        .mockResolvedValueOnce(mockLoginResponse) // POST /login (auto-login)
+    it('calls $fetch with FormData when no photo is provided', async () => {
+      fetchMock.mockResolvedValueOnce(undefined) // POST /users multipart
+      apiPostMock.mockResolvedValueOnce(mockLoginResponse) // POST /login (auto-login)
 
       const { useAuth } = await import('./useAuth')
       const { register } = useAuth()
 
       await register(minimalRegisterPayload)
 
-      expect(apiPostMock).toHaveBeenCalledWith('/users', minimalRegisterPayload)
+      expect(fetchMock).toHaveBeenCalledWith(
+        'http://localhost:4000/users',
+        expect.objectContaining({
+          method: 'POST',
+          body: expect.any(FormData),
+        }),
+      )
     })
 
     it('calls $fetch with FormData when a photo file is provided', async () => {
@@ -493,24 +501,24 @@ describe('useAuth', () => {
   // ── updateProfile ──────────────────────────────────────────
 
   describe('updateProfile()', () => {
-    it('calls PATCH /api/users/:id with JSON body when no photo is provided', async () => {
+    it('calls PUT /api/users/:id with JSON body when no photo is provided', async () => {
       authStore.token = FAKE_JWT
       authStore.entityType = 'user'
       const updatedUser: User = { ...mockUser, name: 'Ana Updated' }
-      apiPatchMock.mockResolvedValueOnce(updatedUser)
+      apiPutMock.mockResolvedValueOnce(updatedUser)
       const { useAuth } = await import('./useAuth')
       const { updateProfile } = useAuth()
 
       await updateProfile({ name: 'Ana Updated' })
 
-      expect(apiPatchMock).toHaveBeenCalledWith('/api/users/1', { name: 'Ana Updated' })
+      expect(apiPutMock).toHaveBeenCalledWith('/api/users/1', { name: 'Ana Updated' })
     })
 
     it('calls authStore.setEntity with the updated user and entity type on JSON success', async () => {
       authStore.token = FAKE_JWT
       authStore.entityType = 'user'
       const updatedUser: User = { ...mockUser, name: 'Ana Updated' }
-      apiPatchMock.mockResolvedValueOnce(updatedUser)
+      apiPutMock.mockResolvedValueOnce(updatedUser)
       const setEntitySpy = vi.spyOn(authStore, 'setEntity')
       const { useAuth } = await import('./useAuth')
       const { updateProfile } = useAuth()
@@ -533,7 +541,7 @@ describe('useAuth', () => {
       expect(fetchMock).toHaveBeenCalledWith(
         'http://localhost:4000/api/users/1',
         expect.objectContaining({
-          method: 'PATCH',
+          method: 'PUT',
           body: expect.any(FormData),
         }),
       )
@@ -557,10 +565,10 @@ describe('useAuth', () => {
       )
     })
 
-    it('sets error on PATCH failure', async () => {
+    it('sets error on PUT failure', async () => {
       authStore.token = FAKE_JWT
       authStore.entityType = 'user'
-      apiPatchMock.mockRejectedValueOnce({ data: { error: 'Email inválido' } })
+      apiPutMock.mockRejectedValueOnce({ data: { error: 'Email inválido' } })
       const { useAuth } = await import('./useAuth')
       const { updateProfile, error } = useAuth()
 
@@ -573,14 +581,14 @@ describe('useAuth', () => {
       const shelterJwt = makeFakeJwt({ user_id: 5, email: 'shelter@example.com', entity_type: 'shelter', is_admin: false })
       authStore.token = shelterJwt
       authStore.entityType = 'shelter'
-      apiPatchMock.mockResolvedValueOnce({ id: 5, organization_name: 'Refugio' })
+      apiPutMock.mockResolvedValueOnce({ id: 5, organization_name: 'Refugio' })
       const setEntitySpy = vi.spyOn(authStore, 'setEntity')
       const { useAuth } = await import('./useAuth')
       const { updateProfile } = useAuth()
 
       await updateProfile({ name: 'Refugio Updated' })
 
-      expect(apiPatchMock).toHaveBeenCalledWith('/api/shelters/5', { name: 'Refugio Updated' })
+      expect(apiPutMock).toHaveBeenCalledWith('/api/shelters/5', { name: 'Refugio Updated' })
       expect(setEntitySpy).toHaveBeenCalledWith(expect.any(Object), 'shelter')
     })
 

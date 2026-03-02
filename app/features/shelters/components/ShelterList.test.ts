@@ -31,6 +31,7 @@ function makeAdoptionListing(overrides: Partial<AdoptionListing> = {}): Adoption
     city: 'Bogotá',
     country: 'Colombia',
     status: 'available',
+    shelter: { id: 1, name: 'Refugio Esperanza', city: 'Bogotá', email: 'contacto@refugio.com', phone: '+57 300 1234567' },
     created_at: '2024-01-01T00:00:00Z',
     updated_at: '2024-01-01T00:00:00Z',
     ...overrides,
@@ -56,6 +57,16 @@ vi.mock('../composables/useShelters', () => ({
       get adoptionListings() { return mockAdoptionListings.value },
       get isLoading() { return mockIsLoading.value },
     },
+  }),
+}))
+
+// ── useToast mock ──────────────────────────────────────────────
+
+vi.mock('../../shared/composables/useToast', () => ({
+  useToast: () => ({
+    toastError: vi.fn(),
+    toastSuccess: vi.fn(),
+    toastInfo: vi.fn(),
   }),
 }))
 
@@ -242,6 +253,19 @@ describe('ShelterList', () => {
 
     it('filters to dogs when "dog" is selected', async () => {
       mockAdoptionListings.value = [listingA, listingB, listingC]
+      const wrapper = await mountSuspended(ShelterList, {
+        global: { stubs: { NuxtLink: true, AdoptionPetCard: { template: '<div class="listing-card-stub" />' } } },
+      })
+
+      await wrapper.find('#listing-species').setValue('dog')
+
+      expect(wrapper.findAll('.listing-card-stub')).toHaveLength(2)
+    })
+
+    it('filters case-insensitively when backend returns uppercase species', async () => {
+      const upperDog = makeAdoptionListing({ id: 10, name: 'Rex', species: 'Dog', city: 'Bogotá' })
+      const upperCat = makeAdoptionListing({ id: 11, name: 'Michi', species: 'Cat', city: 'Cali' })
+      mockAdoptionListings.value = [upperDog, upperCat, listingA] // upperDog=Dog, upperCat=Cat, listingA=dog
       const wrapper = await mountSuspended(ShelterList, {
         global: { stubs: { NuxtLink: true, AdoptionPetCard: { template: '<div class="listing-card-stub" />' } } },
       })

@@ -147,6 +147,11 @@ watch(() => props.listing.photo_url, () => {
         <span aria-hidden="true">📍</span>
         {{ listing.city }}<template v-if="listing.country">, {{ listing.country }}</template>
       </p>
+
+      <!-- Shelter name -->
+      <p v-if="listing.shelter?.name" class="text-muted small mb-0">
+        <span aria-hidden="true">🏠</span> {{ listing.shelter.name }}
+      </p>
     </div>
 
     <!-- CTA footer — hidden for adopted listings -->

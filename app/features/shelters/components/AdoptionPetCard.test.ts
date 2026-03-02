@@ -39,6 +39,7 @@ function makeAdoptionListing(overrides: Partial<AdoptionListing> = {}): Adoption
     city: 'Bogotá',
     country: 'Colombia',
     status: 'available',
+    shelter: { id: 1, name: 'Refugio Esperanza', city: 'Bogotá', email: 'contacto@refugio.com', phone: '+57 300 1234567' },
     created_at: '2024-01-01T00:00:00Z',
     updated_at: '2024-01-01T00:00:00Z',
     ...overrides,
@@ -267,6 +268,28 @@ describe('AdoptionPetCard', () => {
         global: { stubs: { NuxtLink: true } },
       })
       expect(wrapper.text()).toContain('Colombia')
+    })
+  })
+
+  // ── Shelter name display ──────────────────────────────────
+
+  describe('shelter name display', () => {
+    it('renders the shelter name when shelter data is present', async () => {
+      const listing = makeAdoptionListing()
+      const wrapper = await mountSuspended(AdoptionPetCard, {
+        props: { listing },
+        global: { stubs: { NuxtLink: true } },
+      })
+      expect(wrapper.text()).toContain('Refugio Esperanza')
+    })
+
+    it('does NOT render the shelter name when shelter is undefined', async () => {
+      const listing = makeAdoptionListing({ shelter: undefined })
+      const wrapper = await mountSuspended(AdoptionPetCard, {
+        props: { listing },
+        global: { stubs: { NuxtLink: true } },
+      })
+      expect(wrapper.text()).not.toContain('Refugio Esperanza')
     })
   })
 

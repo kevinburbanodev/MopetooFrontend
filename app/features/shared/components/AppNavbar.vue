@@ -5,12 +5,17 @@ const authStore = useAuthStore()
 // Public nav links — minimal for guests, full for authenticated users
 const publicLinks = computed(() => {
   if (!authStore.isAuthenticated) {
-    return [{ label: 'Inicio', to: '/' }]
+    return [
+      { label: 'Inicio', to: '/' },
+      { label: 'Adopciones', to: '/shelter' },
+      { label: 'Refugios', to: '/shelters' },
+    ]
   }
   return [
     { label: 'Inicio', to: '/' },
     { label: 'Blog', to: '/blog' },
     { label: 'Adopciones', to: '/shelter' },
+    { label: 'Refugios', to: '/shelters' },
     { label: 'Tiendas', to: '/stores' },
     { label: 'Clínicas', to: '/clinics' },
     { label: 'Precios', to: '/pricing' },

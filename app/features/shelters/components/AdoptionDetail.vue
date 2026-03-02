@@ -13,6 +13,7 @@ const props = defineProps<{
 
 const { fetchAdoptionListingById, submitAdoptionRequest, error, sheltersStore } = useShelters()
 const authStore = useAuthStore()
+const { toastError, toastSuccess } = useToast()
 
 // ── Listing data ──────────────────────────────────────────
 const listing = computed(() => sheltersStore.selectedListing)
@@ -74,6 +75,27 @@ const safePhotoUrl = computed(() =>
 const imgError = ref(false)
 const showPhoto = computed(() => !!safePhotoUrl.value && !imgError.value)
 
+// ── Shelter contact sanitization ────────────────────────
+/**
+ * Sanitizes phone: only digits, +, -, spaces, parens, and dots.
+ * Prevents tel: href injection.
+ */
+const safeShelterPhone = computed<string | null>(() => {
+  const phone = listing.value?.shelter?.phone
+  if (!phone) return null
+  return /^[+\d\s\-().]{4,25}$/.test(phone) ? phone : null
+})
+
+/**
+ * Sanitizes email: must contain @ and no whitespace.
+ * Prevents mailto: href injection.
+ */
+const safeShelterEmail = computed<string | null>(() => {
+  const email = listing.value?.shelter?.email
+  if (!email) return null
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : null
+})
+
 function onImgError(): void {
   imgError.value = true
 }
@@ -85,7 +107,6 @@ const MESSAGE_MAX = 500
 const adoptionMessage = ref('')
 const submitted = ref(false)
 const adoptionSuccess = ref(false)
-const adoptionError = ref<string | null>(null)
 
 const messageInvalid = computed(() =>
   submitted.value
@@ -99,7 +120,6 @@ const messageCharsLeft = computed(() =>
 
 async function handleAdoptionSubmit(): Promise<void> {
   submitted.value = true
-  adoptionError.value = null
 
   const trimmed = adoptionMessage.value.trim()
   if (trimmed.length < MESSAGE_MIN || trimmed.length > MESSAGE_MAX) return
@@ -114,9 +134,11 @@ async function handleAdoptionSubmit(): Promise<void> {
     adoptionSuccess.value = true
     adoptionMessage.value = ''
     submitted.value = false
+    toastSuccess('El refugio revisará tu mensaje y se pondrá en contacto contigo.', '¡Solicitud enviada!')
   }
   else {
-    adoptionError.value = error.value ?? 'No se pudo enviar la solicitud. Intenta de nuevo.'
+    const msg = error.value ?? 'No se pudo enviar la solicitud. Intenta de nuevo.'
+    toastError(msg)
   }
 }
 
@@ -263,6 +285,24 @@ onMounted(async () => {
         </div>
       </div>
 
+      <!-- ── Shelter info card ──────────────────────────────────── -->
+      <div v-if="listing.shelter" class="adoption-detail__shelter-card card border-0 shadow-sm mb-4">
+        <div class="card-body p-4">
+          <h5 class="fw-bold mb-2">{{ listing.shelter.name }}</h5>
+          <p v-if="listing.shelter.city" class="text-muted small mb-2">
+            <span aria-hidden="true">📍</span> {{ listing.shelter.city }}
+          </p>
+          <p v-if="safeShelterPhone" class="mb-2">
+            <span aria-hidden="true">📞</span>
+            <a :href="`tel:${safeShelterPhone}`">{{ safeShelterPhone }}</a>
+          </p>
+          <p v-if="safeShelterEmail" class="mb-0">
+            <span aria-hidden="true">✉</span>
+            <a :href="`mailto:${safeShelterEmail}`">{{ safeShelterEmail }}</a>
+          </p>
+        </div>
+      </div>
+
       <!-- ── Adoption request section (client-only) ───────────── -->
       <ClientOnly>
         <div class="card border-0 shadow-sm mb-4">
@@ -337,16 +377,6 @@ onMounted(async () => {
                 novalidate
                 @submit.prevent="handleAdoptionSubmit"
               >
-                <!-- Submission error -->
-                <div
-                  v-if="adoptionError"
-                  class="alert alert-danger d-flex align-items-center gap-2 mb-3"
-                  role="alert"
-                >
-                  <span aria-hidden="true">⚠</span>
-                  {{ adoptionError }}
-                </div>
-
                 <div class="mb-3">
                   <label for="adoption-message" class="form-label fw-semibold">
                     Tu mensaje
@@ -479,6 +509,12 @@ onMounted(async () => {
 
   &__value {
     flex: 1;
+  }
+
+  // ── Shelter info card ──────────────────────────────────
+  &__shelter-card {
+    background-color: var(--bs-light, #f8f9fa);
+    border-left: 4px solid var(--bs-primary, #0d6efd) !important;
   }
 }
 

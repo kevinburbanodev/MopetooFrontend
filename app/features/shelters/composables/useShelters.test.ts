@@ -42,6 +42,7 @@ function makeAdoptionListing(overrides: Partial<AdoptionListing> = {}): Adoption
     city: 'Bogotá',
     country: 'Colombia',
     status: 'available',
+    shelter: { id: 1, name: 'Refugio Esperanza', city: 'Bogotá', email: 'contacto@refugio.com', phone: '+57 300 1234567' },
     created_at: '2024-01-01T00:00:00Z',
     updated_at: '2024-01-01T00:00:00Z',
     ...overrides,
@@ -81,14 +82,14 @@ describe('useShelters', () => {
   // ── fetchAdoptionListings ──────────────────────────────────
 
   describe('fetchAdoptionListings()', () => {
-    it('calls GET /api/adoption-listings', async () => {
+    it('calls GET /adoption-listings', async () => {
       mockGet.mockResolvedValueOnce([listingA])
       const { useShelters } = await import('./useShelters')
       const { fetchAdoptionListings } = useShelters()
 
       await fetchAdoptionListings()
 
-      expect(mockGet).toHaveBeenCalledWith('/api/adoption-listings')
+      expect(mockGet).toHaveBeenCalledWith('/adoption-listings')
     })
 
     it('hydrates the store when the response is a bare AdoptionListing array', async () => {
@@ -195,14 +196,14 @@ describe('useShelters', () => {
   // ── fetchAdoptionListingById ────────────────────────────────
 
   describe('fetchAdoptionListingById()', () => {
-    it('calls GET /api/adoption-listings/{id} with the correct id', async () => {
+    it('calls GET /adoption-listings/{id} with the correct id', async () => {
       mockGet.mockResolvedValueOnce(listingA)
       const { useShelters } = await import('./useShelters')
       const { fetchAdoptionListingById } = useShelters()
 
       await fetchAdoptionListingById(1)
 
-      expect(mockGet).toHaveBeenCalledWith('/api/adoption-listings/1')
+      expect(mockGet).toHaveBeenCalledWith('/adoption-listings/1')
     })
 
     it('calls setSelectedListing on the store with the returned listing', async () => {
@@ -284,7 +285,7 @@ describe('useShelters', () => {
 
       await fetchAdoptionListingById(42)
 
-      expect(mockGet).toHaveBeenCalledWith('/api/adoption-listings/42')
+      expect(mockGet).toHaveBeenCalledWith('/adoption-listings/42')
     })
   })
 
@@ -465,6 +466,147 @@ describe('useShelters', () => {
       await fetchAdoptionListings()
 
       expect(error.value).toBe('Error de red')
+    })
+  })
+
+  // ── fetchShelters ──────────────────────────────────────────
+
+  describe('fetchShelters()', () => {
+    const mockShelter = {
+      id: 1,
+      organization_name: 'Refugio Esperanza',
+      email: 'contacto@refugio.com',
+      description: 'Un refugio de prueba',
+      country: 'Colombia',
+      city: 'Bogotá',
+      phone_country_code: '+57',
+      phone: '3001234567',
+      verified: true,
+      is_active: true,
+      created_at: '2024-01-01T00:00:00Z',
+      updated_at: '2024-01-01T00:00:00Z',
+    }
+
+    it('calls GET /shelters', async () => {
+      mockGet.mockResolvedValueOnce({ shelters: [mockShelter] })
+      const { useShelters } = await import('./useShelters')
+      const { fetchShelters } = useShelters()
+
+      await fetchShelters()
+
+      expect(mockGet).toHaveBeenCalledWith('/shelters')
+    })
+
+    it('hydrates the store when the response is shaped as { shelters: [...] }', async () => {
+      mockGet.mockResolvedValueOnce({ shelters: [mockShelter] })
+      const setSheltersSpy = vi.spyOn(sheltersStore, 'setShelters')
+      const { useShelters } = await import('./useShelters')
+      const { fetchShelters } = useShelters()
+
+      await fetchShelters()
+
+      expect(setSheltersSpy).toHaveBeenCalledWith([mockShelter])
+    })
+
+    it('hydrates the store when the response is a bare array', async () => {
+      mockGet.mockResolvedValueOnce([mockShelter])
+      const setSheltersSpy = vi.spyOn(sheltersStore, 'setShelters')
+      const { useShelters } = await import('./useShelters')
+      const { fetchShelters } = useShelters()
+
+      await fetchShelters()
+
+      expect(setSheltersSpy).toHaveBeenCalledWith([mockShelter])
+    })
+
+    it('sets error when the API call fails', async () => {
+      mockGet.mockRejectedValueOnce({ data: { error: 'Error de servidor' } })
+      const { useShelters } = await import('./useShelters')
+      const { fetchShelters, error } = useShelters()
+
+      await fetchShelters()
+
+      expect(error.value).toBe('Error de servidor')
+    })
+
+    it('sets isLoading to false after success', async () => {
+      mockGet.mockResolvedValueOnce({ shelters: [] })
+      const { useShelters } = await import('./useShelters')
+      const { fetchShelters } = useShelters()
+
+      await fetchShelters()
+
+      expect(sheltersStore.isLoading).toBe(false)
+    })
+  })
+
+  // ── fetchShelterById ────────────────────────────────────────
+
+  describe('fetchShelterById()', () => {
+    const mockShelter = {
+      id: 1,
+      organization_name: 'Refugio Esperanza',
+      email: 'contacto@refugio.com',
+      country: 'Colombia',
+      city: 'Bogotá',
+      phone_country_code: '+57',
+      phone: '3001234567',
+      verified: true,
+      is_active: true,
+      created_at: '2024-01-01T00:00:00Z',
+      updated_at: '2024-01-01T00:00:00Z',
+    }
+
+    it('calls GET /shelters/{id} when not cached', async () => {
+      mockGet.mockResolvedValueOnce(mockShelter)
+      const { useShelters } = await import('./useShelters')
+      const { fetchShelterById } = useShelters()
+
+      await fetchShelterById(1)
+
+      expect(mockGet).toHaveBeenCalledWith('/shelters/1')
+    })
+
+    it('returns the shelter from store cache without API call when available', async () => {
+      sheltersStore.setShelters([mockShelter as any])
+      const { useShelters } = await import('./useShelters')
+      const { fetchShelterById } = useShelters()
+
+      const result = await fetchShelterById(1)
+
+      expect(mockGet).not.toHaveBeenCalled()
+      expect(result).toEqual(mockShelter)
+    })
+
+    it('calls setSelectedShelter on the store', async () => {
+      mockGet.mockResolvedValueOnce(mockShelter)
+      const setSelectedSpy = vi.spyOn(sheltersStore, 'setSelectedShelter')
+      const { useShelters } = await import('./useShelters')
+      const { fetchShelterById } = useShelters()
+
+      await fetchShelterById(1)
+
+      expect(setSelectedSpy).toHaveBeenCalledWith(mockShelter)
+    })
+
+    it('returns null when the API call fails', async () => {
+      mockGet.mockRejectedValueOnce({ data: { error: 'No encontrado' } })
+      const { useShelters } = await import('./useShelters')
+      const { fetchShelterById } = useShelters()
+
+      const result = await fetchShelterById(999)
+
+      expect(result).toBeNull()
+    })
+
+    it('sets isLoading to false after failure', async () => {
+      mockGet.mockRejectedValueOnce({ message: 'Network error' })
+      const { useShelters } = await import('./useShelters')
+      const { fetchShelterById } = useShelters()
+
+      await fetchShelterById(999)
+
+      expect(sheltersStore.isLoading).toBe(false)
     })
   })
 })

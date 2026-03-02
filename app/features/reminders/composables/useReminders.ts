@@ -90,7 +90,10 @@ export function useReminders() {
     remindersStore.setLoading(true)
     error.value = null
     try {
-      const reminder = normalizeReminder(await post<Reminder>('/api/reminders', payload))
+      const reminder = normalizeReminder(await post<Reminder>('/api/reminders', {
+        ...payload,
+        pet_id: Number(payload.pet_id),
+      }))
       remindersStore.addReminder(reminder)
       return reminder
     }

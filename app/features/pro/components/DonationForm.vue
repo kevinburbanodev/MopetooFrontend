@@ -15,6 +15,9 @@ const props = defineProps<{
 
 const { donate, error } = usePro()
 const authStore = useAuthStore()
+const { toastError } = useToast()
+
+watch(error, (v) => { if (v) toastError(v) })
 
 // ── Constants ─────────────────────────────────────────────
 const PRESET_AMOUNTS = [5_000, 10_000, 25_000, 50_000] as const
@@ -159,16 +162,6 @@ function formatCOP(amount: number): string {
           Tu donación a <strong>{{ shelterName }}</strong> ayuda a cubrir
           alimentos, veterinaria y cuidados para los animales.
         </p>
-
-        <!-- API error -->
-        <div
-          v-if="error"
-          class="alert alert-danger d-flex align-items-center gap-2 mb-3"
-          role="alert"
-        >
-          <span aria-hidden="true">⚠</span>
-          {{ error }}
-        </div>
 
         <form
           :class="{ 'was-validated': submitted }"

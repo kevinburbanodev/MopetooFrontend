@@ -58,6 +58,18 @@ vi.mock('../composables/usePro', () => ({
   }),
 }))
 
+// ── useToast mock ──────────────────────────────────────────────
+
+const mockToastError = vi.fn()
+
+vi.mock('../../shared/composables/useToast', () => ({
+  useToast: () => ({
+    toastError: mockToastError,
+    toastSuccess: vi.fn(),
+    toastInfo: vi.fn(),
+  }),
+}))
+
 // ── NuxtLink stub ─────────────────────────────────────────────
 const NuxtLinkStub = {
   template: '<a :href="to"><slot /></a>',
@@ -117,6 +129,7 @@ describe('DonationForm', () => {
     mockDonate.mockReset()
     mockDonate.mockResolvedValue(mockDonationCheckoutResponse)
     mockProError.value = null
+    mockToastError.mockReset()
     localStorageMock.getItem.mockReturnValue(null)
   })
 
@@ -414,7 +427,7 @@ describe('DonationForm', () => {
   // ── Error state ────────────────────────────────────────────
 
   describe('error state', () => {
-    it('shows an error alert when donate() returns null', async () => {
+    it('triggers toastError when donate() returns null and error is set', async () => {
       mockDonate.mockImplementation(async () => {
         mockProError.value = 'Error al procesar la donación'
         return null
@@ -427,8 +440,23 @@ describe('DonationForm', () => {
       await wrapper.find('form').trigger('submit')
       await nextTick()
 
-      expect(wrapper.find('.alert-danger').exists()).toBe(true)
-      expect(wrapper.find('.alert-danger').text()).toContain('Error al procesar la donación')
+      expect(mockToastError).toHaveBeenCalledWith('Error al procesar la donación')
+    })
+
+    it('does not show an inline alert-danger when error is set (uses toast instead)', async () => {
+      mockDonate.mockImplementation(async () => {
+        mockProError.value = 'Error al procesar la donación'
+        return null
+      })
+
+      const wrapper = await mountForm({ isAuthenticated: true })
+      const presetButtons = wrapper.findAll('[aria-label^="Donar"]')
+      await presetButtons[0].trigger('click')
+
+      await wrapper.find('form').trigger('submit')
+      await nextTick()
+
+      expect(wrapper.find('.alert-danger').exists()).toBe(false)
     })
 
     it('does not show the redirect state when donate() returns null', async () => {

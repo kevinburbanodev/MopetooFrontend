@@ -2,6 +2,9 @@
 import type { LoginPayload } from '../types'
 
 const { login, loading, error } = useAuth()
+const { toastError } = useToast()
+
+watch(error, (v) => { if (v) toastError(v) })
 
 const form = reactive<LoginPayload>({
   email: '',
@@ -19,11 +22,6 @@ const form = reactive<LoginPayload>({
             <span class="fs-1">🐾</span>
             <h1 class="h4 fw-bold mt-2 text-dark">Bienvenido de vuelta</h1>
             <p class="text-muted small">Inicia sesión para cuidar a tus mascotas</p>
-          </div>
-
-          <!-- Error alert -->
-          <div v-if="error" class="alert alert-danger py-2 small" role="alert">
-            {{ error }}
           </div>
 
           <!-- Form -->

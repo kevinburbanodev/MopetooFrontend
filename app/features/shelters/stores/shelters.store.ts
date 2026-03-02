@@ -10,12 +10,14 @@
 // ============================================================
 
 import { defineStore } from 'pinia'
-import type { AdoptionListing } from '../types'
+import type { AdoptionListing, Shelter } from '../types'
 
 export const useSheltersStore = defineStore('shelters', () => {
   // ── State ──────────────────────────────────────────────────
   const adoptionListings = ref<AdoptionListing[]>([])
   const selectedListing = ref<AdoptionListing | null>(null)
+  const shelters = ref<Shelter[]>([])
+  const selectedShelter = ref<Shelter | null>(null)
   const isLoading = ref(false)
 
   // ── Getters ────────────────────────────────────────────────
@@ -24,6 +26,8 @@ export const useSheltersStore = defineStore('shelters', () => {
   const getAvailableListings = computed<AdoptionListing[]>(() =>
     adoptionListings.value.filter(l => l.status === 'available'),
   )
+
+  const hasShelters = computed(() => shelters.value.length > 0)
 
   // ── Actions ────────────────────────────────────────────────
 
@@ -43,6 +47,18 @@ export const useSheltersStore = defineStore('shelters', () => {
     selectedListing.value = null
   }
 
+  function setShelters(list: Shelter[]): void {
+    shelters.value = list
+  }
+
+  function setSelectedShelter(shelter: Shelter | null): void {
+    selectedShelter.value = shelter
+  }
+
+  function clearSelectedShelter(): void {
+    selectedShelter.value = null
+  }
+
   function setLoading(value: boolean): void {
     isLoading.value = value
   }
@@ -54,21 +70,29 @@ export const useSheltersStore = defineStore('shelters', () => {
   function clearShelters(): void {
     adoptionListings.value = []
     selectedListing.value = null
+    shelters.value = []
+    selectedShelter.value = null
   }
 
   return {
     // State
     adoptionListings,
     selectedListing,
+    shelters,
+    selectedShelter,
     isLoading,
     // Getters
     hasAdoptionListings,
     getAvailableListings,
+    hasShelters,
     // Actions
     setAdoptionListings,
     addAdoptionListing,
     setSelectedListing,
     clearSelectedListing,
+    setShelters,
+    setSelectedShelter,
+    clearSelectedShelter,
     setLoading,
     clearShelters,
   }

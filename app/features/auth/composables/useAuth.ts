@@ -26,7 +26,7 @@ import type {
 import { extractErrorMessage } from '../../shared/utils/extractErrorMessage'
 
 export function useAuth() {
-  const { post, get, patch, del } = useApi()
+  const { post, get, put, patch, del } = useApi()
   const authStore = useAuthStore()
   const router = useRouter()
   const config = useRuntimeConfig()
@@ -64,17 +64,13 @@ export function useAuth() {
     pending.value = true
     error.value = null
     try {
-      if (photo) {
-        // Multipart: send all fields + file in a single FormData request
-        const formData = buildRegisterFormData(data, photo)
-        await $fetch<void>(`${baseURL}/users`, {
-          method: 'POST',
-          body: formData,
-        })
-      }
-      else {
-        await post<void>('/users', data)
-      }
+      // Always use multipart/form-data so the backend (which handles photo uploads)
+      // consistently receives form fields regardless of whether a photo is included.
+      const formData = buildRegisterFormData(data, photo)
+      await $fetch<void>(`${baseURL}/users`, {
+        method: 'POST',
+        body: formData,
+      })
       // After registration log the user in automatically
       await login(data.email, data.password, 'user')
     }
@@ -200,12 +196,16 @@ export function useAuth() {
         return
       }
       const endpoint = getProfileEndpoint(type, entityId)
+      // Remap last_name → lastname for backend compatibility
+      const { last_name, ...rest } = data
+      const payload = last_name !== undefined ? { ...rest, lastname: last_name } : rest
+
       let entity: AuthEntity
       if (photo) {
         const formData = buildProfileFormData(data, photo)
         const storedToken = authStore.token
         entity = await $fetch<AuthEntity>(`${baseURL}${endpoint}`, {
-          method: 'PATCH',
+          method: 'PUT',
           headers: storedToken
             ? { Authorization: `Bearer ${storedToken}` }
             : {},
@@ -213,7 +213,7 @@ export function useAuth() {
         })
       }
       else {
-        entity = await patch<AuthEntity>(endpoint, data)
+        entity = await put<AuthEntity>(endpoint, payload)
       }
       authStore.setEntity(entity, type)
     }
@@ -311,10 +311,10 @@ function decodeEntityIdFromToken(): string | null {
   }
 }
 
-function buildRegisterFormData(data: RegisterPayload, photo: File): FormData {
+function buildRegisterFormData(data: RegisterPayload, photo?: File): FormData {
   const fd = new FormData()
   fd.append('name', data.name)
-  fd.append('last_name', data.last_name)
+  fd.append('lastname', data.last_name)
   fd.append('email', data.email)
   fd.append('password', data.password)
   fd.append('country', data.country)
@@ -322,14 +322,14 @@ function buildRegisterFormData(data: RegisterPayload, photo: File): FormData {
   fd.append('phone_country_code', data.phone_country_code)
   fd.append('phone', data.phone)
   if (data.birth_date) fd.append('birth_date', data.birth_date)
-  fd.append('photo', photo)
+  if (photo) fd.append('profile_picture', photo)
   return fd
 }
 
 function buildProfileFormData(data: UpdateProfileDTO, photo: File): FormData {
   const fd = new FormData()
   if (data.name !== undefined) fd.append('name', data.name)
-  if (data.last_name !== undefined) fd.append('last_name', data.last_name)
+  if (data.last_name !== undefined) fd.append('lastname', data.last_name)
   if (data.email !== undefined) fd.append('email', data.email)
   if (data.country !== undefined) fd.append('country', data.country)
   if (data.city !== undefined) fd.append('city', data.city)
@@ -338,7 +338,7 @@ function buildProfileFormData(data: UpdateProfileDTO, photo: File): FormData {
   if (data.birth_date !== undefined) fd.append('birth_date', data.birth_date)
   if (data.current_password !== undefined) fd.append('current_password', data.current_password)
   if (data.new_password !== undefined) fd.append('new_password', data.new_password)
-  fd.append('photo', photo)
+  fd.append('profile_picture', photo)
   return fd
 }
 

@@ -14,7 +14,7 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 import { useSheltersStore } from './shelters.store'
-import type { AdoptionListing } from '../types'
+import type { AdoptionListing, Shelter } from '../types'
 
 // ── Fixtures ─────────────────────────────────────────────────
 
@@ -33,6 +33,7 @@ function makeAdoptionListing(overrides: Partial<AdoptionListing> = {}): Adoption
     city: 'Bogotá',
     country: 'Colombia',
     status: 'available',
+    shelter: { id: 1, name: 'Refugio Esperanza', city: 'Bogotá', email: 'contacto@refugio.com', phone: '+57 300 1234567' },
     created_at: '2024-01-01T00:00:00Z',
     updated_at: '2024-01-01T00:00:00Z',
     ...overrides,
@@ -42,6 +43,21 @@ function makeAdoptionListing(overrides: Partial<AdoptionListing> = {}): Adoption
 const listingA = makeAdoptionListing({ id: 1, name: 'Max', status: 'available' })
 const listingB = makeAdoptionListing({ id: 2, name: 'Luna', status: 'pending', species: 'cat', gender: 'female' })
 const listingC = makeAdoptionListing({ id: 3, name: 'Toby', status: 'adopted', species: 'dog' })
+
+const shelterA: Shelter = {
+  id: 1,
+  organization_name: 'Refugio Esperanza',
+  email: 'contacto@refugio.com',
+  description: 'Un refugio de prueba',
+  country: 'Colombia',
+  city: 'Bogotá',
+  phone_country_code: '+57',
+  phone: '3001234567',
+  verified: true,
+  is_active: true,
+  created_at: '2024-01-01T00:00:00Z',
+  updated_at: '2024-01-01T00:00:00Z',
+}
 
 // ── Suite ─────────────────────────────────────────────────────
 
@@ -344,6 +360,80 @@ describe('useSheltersStore', () => {
       expect(() => store.clearShelters()).not.toThrow()
       expect(store.adoptionListings).toEqual([])
       expect(store.selectedListing).toBeNull()
+    })
+
+    it('also resets shelters array and selectedShelter', () => {
+      const store = useSheltersStore()
+      store.setShelters([shelterA])
+      store.setSelectedShelter(shelterA)
+      store.clearShelters()
+      expect(store.shelters).toEqual([])
+      expect(store.selectedShelter).toBeNull()
+    })
+  })
+
+  // ── Shelter state ─────────────────────────────────────────
+
+  describe('shelters state', () => {
+    it('has an empty shelters array initially', () => {
+      const store = useSheltersStore()
+      expect(store.shelters).toEqual([])
+    })
+
+    it('has null selectedShelter initially', () => {
+      const store = useSheltersStore()
+      expect(store.selectedShelter).toBeNull()
+    })
+
+    it('hasShelters is false with an empty array', () => {
+      const store = useSheltersStore()
+      expect(store.hasShelters).toBe(false)
+    })
+  })
+
+  describe('setShelters()', () => {
+    it('replaces the shelters array', () => {
+      const store = useSheltersStore()
+      store.setShelters([shelterA])
+      expect(store.shelters).toEqual([shelterA])
+    })
+
+    it('makes hasShelters true', () => {
+      const store = useSheltersStore()
+      store.setShelters([shelterA])
+      expect(store.hasShelters).toBe(true)
+    })
+  })
+
+  describe('setSelectedShelter()', () => {
+    it('sets selectedShelter to the provided shelter', () => {
+      const store = useSheltersStore()
+      store.setSelectedShelter(shelterA)
+      expect(store.selectedShelter).toEqual(shelterA)
+    })
+
+    it('accepts null', () => {
+      const store = useSheltersStore()
+      store.setSelectedShelter(shelterA)
+      store.setSelectedShelter(null)
+      expect(store.selectedShelter).toBeNull()
+    })
+  })
+
+  describe('clearSelectedShelter()', () => {
+    it('sets selectedShelter to null', () => {
+      const store = useSheltersStore()
+      store.setSelectedShelter(shelterA)
+      store.clearSelectedShelter()
+      expect(store.selectedShelter).toBeNull()
+    })
+
+    it('does not affect shelters array', () => {
+      const store = useSheltersStore()
+      store.setShelters([shelterA])
+      store.setSelectedShelter(shelterA)
+      store.clearSelectedShelter()
+      expect(store.shelters).toHaveLength(1)
     })
   })
 })
