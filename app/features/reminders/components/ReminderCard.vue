@@ -40,19 +40,9 @@ const TYPE_COLOR: Record<ReminderType, string> = {
   otro: 'secondary',
 }
 
-const RECURRENCE_LABEL: Record<string, string> = {
-  once: 'Una vez',
-  weekly: 'Semanal',
-  monthly: 'Mensual',
-  yearly: 'Anual',
-}
-
 const typeLabel = computed(() => TYPE_LABEL[props.reminder.type])
 const typeIcon = computed(() => TYPE_ICON[props.reminder.type])
 const typeColor = computed(() => TYPE_COLOR[props.reminder.type])
-const recurrenceLabel = computed(() =>
-  props.reminder.recurrence ? RECURRENCE_LABEL[props.reminder.recurrence] : null,
-)
 
 const isPast = computed(() => new Date(props.reminder.scheduled_date) < new Date())
 
@@ -93,12 +83,6 @@ function handleDelete(event: Event): void {
       <span class="fs-4" aria-hidden="true">{{ typeIcon }}</span>
       <span :class="`badge bg-${typeColor}-subtle text-${typeColor}-emphasis fw-normal`">
         {{ typeLabel }}
-      </span>
-      <span
-        v-if="recurrenceLabel"
-        class="badge bg-body-secondary text-body-secondary fw-normal small ms-1"
-      >
-        🔁 {{ recurrenceLabel }}
       </span>
       <span
         v-if="isPast"

@@ -9,8 +9,8 @@
 //     via vitest.config.ts env options so the real useRuntimeConfig returns
 //     the correct base URL. Mocking useRuntimeConfig via mockNuxtImport at
 //     module level interferes with @nuxt/test-utils router initialisation.
-//   - $fetch (global) is stubbed via vi.stubGlobal for multipart paths
-//     that bypass useApi and call $fetch directly with FormData.
+//   - $fetch (global) is stubbed via vi.stubGlobal for ALL create and update
+//     paths — the composable always sends multipart/form-data via $fetch.
 //   - Pinia is isolated per test via createTestingPinia (stubActions: false)
 //     so real store action logic runs and we can spy on it.
 //
@@ -29,17 +29,14 @@ import type { Pet } from '../types'
 
 // ── useApi mock ──────────────────────────────────────────────
 // useApi is a project composable — vi.mock intercepts the module.
+// Only get and del are used by usePets — post and patch were removed.
 
 const apiGetMock = vi.fn()
-const apiPostMock = vi.fn()
-const apiPatchMock = vi.fn()
 const apiDelMock = vi.fn()
 
 vi.mock('../../shared/composables/useApi', () => ({
   useApi: () => ({
     get: apiGetMock,
-    post: apiPostMock,
-    patch: apiPatchMock,
     del: apiDelMock,
   }),
 }))
@@ -61,8 +58,20 @@ vi.mock('../../shared/composables/useExportPDF', () => ({
 }))
 
 // ── $fetch global stub ───────────────────────────────────────
-// Multipart (photo) paths bypass useApi and call $fetch directly.
+// All create and update paths bypass useApi and call $fetch directly
+// with multipart/form-data.
 const fetchMock = vi.fn()
+
+// ── Fake JWT helper ─────────────────────────────────────────
+// The composable decodes the JWT payload to extract user_id via
+// getEntityIdFromToken(). This helper produces a decodable JWT
+// so fetchPets() can resolve the correct endpoint.
+
+function makeFakeJwt(userId: number = 1): string {
+  const header = btoa(JSON.stringify({ alg: 'HS256' }))
+  const payload = btoa(JSON.stringify({ user_id: userId, email: 'test@test.com', entity_type: 'user', is_admin: false }))
+  return `${header}.${payload}.fake-signature`
+}
 
 // ── Fixtures ────────────────────────────────────────────────
 
@@ -73,7 +82,7 @@ function makePet(overrides: Partial<Pet> = {}): Pet {
     name: 'Max',
     species: 'dog',
     breed: 'Labrador',
-    birth_date: '2021-06-15',
+    age: 3,
     gender: 'male',
     created_at: '2024-01-01T00:00:00Z',
     updated_at: '2024-01-01T00:00:00Z',
@@ -92,14 +101,15 @@ const minimalCreateDTO = {
   name: 'Max',
   species: 'dog',
   breed: 'Labrador',
-  birth_date: '2021-06-15',
   gender: 'male' as const,
+  age: 3,
 }
 
 // ── Suite ────────────────────────────────────────────────────
 
 describe('usePets', () => {
   let petsStore: ReturnType<typeof import('../stores/pets.store').usePetsStore>
+  let authStore: ReturnType<typeof import('../../auth/stores/auth.store').useAuthStore>
 
   beforeEach(async () => {
     // Isolate Pinia per test.
@@ -112,8 +122,6 @@ describe('usePets', () => {
     petsStore = usePetsStore()
 
     apiGetMock.mockReset()
-    apiPostMock.mockReset()
-    apiPatchMock.mockReset()
     apiDelMock.mockReset()
     fetchMock.mockReset()
     downloadPDFMock.mockReset()
@@ -126,24 +134,24 @@ describe('usePets', () => {
     // Inject the $fetch stub globally for multipart paths.
     vi.stubGlobal('$fetch', fetchMock)
 
-    // Stub authStore token for multipart Authorization header.
+    // Stub authStore token with a decodable JWT so getEntityIdFromToken() works.
     // createTestingPinia creates a real store — we set state directly.
     const { useAuthStore } = await import('../../auth/stores/auth.store')
-    const authStore = useAuthStore()
-    authStore.token = 'jwt.test.token'
+    authStore = useAuthStore()
+    authStore.token = makeFakeJwt()
   })
 
   // ── fetchPets ──────────────────────────────────────────────
 
   describe('fetchPets()', () => {
-    it('calls GET /api/pets', async () => {
+    it('calls GET /api/pets/user/1 (user_id decoded from JWT)', async () => {
       apiGetMock.mockResolvedValueOnce([petA])
       const { usePets } = await import('./usePets')
       const { fetchPets } = usePets()
 
       await fetchPets()
 
-      expect(apiGetMock).toHaveBeenCalledWith('/api/pets')
+      expect(apiGetMock).toHaveBeenCalledWith('/api/pets/user/1')
     })
 
     it('hydrates the store when the response is a bare Pet array', async () => {
@@ -157,19 +165,8 @@ describe('usePets', () => {
       expect(setPetsSpy).toHaveBeenCalledWith([petA, petB])
     })
 
-    it('hydrates the store when the response is shaped as { pets: Pet[] }', async () => {
-      apiGetMock.mockResolvedValueOnce({ pets: [petA, petB] })
-      const setPetsSpy = vi.spyOn(petsStore, 'setPets')
-      const { usePets } = await import('./usePets')
-      const { fetchPets } = usePets()
-
-      await fetchPets()
-
-      expect(setPetsSpy).toHaveBeenCalledWith([petA, petB])
-    })
-
-    it('calls setPets with an empty array when { pets } key is missing from the object response', async () => {
-      apiGetMock.mockResolvedValueOnce({})
+    it('calls setPets with an empty array when backend returns { message: "..." } (no pets)', async () => {
+      apiGetMock.mockResolvedValueOnce({ message: 'No existen mascotas para este usuario' })
       const setPetsSpy = vi.spyOn(petsStore, 'setPets')
       const { usePets } = await import('./usePets')
       const { fetchPets } = usePets()
@@ -177,6 +174,28 @@ describe('usePets', () => {
       await fetchPets()
 
       expect(setPetsSpy).toHaveBeenCalledWith([])
+    })
+
+    it('sets error when token is null without calling the API', async () => {
+      authStore.token = null
+      const { usePets } = await import('./usePets')
+      const { fetchPets, error } = usePets()
+
+      await fetchPets()
+
+      expect(error.value).toBe('No se pudo identificar al usuario')
+      expect(apiGetMock).not.toHaveBeenCalled()
+    })
+
+    it('sets error when token is invalid (not a valid JWT) without calling the API', async () => {
+      authStore.token = 'not-a-valid-jwt'
+      const { usePets } = await import('./usePets')
+      const { fetchPets, error } = usePets()
+
+      await fetchPets()
+
+      expect(error.value).toBe('No se pudo identificar al usuario')
+      expect(apiGetMock).not.toHaveBeenCalled()
     })
 
     it('sets isLoading to true during the request and false after success', async () => {
@@ -315,50 +334,7 @@ describe('usePets', () => {
   // ── createPet ──────────────────────────────────────────────
 
   describe('createPet()', () => {
-    describe('without a photo (JSON body)', () => {
-      it('calls POST /api/pets with the DTO as JSON', async () => {
-        apiPostMock.mockResolvedValueOnce(petA)
-        const { usePets } = await import('./usePets')
-        const { createPet } = usePets()
-
-        await createPet(minimalCreateDTO)
-
-        expect(apiPostMock).toHaveBeenCalledWith('/api/pets', minimalCreateDTO)
-      })
-
-      it('does NOT call $fetch when no photo is provided', async () => {
-        apiPostMock.mockResolvedValueOnce(petA)
-        const { usePets } = await import('./usePets')
-        const { createPet } = usePets()
-
-        await createPet(minimalCreateDTO)
-
-        expect(fetchMock).not.toHaveBeenCalled()
-      })
-
-      it('calls addPet on the store with the returned pet', async () => {
-        apiPostMock.mockResolvedValueOnce(petA)
-        const addPetSpy = vi.spyOn(petsStore, 'addPet')
-        const { usePets } = await import('./usePets')
-        const { createPet } = usePets()
-
-        await createPet(minimalCreateDTO)
-
-        expect(addPetSpy).toHaveBeenCalledWith(petA)
-      })
-
-      it('returns the created pet on success', async () => {
-        apiPostMock.mockResolvedValueOnce(petA)
-        const { usePets } = await import('./usePets')
-        const { createPet } = usePets()
-
-        const result = await createPet(minimalCreateDTO)
-
-        expect(result).toEqual(petA)
-      })
-    })
-
-    describe('with a photo (multipart/form-data)', () => {
+    describe('with required photo (multipart/form-data)', () => {
       it('calls $fetch with FormData and POST method', async () => {
         fetchMock.mockResolvedValueOnce(petA)
         const { usePets } = await import('./usePets')
@@ -382,22 +358,13 @@ describe('usePets', () => {
 
         await createPet(minimalCreateDTO, makeFile())
 
+        const fakeToken = makeFakeJwt()
         expect(fetchMock).toHaveBeenCalledWith(
           expect.any(String),
           expect.objectContaining({
-            headers: { Authorization: 'Bearer jwt.test.token' },
+            headers: { Authorization: `Bearer ${fakeToken}` },
           }),
         )
-      })
-
-      it('does NOT call useApi.post when a photo is provided', async () => {
-        fetchMock.mockResolvedValueOnce(petA)
-        const { usePets } = await import('./usePets')
-        const { createPet } = usePets()
-
-        await createPet(minimalCreateDTO, makeFile())
-
-        expect(apiPostMock).not.toHaveBeenCalled()
       })
 
       it('calls addPet on the store with the returned pet', async () => {
@@ -424,42 +391,42 @@ describe('usePets', () => {
 
     describe('on API error', () => {
       it('returns null on failure', async () => {
-        apiPostMock.mockRejectedValueOnce({ data: { error: 'Validation failed' } })
+        fetchMock.mockRejectedValueOnce({ data: { error: 'Validation failed' } })
         const { usePets } = await import('./usePets')
         const { createPet } = usePets()
 
-        const result = await createPet(minimalCreateDTO)
+        const result = await createPet(minimalCreateDTO, makeFile())
 
         expect(result).toBeNull()
       })
 
       it('sets error with the API message', async () => {
-        apiPostMock.mockRejectedValueOnce({ data: { error: 'Validation failed' } })
+        fetchMock.mockRejectedValueOnce({ data: { error: 'Validation failed' } })
         const { usePets } = await import('./usePets')
         const { createPet, error } = usePets()
 
-        await createPet(minimalCreateDTO)
+        await createPet(minimalCreateDTO, makeFile())
 
         expect(error.value).toBe('Validation failed')
       })
 
       it('does NOT call addPet on failure', async () => {
-        apiPostMock.mockRejectedValueOnce({ data: { error: 'Validation failed' } })
+        fetchMock.mockRejectedValueOnce({ data: { error: 'Validation failed' } })
         const addPetSpy = vi.spyOn(petsStore, 'addPet')
         const { usePets } = await import('./usePets')
         const { createPet } = usePets()
 
-        await createPet(minimalCreateDTO)
+        await createPet(minimalCreateDTO, makeFile())
 
         expect(addPetSpy).not.toHaveBeenCalled()
       })
 
       it('sets isLoading to false after failure', async () => {
-        apiPostMock.mockRejectedValueOnce({ message: 'Network error' })
+        fetchMock.mockRejectedValueOnce({ message: 'Network error' })
         const { usePets } = await import('./usePets')
         const { createPet } = usePets()
 
-        await createPet(minimalCreateDTO)
+        await createPet(minimalCreateDTO, makeFile())
 
         expect(petsStore.isLoading).toBe(false)
       })
@@ -469,32 +436,44 @@ describe('usePets', () => {
   // ── updatePet ──────────────────────────────────────────────
 
   describe('updatePet()', () => {
-    describe('without a photo (JSON PATCH)', () => {
-      it('calls PATCH /api/pets/:id with the partial DTO', async () => {
+    describe('without a photo (multipart/form-data PUT)', () => {
+      it('calls $fetch with FormData and PUT method', async () => {
         const updated = { ...petA, name: 'Maximiliano' }
-        apiPatchMock.mockResolvedValueOnce(updated)
+        fetchMock.mockResolvedValueOnce(updated)
         const { usePets } = await import('./usePets')
         const { updatePet } = usePets()
 
         await updatePet('pet-1', { name: 'Maximiliano' })
 
-        expect(apiPatchMock).toHaveBeenCalledWith('/api/pets/pet-1', { name: 'Maximiliano' })
+        expect(fetchMock).toHaveBeenCalledWith(
+          'http://localhost:4000/api/pets/pet-1',
+          expect.objectContaining({
+            method: 'PUT',
+            body: expect.any(FormData),
+          }),
+        )
       })
 
-      it('does NOT call $fetch when no photo is provided', async () => {
+      it('sends the Authorization header from the auth store token', async () => {
         const updated = { ...petA, name: 'Maximiliano' }
-        apiPatchMock.mockResolvedValueOnce(updated)
+        fetchMock.mockResolvedValueOnce(updated)
         const { usePets } = await import('./usePets')
         const { updatePet } = usePets()
 
         await updatePet('pet-1', { name: 'Maximiliano' })
 
-        expect(fetchMock).not.toHaveBeenCalled()
+        const fakeToken = makeFakeJwt()
+        expect(fetchMock).toHaveBeenCalledWith(
+          expect.any(String),
+          expect.objectContaining({
+            headers: { Authorization: `Bearer ${fakeToken}` },
+          }),
+        )
       })
 
       it('calls petsStore.updatePet with the returned pet', async () => {
         const updated = { ...petA, name: 'Maximiliano' }
-        apiPatchMock.mockResolvedValueOnce(updated)
+        fetchMock.mockResolvedValueOnce(updated)
         const updatePetStoreSpy = vi.spyOn(petsStore, 'updatePet')
         const { usePets } = await import('./usePets')
         const { updatePet } = usePets()
@@ -506,7 +485,7 @@ describe('usePets', () => {
 
       it('returns the updated pet on success', async () => {
         const updated = { ...petA, name: 'Maximiliano' }
-        apiPatchMock.mockResolvedValueOnce(updated)
+        fetchMock.mockResolvedValueOnce(updated)
         const { usePets } = await import('./usePets')
         const { updatePet } = usePets()
 
@@ -516,8 +495,8 @@ describe('usePets', () => {
       })
     })
 
-    describe('with a photo (multipart/form-data)', () => {
-      it('calls $fetch with FormData and PATCH method', async () => {
+    describe('with a photo (multipart/form-data PUT)', () => {
+      it('calls $fetch with FormData and PUT method', async () => {
         const updated = { ...petA, photo_url: 'https://cdn.example.com/pet.jpg' }
         fetchMock.mockResolvedValueOnce(updated)
         const { usePets } = await import('./usePets')
@@ -528,7 +507,7 @@ describe('usePets', () => {
         expect(fetchMock).toHaveBeenCalledWith(
           'http://localhost:4000/api/pets/pet-1',
           expect.objectContaining({
-            method: 'PATCH',
+            method: 'PUT',
             body: expect.any(FormData),
           }),
         )
@@ -541,22 +520,13 @@ describe('usePets', () => {
 
         await updatePet('pet-1', {}, makeFile())
 
+        const fakeToken = makeFakeJwt()
         expect(fetchMock).toHaveBeenCalledWith(
           expect.any(String),
           expect.objectContaining({
-            headers: { Authorization: 'Bearer jwt.test.token' },
+            headers: { Authorization: `Bearer ${fakeToken}` },
           }),
         )
-      })
-
-      it('does NOT call useApi.patch when a photo is provided', async () => {
-        fetchMock.mockResolvedValueOnce(petA)
-        const { usePets } = await import('./usePets')
-        const { updatePet } = usePets()
-
-        await updatePet('pet-1', {}, makeFile())
-
-        expect(apiPatchMock).not.toHaveBeenCalled()
       })
 
       it('calls petsStore.updatePet with the returned pet on multipart success', async () => {
@@ -574,7 +544,7 @@ describe('usePets', () => {
 
     describe('on API error', () => {
       it('returns null on failure', async () => {
-        apiPatchMock.mockRejectedValueOnce({ data: { error: 'Not found' } })
+        fetchMock.mockRejectedValueOnce({ data: { error: 'Not found' } })
         const { usePets } = await import('./usePets')
         const { updatePet } = usePets()
 
@@ -584,7 +554,7 @@ describe('usePets', () => {
       })
 
       it('sets error with the API message', async () => {
-        apiPatchMock.mockRejectedValueOnce({ data: { error: 'Not found' } })
+        fetchMock.mockRejectedValueOnce({ data: { error: 'Not found' } })
         const { usePets } = await import('./usePets')
         const { updatePet, error } = usePets()
 
@@ -594,7 +564,7 @@ describe('usePets', () => {
       })
 
       it('does NOT call petsStore.updatePet on failure', async () => {
-        apiPatchMock.mockRejectedValueOnce({ message: 'Network error' })
+        fetchMock.mockRejectedValueOnce({ message: 'Network error' })
         const updatePetStoreSpy = vi.spyOn(petsStore, 'updatePet')
         const { usePets } = await import('./usePets')
         const { updatePet } = usePets()
@@ -605,7 +575,7 @@ describe('usePets', () => {
       })
 
       it('sets isLoading to false after failure', async () => {
-        apiPatchMock.mockRejectedValueOnce({ message: 'Network error' })
+        fetchMock.mockRejectedValueOnce({ message: 'Network error' })
         const { usePets } = await import('./usePets')
         const { updatePet } = usePets()
 
@@ -613,6 +583,79 @@ describe('usePets', () => {
 
         expect(petsStore.isLoading).toBe(false)
       })
+    })
+  })
+
+  // ── normalization ──────────────────────────────────────────
+
+  describe('normalization (id/user_id coercion)', () => {
+    it('coerces numeric id and user_id to strings when fetching pets', async () => {
+      const backendPet = { ...petA, id: 1 as unknown as string, user_id: 2 as unknown as string }
+      apiGetMock.mockResolvedValueOnce([backendPet])
+      const setPetsSpy = vi.spyOn(petsStore, 'setPets')
+      const { usePets } = await import('./usePets')
+      const { fetchPets } = usePets()
+
+      await fetchPets()
+
+      const normalizedPets = setPetsSpy.mock.calls[0][0] as Pet[]
+      expect(normalizedPets[0].id).toBe('1')
+      expect(normalizedPets[0].user_id).toBe('2')
+    })
+
+    it('coerces numeric id and user_id to strings when fetching a single pet', async () => {
+      const backendPet = { ...petA, id: 42 as unknown as string, user_id: 7 as unknown as string }
+      apiGetMock.mockResolvedValueOnce(backendPet)
+      const setSelectedPetSpy = vi.spyOn(petsStore, 'setSelectedPet')
+      const { usePets } = await import('./usePets')
+      const { fetchPetById } = usePets()
+
+      await fetchPetById('42')
+
+      const normalizedPet = setSelectedPetSpy.mock.calls[0][0] as Pet
+      expect(normalizedPet.id).toBe('42')
+      expect(normalizedPet.user_id).toBe('7')
+    })
+
+    it('coerces numeric id and user_id to strings when creating a pet', async () => {
+      const backendPet = { ...petA, id: 99 as unknown as string, user_id: 5 as unknown as string }
+      fetchMock.mockResolvedValueOnce(backendPet)
+      const addPetSpy = vi.spyOn(petsStore, 'addPet')
+      const { usePets } = await import('./usePets')
+      const { createPet } = usePets()
+
+      await createPet(minimalCreateDTO, makeFile())
+
+      const normalizedPet = addPetSpy.mock.calls[0][0] as Pet
+      expect(normalizedPet.id).toBe('99')
+      expect(normalizedPet.user_id).toBe('5')
+    })
+
+    it('coerces numeric id and user_id to strings when updating a pet', async () => {
+      const backendPet = { ...petA, id: 10 as unknown as string, user_id: 3 as unknown as string }
+      fetchMock.mockResolvedValueOnce(backendPet)
+      const updatePetStoreSpy = vi.spyOn(petsStore, 'updatePet')
+      const { usePets } = await import('./usePets')
+      const { updatePet } = usePets()
+
+      await updatePet('10', { name: 'Max' })
+
+      const normalizedPet = updatePetStoreSpy.mock.calls[0][0] as Pet
+      expect(normalizedPet.id).toBe('10')
+      expect(normalizedPet.user_id).toBe('3')
+    })
+
+    it('leaves string id and user_id unchanged', async () => {
+      apiGetMock.mockResolvedValueOnce([petA])
+      const setPetsSpy = vi.spyOn(petsStore, 'setPets')
+      const { usePets } = await import('./usePets')
+      const { fetchPets } = usePets()
+
+      await fetchPets()
+
+      const normalizedPets = setPetsSpy.mock.calls[0][0] as Pet[]
+      expect(normalizedPets[0].id).toBe('pet-1')
+      expect(normalizedPets[0].user_id).toBe('user-1')
     })
   })
 

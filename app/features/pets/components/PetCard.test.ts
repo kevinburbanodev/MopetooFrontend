@@ -31,10 +31,9 @@ function makePet(overrides: Partial<Pet> = {}): Pet {
     name: 'Max',
     species: 'dog',
     breed: 'Labrador',
-    birth_date: '2020-06-01', // fixed past date so age is deterministic enough to test presence
+    age: 3,
     gender: 'male',
     weight: 28,
-    color: 'Dorado',
     notes: 'Le gusta jugar con pelotas.',
     created_at: '2024-01-01T00:00:00Z',
     updated_at: '2024-01-01T00:00:00Z',
@@ -78,13 +77,10 @@ describe('PetCard', () => {
       expect(wrapper.text()).not.toContain('Labrador')
     })
 
-    it('renders the age string produced by usePetAge', async () => {
+    it('renders the age string produced by formatAge', async () => {
       const wrapper = await mountSuspended(PetCard, { props: { pet: defaultPet } })
-      // We do not assert the exact string (depends on current date);
-      // we assert something non-empty is rendered in the age position.
-      // The age li always renders (no v-if), so the text is always present.
-      const ageText = wrapper.find('li:nth-child(2)').text()
-      expect(ageText.length).toBeGreaterThan(0)
+      // Age is now a direct integer field; formatAge(3) produces "3 años"
+      expect(wrapper.text()).toContain('3 años')
     })
 
     it('renders the gender label for male', async () => {
@@ -107,11 +103,6 @@ describe('PetCard', () => {
       const pet = makePet({ weight: undefined })
       const wrapper = await mountSuspended(PetCard, { props: { pet } })
       expect(wrapper.text()).not.toContain(' kg')
-    })
-
-    it('renders the color when provided', async () => {
-      const wrapper = await mountSuspended(PetCard, { props: { pet: defaultPet } })
-      expect(wrapper.text()).toContain('Dorado')
     })
 
     it('renders notes when provided', async () => {

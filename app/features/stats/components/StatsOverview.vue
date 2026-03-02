@@ -1,7 +1,8 @@
 <script setup lang="ts">
-// StatsOverview — 10 KPI cards for the statistics module.
+// StatsOverview — KPI cards for the statistics module.
 // Fetches platform overview on mount (admin endpoint) and displays
-// 8 count metrics + 2 revenue cards formatted as COP currency.
+// entity counts, revenue metrics, and content metrics from the
+// nested StatsOverview structure returned by GET /api/admin/stats/overview.
 
 const { fetchOverview, error, statsStore } = useStats()
 
@@ -27,27 +28,27 @@ interface KpiCard {
 }
 
 const kpiCards: KpiCard[] = [
-  { icon: '👥', label: 'Usuarios registrados', value: () => statsStore.overview?.total_users ?? 0, color: 'primary' },
-  { icon: '🐾', label: 'Mascotas registradas', value: () => statsStore.overview?.total_pets ?? 0, color: 'success' },
-  { icon: '🏠', label: 'Refugios activos', value: () => statsStore.overview?.total_shelters ?? 0, color: 'info' },
-  { icon: '🏥', label: 'Clínicas registradas', value: () => statsStore.overview?.total_clinics ?? 0, color: 'warning' },
-  { icon: '🛍️', label: 'Tiendas pet-friendly', value: () => statsStore.overview?.total_stores ?? 0, color: 'secondary' },
-  { icon: '🐶', label: 'Adopciones procesadas', value: () => statsStore.overview?.total_adoptions ?? 0, color: 'success' },
-  { icon: '⭐', label: 'Suscripciones PRO', value: () => statsStore.overview?.total_pro_subscriptions ?? 0, color: 'warning' },
-  { icon: '💝', label: 'Donaciones realizadas', value: () => statsStore.overview?.total_donations ?? 0, color: 'danger' },
+  { icon: '👥', label: 'Usuarios registrados', value: () => statsStore.overview?.users.total ?? 0, color: 'primary' },
+  { icon: '🐾', label: 'Mascotas registradas', value: () => statsStore.overview?.content.total_pets ?? 0, color: 'success' },
+  { icon: '🏠', label: 'Refugios activos', value: () => statsStore.overview?.shelters.active ?? 0, color: 'info' },
+  { icon: '🏥', label: 'Clínicas registradas', value: () => statsStore.overview?.clinics.total ?? 0, color: 'warning' },
+  { icon: '🛍️', label: 'Tiendas pet-friendly', value: () => statsStore.overview?.stores.total ?? 0, color: 'secondary' },
+  { icon: '🐶', label: 'Adopciones procesadas', value: () => statsStore.overview?.content.adopted_in_period ?? 0, color: 'success' },
+  { icon: '⭐', label: 'Suscripciones PRO', value: () => statsStore.overview?.users.pro_active ?? 0, color: 'warning' },
+  { icon: '💝', label: 'Donaciones realizadas', value: () => statsStore.overview?.donations_cop.total_count ?? 0, color: 'danger' },
 ]
 
 const revenueCards = computed(() => [
   {
     icon: '📅',
-    label: 'Ingresos del mes',
-    value: formatCOP(statsStore.overview?.revenue_month ?? 0),
+    label: 'Ingresos del periodo',
+    value: formatCOP(statsStore.overview?.revenue_cop.in_period ?? 0),
     color: 'success',
   },
   {
     icon: '💰',
     label: 'Ingresos totales',
-    value: formatCOP(statsStore.overview?.revenue_total ?? 0),
+    value: formatCOP(statsStore.overview?.revenue_cop.total_accumulated ?? 0),
     color: 'primary',
   },
 ])

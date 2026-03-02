@@ -7,6 +7,7 @@
 //     component state is fully controlled without real HTTP calls.
 //   - Tests verify: loading skeleton (8+2), KPI card labels, revenue
 //     labels, error alert, empty state, and retry behaviour.
+//   - Fixtures use the nested StatsOverview structure from backend.
 // ============================================================
 
 import { describe, it, expect, beforeEach, vi } from 'vitest'
@@ -20,16 +21,15 @@ import type { StatsOverview as StatsOverviewType } from '../types'
 
 function makeOverview(overrides: Partial<StatsOverviewType> = {}): StatsOverviewType {
   return {
-    total_users: 100,
-    total_pets: 250,
-    total_shelters: 15,
-    total_clinics: 20,
-    total_stores: 30,
-    total_adoptions: 45,
-    total_pro_subscriptions: 60,
-    total_donations: 80,
-    revenue_total: 5_000_000,
-    revenue_month: 300_000,
+    generated_at: '2025-01-15T10:00:00Z',
+    period: { from: '2025-01-01', to: '2025-01-31' },
+    users: { total: 100, active: 90, suspended: 10, new_in_period: 5, pro_active: 20, free: 80, conversion_rate_pct: 20 },
+    shelters: { total: 15, active: 12, suspended: 3, verified: 10 },
+    stores: { total: 30, active: 28, suspended: 2, featured: 5 },
+    clinics: { total: 20, active: 18, suspended: 2, pro: 8 },
+    revenue_cop: { total_accumulated: 5_000_000, in_period: 300_000, monthly_subscriptions: 200_000, annual_subscriptions: 100_000, arpu: 15_000 },
+    donations_cop: { total_amount: 1_000_000, in_period: 80_000, platform_fees_accumulated: 50_000, net_to_shelters: 950_000, total_count: 80, unique_donors: 40, avg_donation: 12_500 },
+    content: { total_pets: 250, total_reminders: 500, total_medical_records: 300, active_adoption_listings: 45, adopted_in_period: 10, blog_posts_published: 25 },
     ...overrides,
   }
 }
@@ -61,7 +61,7 @@ async function mountOverview() {
       plugins: [
         createTestingPinia({
           initialState: {
-            auth: { token: 'admin.jwt', currentUser: { id: 1, is_admin: true } },
+            auth: { token: 'admin.jwt', currentEntity: { id: 1, is_admin: true }, entityType: 'user' },
           },
         }),
       ],
@@ -185,9 +185,9 @@ describe('StatsOverview', () => {
       expect(wrapper.text()).toContain('Donaciones realizadas')
     })
 
-    it('shows "Ingresos del mes" revenue label', async () => {
+    it('shows "Ingresos del periodo" revenue label', async () => {
       const wrapper = await mountOverview()
-      expect(wrapper.text()).toContain('Ingresos del mes')
+      expect(wrapper.text()).toContain('Ingresos del periodo')
     })
 
     it('shows "Ingresos totales" revenue label', async () => {
@@ -195,14 +195,14 @@ describe('StatsOverview', () => {
       expect(wrapper.text()).toContain('Ingresos totales')
     })
 
-    it('renders the correct user count', async () => {
-      mockOverview.value = makeOverview({ total_users: 42 })
+    it('renders the correct user count from nested users.total', async () => {
+      mockOverview.value = makeOverview({ users: { total: 42, active: 40, suspended: 2, new_in_period: 1, pro_active: 5, free: 37, conversion_rate_pct: 12 } })
       const wrapper = await mountOverview()
       expect(wrapper.text()).toContain('42')
     })
 
-    it('renders the correct pet count', async () => {
-      mockOverview.value = makeOverview({ total_pets: 999 })
+    it('renders the correct pet count from nested content.total_pets', async () => {
+      mockOverview.value = makeOverview({ content: { total_pets: 999, total_reminders: 0, total_medical_records: 0, active_adoption_listings: 0, adopted_in_period: 0, blog_posts_published: 0 } })
       const wrapper = await mountOverview()
       expect(wrapper.text()).toContain('999')
     })

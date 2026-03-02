@@ -6,14 +6,12 @@
 //   - Calls fetchTransactions on mount.
 //   - Loading skeleton while isLoading.
 //   - Empty state when no transactions.
-//   - Transaction rows: user_name, user_email, type badge, status badge.
-//   - Type badges: subscription=bg-primary, donation=bg-success.
-//   - Type labels: subscription="Suscripción", donation="Donación".
-//   - Status badges: completed=bg-success, pending=bg-warning text-dark,
-//     failed=bg-danger, refunded=bg-secondary.
-//   - Status labels: Completado, Pendiente, Fallido, Reembolsado.
-//   - ID shown truncated (first 8 chars + ellipsis).
-//   - Currency column visible.
+//   - Transaction rows: id (number), plan, amount_cop, reference.
+//   - Status badges: approved=bg-success "Aprobado",
+//     pending=bg-warning "Pendiente", declined=bg-danger "Rechazado",
+//     error=bg-secondary "Error".
+//   - Columns: ID, Plan, Monto, Estado, Referencia, Fecha.
+//   - No Type, User, or Description columns.
 //   - Read-only: no delete or update buttons.
 //   - Error alert shown / hidden.
 //   - Result count (singular / plural).
@@ -22,7 +20,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { mountSuspended } from '@nuxt/test-utils/runtime'
 import { createTestingPinia } from '@pinia/testing'
-import { ref } from 'vue'
+import { ref, reactive } from 'vue'
 import AdminTransactionLog from './AdminTransactionLog.vue'
 import type { AdminTransaction } from '../types'
 
@@ -30,15 +28,12 @@ import type { AdminTransaction } from '../types'
 
 function makeTransaction(overrides: Partial<AdminTransaction> = {}): AdminTransaction {
   return {
-    id: 'txn-abc12345',
+    id: 12345,
     user_id: 1,
-    user_name: 'Ana García',
-    user_email: 'ana@example.com',
-    type: 'subscription',
-    amount: 49000,
-    currency: 'COP',
-    status: 'completed',
-    description: 'Suscripción PRO mensual',
+    plan: 'pro_monthly',
+    amount_cop: 49000,
+    status: 'approved',
+    reference: 'REF-ABC-123456',
     created_at: '2024-01-15T10:00:00Z',
     ...overrides,
   }
@@ -48,19 +43,17 @@ function makeTransaction(overrides: Partial<AdminTransaction> = {}): AdminTransa
 
 const mockFetchTransactions = vi.fn()
 const mockError = ref<string | null>(null)
-const mockTransactions = ref<AdminTransaction[]>([])
-const mockIsLoading = ref(false)
-const mockTotalTransactions = ref(0)
+const mockAdminStore = reactive({
+  transactions: [] as AdminTransaction[],
+  isLoading: false,
+  totalTransactions: 0,
+})
 
 vi.mock('../composables/useAdmin', () => ({
   useAdmin: () => ({
     fetchTransactions: mockFetchTransactions,
     error: mockError,
-    adminStore: {
-      get transactions() { return mockTransactions.value },
-      get isLoading() { return mockIsLoading.value },
-      get totalTransactions() { return mockTotalTransactions.value },
-    },
+    adminStore: mockAdminStore,
   }),
 }))
 
@@ -72,7 +65,7 @@ async function mountLog() {
       plugins: [
         createTestingPinia({
           initialState: {
-            auth: { token: 'admin.jwt', currentUser: { id: 99, is_admin: true } },
+            auth: { token: 'admin.jwt', currentEntity: { id: 99, is_admin: true }, entityType: 'user' },
           },
         }),
       ],
@@ -86,9 +79,9 @@ describe('AdminTransactionLog', () => {
   beforeEach(() => {
     mockFetchTransactions.mockReset()
     mockError.value = null
-    mockTransactions.value = []
-    mockIsLoading.value = false
-    mockTotalTransactions.value = 0
+    mockAdminStore.transactions = []
+    mockAdminStore.isLoading = false
+    mockAdminStore.totalTransactions = 0
   })
 
   // ── Section structure ───────────────────────────────────────
@@ -114,16 +107,16 @@ describe('AdminTransactionLog', () => {
 
   describe('loading skeleton', () => {
     it('renders skeleton rows while isLoading is true', async () => {
-      mockIsLoading.value = true
+      mockAdminStore.isLoading = true
       const wrapper = await mountLog()
       const skeletonRows = wrapper.findAll('[aria-hidden="true"]')
       expect(skeletonRows.length).toBeGreaterThanOrEqual(5)
     })
 
     it('does not show transaction data while loading', async () => {
-      mockIsLoading.value = true
+      mockAdminStore.isLoading = true
       const wrapper = await mountLog()
-      expect(wrapper.text()).not.toContain('ana@example.com')
+      expect(wrapper.text()).not.toContain('REF-ABC-123456')
     })
   })
 
@@ -138,92 +131,84 @@ describe('AdminTransactionLog', () => {
 
   describe('transaction rows', () => {
     beforeEach(() => {
-      mockTransactions.value = [
-        makeTransaction({ id: 'txn-abc12345', user_name: 'Ana García', user_email: 'ana@example.com' }),
+      mockAdminStore.transactions = [
+        makeTransaction({ id: 12345, plan: 'pro_monthly', reference: 'REF-ABC-123456' }),
       ]
-      mockTotalTransactions.value = 1
+      mockAdminStore.totalTransactions = 1
     })
 
-    it('renders user name', async () => {
+    it('renders the transaction id', async () => {
       const wrapper = await mountLog()
-      expect(wrapper.text()).toContain('Ana García')
+      expect(wrapper.text()).toContain('12345')
     })
 
-    it('renders user email', async () => {
+    it('renders the plan', async () => {
       const wrapper = await mountLog()
-      expect(wrapper.text()).toContain('ana@example.com')
+      expect(wrapper.text()).toContain('pro_monthly')
     })
 
-    it('shows the truncated transaction id (first 8 chars)', async () => {
+    it('renders the reference', async () => {
       const wrapper = await mountLog()
-      expect(wrapper.text()).toContain('txn-abc1')
-    })
-
-    it('shows the currency label', async () => {
-      const wrapper = await mountLog()
-      expect(wrapper.text()).toContain('COP')
-    })
-
-    it('shows the transaction description', async () => {
-      const wrapper = await mountLog()
-      expect(wrapper.text()).toContain('Suscripción PRO mensual')
+      expect(wrapper.text()).toContain('REF-ABC-123456')
     })
   })
 
-  // ── Type badges ─────────────────────────────────────────────
+  // ── Table columns ────────────────────────────────────────────
 
-  describe('type badges', () => {
-    it('shows "Suscripción" label for subscription type', async () => {
-      mockTransactions.value = [makeTransaction({ type: 'subscription' })]
-      mockTotalTransactions.value = 1
+  describe('table columns', () => {
+    it('has Plan column header', async () => {
       const wrapper = await mountLog()
-      const badge = wrapper.find('[aria-label="Tipo: Suscripción"]')
-      expect(badge.exists()).toBe(true)
-      expect(badge.text()).toBe('Suscripción')
+      const headers = wrapper.findAll('th')
+      expect(headers.some(h => h.text() === 'Plan')).toBe(true)
     })
 
-    it('applies bg-primary class for subscription type', async () => {
-      mockTransactions.value = [makeTransaction({ type: 'subscription' })]
-      mockTotalTransactions.value = 1
+    it('has Referencia column header', async () => {
       const wrapper = await mountLog()
-      const badge = wrapper.find('[aria-label="Tipo: Suscripción"]')
-      expect(badge.classes()).toContain('bg-primary')
+      const headers = wrapper.findAll('th')
+      expect(headers.some(h => h.text() === 'Referencia')).toBe(true)
     })
 
-    it('shows "Donación" label for donation type', async () => {
-      mockTransactions.value = [makeTransaction({ type: 'donation' })]
-      mockTotalTransactions.value = 1
+    it('has Monto column header', async () => {
       const wrapper = await mountLog()
-      const badge = wrapper.find('[aria-label="Tipo: Donación"]')
-      expect(badge.exists()).toBe(true)
-      expect(badge.text()).toBe('Donación')
+      const headers = wrapper.findAll('th')
+      expect(headers.some(h => h.text() === 'Monto')).toBe(true)
     })
 
-    it('applies bg-success class for donation type', async () => {
-      mockTransactions.value = [makeTransaction({ type: 'donation' })]
-      mockTotalTransactions.value = 1
+    it('does not have Type column header', async () => {
       const wrapper = await mountLog()
-      const badge = wrapper.find('[aria-label="Tipo: Donación"]')
-      expect(badge.classes()).toContain('bg-success')
+      const headers = wrapper.findAll('th')
+      expect(headers.some(h => h.text() === 'Tipo')).toBe(false)
+    })
+
+    it('does not have User column header', async () => {
+      const wrapper = await mountLog()
+      const headers = wrapper.findAll('th')
+      expect(headers.some(h => h.text() === 'Usuario')).toBe(false)
+    })
+
+    it('does not have Description column header', async () => {
+      const wrapper = await mountLog()
+      const headers = wrapper.findAll('th')
+      expect(headers.some(h => h.text() === 'Descripción')).toBe(false)
     })
   })
 
   // ── Status badges ───────────────────────────────────────────
 
   describe('status badges', () => {
-    it('shows "Completado" label and bg-success for completed status', async () => {
-      mockTransactions.value = [makeTransaction({ status: 'completed' })]
-      mockTotalTransactions.value = 1
+    it('shows "Aprobado" label and bg-success for approved status', async () => {
+      mockAdminStore.transactions = [makeTransaction({ status: 'approved' })]
+      mockAdminStore.totalTransactions = 1
       const wrapper = await mountLog()
-      const badge = wrapper.find('[aria-label="Estado: Completado"]')
+      const badge = wrapper.find('[aria-label="Estado: Aprobado"]')
       expect(badge.exists()).toBe(true)
-      expect(badge.text()).toBe('Completado')
+      expect(badge.text()).toBe('Aprobado')
       expect(badge.classes()).toContain('bg-success')
     })
 
     it('shows "Pendiente" label and bg-warning for pending status', async () => {
-      mockTransactions.value = [makeTransaction({ status: 'pending' })]
-      mockTotalTransactions.value = 1
+      mockAdminStore.transactions = [makeTransaction({ status: 'pending' })]
+      mockAdminStore.totalTransactions = 1
       const wrapper = await mountLog()
       const badge = wrapper.find('[aria-label="Estado: Pendiente"]')
       expect(badge.exists()).toBe(true)
@@ -231,23 +216,23 @@ describe('AdminTransactionLog', () => {
       expect(badge.classes()).toContain('bg-warning')
     })
 
-    it('shows "Fallido" label and bg-danger for failed status', async () => {
-      mockTransactions.value = [makeTransaction({ status: 'failed' })]
-      mockTotalTransactions.value = 1
+    it('shows "Rechazado" label and bg-danger for declined status', async () => {
+      mockAdminStore.transactions = [makeTransaction({ status: 'declined' })]
+      mockAdminStore.totalTransactions = 1
       const wrapper = await mountLog()
-      const badge = wrapper.find('[aria-label="Estado: Fallido"]')
+      const badge = wrapper.find('[aria-label="Estado: Rechazado"]')
       expect(badge.exists()).toBe(true)
-      expect(badge.text()).toBe('Fallido')
+      expect(badge.text()).toBe('Rechazado')
       expect(badge.classes()).toContain('bg-danger')
     })
 
-    it('shows "Reembolsado" label and bg-secondary for refunded status', async () => {
-      mockTransactions.value = [makeTransaction({ status: 'refunded' })]
-      mockTotalTransactions.value = 1
+    it('shows "Error" label and bg-secondary for error status', async () => {
+      mockAdminStore.transactions = [makeTransaction({ status: 'error' })]
+      mockAdminStore.totalTransactions = 1
       const wrapper = await mountLog()
-      const badge = wrapper.find('[aria-label="Estado: Reembolsado"]')
+      const badge = wrapper.find('[aria-label="Estado: Error"]')
       expect(badge.exists()).toBe(true)
-      expect(badge.text()).toBe('Reembolsado')
+      expect(badge.text()).toBe('Error')
       expect(badge.classes()).toContain('bg-secondary')
     })
   })
@@ -255,23 +240,22 @@ describe('AdminTransactionLog', () => {
   // ── Read-only: no mutation buttons ─────────────────────────
 
   describe('read-only (no delete / update buttons)', () => {
+    beforeEach(() => {
+      mockAdminStore.transactions = [makeTransaction()]
+      mockAdminStore.totalTransactions = 1
+    })
+
     it('does not render any Eliminar button', async () => {
-      mockTransactions.value = [makeTransaction()]
-      mockTotalTransactions.value = 1
       const wrapper = await mountLog()
       expect(wrapper.findAll('button').some(b => b.text() === 'Eliminar')).toBe(false)
     })
 
     it('does not render any Verificar button', async () => {
-      mockTransactions.value = [makeTransaction()]
-      mockTotalTransactions.value = 1
       const wrapper = await mountLog()
       expect(wrapper.findAll('button').some(b => b.text() === 'Verificar')).toBe(false)
     })
 
     it('does not render any Destacar button', async () => {
-      mockTransactions.value = [makeTransaction()]
-      mockTotalTransactions.value = 1
       const wrapper = await mountLog()
       expect(wrapper.findAll('button').some(b => b.text() === 'Destacar')).toBe(false)
     })
@@ -280,25 +264,23 @@ describe('AdminTransactionLog', () => {
   // ── Result count ────────────────────────────────────────────
 
   describe('result count', () => {
-    it('shows "0 transacciónes" when totalTransactions is 0', async () => {
-      mockTotalTransactions.value = 0
+    it('shows "0 transacciones" when totalTransactions is 0', async () => {
+      mockAdminStore.totalTransactions = 0
       const wrapper = await mountLog()
-      // The component uses: transacción + 'es' suffix when != 1
-      // resulting in "transacciónes" (with accent — matches the source template)
       expect(wrapper.find('[role="status"]').text()).toContain('0 transacción')
     })
 
     it('shows "1 transacción" (singular) when totalTransactions is 1', async () => {
-      mockTotalTransactions.value = 1
-      mockTransactions.value = [makeTransaction()]
+      mockAdminStore.totalTransactions = 1
+      mockAdminStore.transactions = [makeTransaction()]
       const wrapper = await mountLog()
       expect(wrapper.find('[role="status"]').text()).toContain('1 transacción')
     })
 
     it('shows plural form when totalTransactions is 5', async () => {
-      mockTotalTransactions.value = 5
+      mockAdminStore.totalTransactions = 5
       const wrapper = await mountLog()
-      // Component appends 'es' to 'transacción' → '5 transacciónes'
+      // Component appends 'es' to 'transacción' -> '5 transacciónes'
       expect(wrapper.find('[role="status"]').text()).toContain('5 transacción')
     })
   })
@@ -321,7 +303,7 @@ describe('AdminTransactionLog', () => {
   // ── Pagination footer ───────────────────────────────────────
 
   it('does not show pagination footer when totalTransactions <= 20', async () => {
-    mockTotalTransactions.value = 5
+    mockAdminStore.totalTransactions = 5
     const wrapper = await mountLog()
     expect(wrapper.find('.card-footer').exists()).toBe(false)
   })

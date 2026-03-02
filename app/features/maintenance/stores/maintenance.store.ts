@@ -27,7 +27,7 @@ export const useMaintenanceStore = defineStore('maintenance', () => {
    * Defaults to false when status has not been fetched yet,
    * which means the app renders normally on first load.
    */
-  const isEnabled = computed<boolean>(() => status.value?.is_enabled ?? false)
+  const isEnabled = computed<boolean>(() => status.value?.is_active ?? false)
 
   /** True once we have received a status response from the API. */
   const hasStatus = computed<boolean>(() => status.value !== null)

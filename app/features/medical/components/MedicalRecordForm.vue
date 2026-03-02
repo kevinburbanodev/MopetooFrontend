@@ -19,36 +19,25 @@ const isEditMode = computed(() => !!props.record)
 
 // ── Form state ────────────────────────────────────────────────
 const form = reactive({
-  date: props.record?.date ?? '',
-  veterinarian: props.record?.veterinarian ?? '',
+  date: props.record?.date?.slice(0, 10) ?? '',
+  symptoms: props.record?.symptoms ?? '',
   diagnosis: props.record?.diagnosis ?? '',
   treatment: props.record?.treatment ?? '',
   notes: props.record?.notes ?? '',
-  // Keep weight as a string in the input; convert on submit
-  weight: props.record?.weight !== undefined ? String(props.record.weight) : '',
-  next_visit: props.record?.next_visit ?? '',
 })
 
 // ── Validation ────────────────────────────────────────────────
 const submitted = ref(false)
 
 const isDateValid = computed(() => !!form.date)
-const isVeterinarianValid = computed(() => form.veterinarian.trim().length >= 2)
 const isDiagnosisValid = computed(() => form.diagnosis.trim().length >= 2)
 const isTreatmentValid = computed(() => form.treatment.trim().length >= 2)
-const isWeightValid = computed(() => {
-  if (!form.weight) return true // Optional field
-  const n = parseFloat(form.weight)
-  return !isNaN(n) && n >= 0 && n <= 200
-})
 
 const isFormValid = computed(
   () =>
     isDateValid.value &&
-    isVeterinarianValid.value &&
     isDiagnosisValid.value &&
-    isTreatmentValid.value &&
-    isWeightValid.value,
+    isTreatmentValid.value,
 )
 
 // ── Submit ────────────────────────────────────────────────────
@@ -57,19 +46,20 @@ async function handleSubmit(): Promise<void> {
   if (!isFormValid.value) return
 
   const dto: CreateMedicalRecordDTO = {
-    date: form.date,
-    veterinarian: form.veterinarian.trim(),
+    pet_id: Number(props.petId),
+    date: form.date + 'T00:00:00Z',
     diagnosis: form.diagnosis.trim(),
     treatment: form.treatment.trim(),
+    ...(form.symptoms.trim() ? { symptoms: form.symptoms.trim() } : {}),
     ...(form.notes.trim() ? { notes: form.notes.trim() } : {}),
-    ...(form.weight ? { weight: parseFloat(form.weight) } : {}),
-    ...(form.next_visit ? { next_visit: form.next_visit } : {}),
   }
 
   let result: MedicalRecord | null = null
 
   if (isEditMode.value && props.record) {
-    result = await updateMedicalRecord(props.petId, props.record.id, dto)
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { pet_id, ...updateData } = dto
+    result = await updateMedicalRecord(props.record.id, updateData)
   }
   else {
     result = await createMedicalRecord(props.petId, dto)
@@ -123,28 +113,20 @@ function handleCancel(): void {
       </div>
     </div>
 
-    <!-- Veterinarian (required) -->
+    <!-- Symptoms (optional) -->
     <div class="mb-3">
-      <label for="medical-vet" class="form-label fw-semibold">
-        Veterinario <span class="text-danger" aria-hidden="true">*</span>
+      <label for="medical-symptoms" class="form-label fw-semibold">
+        Síntomas
       </label>
-      <input
-        id="medical-vet"
-        v-model="form.veterinarian"
-        type="text"
+      <textarea
+        id="medical-symptoms"
+        v-model="form.symptoms"
         class="form-control"
-        :class="{
-          'is-invalid': submitted && !isVeterinarianValid,
-          'is-valid': submitted && isVeterinarianValid,
-        }"
-        placeholder="Nombre del veterinario o clínica"
-        maxlength="150"
-        required
-        aria-required="true"
-      >
-      <div v-if="submitted && !isVeterinarianValid" class="invalid-feedback">
-        El nombre del veterinario debe tener al menos 2 caracteres.
-      </div>
+        rows="3"
+        maxlength="1000"
+        placeholder="Fiebre, tos, pérdida de apetito…"
+      />
+      <div class="form-text text-end">{{ form.symptoms.length }}/1000</div>
     </div>
 
     <!-- Diagnosis (required) -->
@@ -198,7 +180,7 @@ function handleCancel(): void {
     </div>
 
     <!-- Notes (optional) -->
-    <div class="mb-3">
+    <div class="mb-4">
       <label for="medical-notes" class="form-label fw-semibold">
         Notas adicionales
       </label>
@@ -211,49 +193,6 @@ function handleCancel(): void {
         placeholder="Observaciones, recomendaciones, alergias..."
       />
       <div class="form-text text-end">{{ form.notes.length }}/500</div>
-    </div>
-
-    <!-- Weight (optional) -->
-    <div class="mb-3">
-      <label for="medical-weight" class="form-label fw-semibold">
-        Peso en la visita (kg)
-      </label>
-      <input
-        id="medical-weight"
-        v-model="form.weight"
-        type="number"
-        class="form-control"
-        :class="{
-          'is-invalid': submitted && !isWeightValid,
-          'is-valid': submitted && !!form.weight && isWeightValid,
-        }"
-        min="0"
-        max="200"
-        step="0.1"
-        placeholder="Ej: 4.5"
-        aria-describedby="medical-weight-hint"
-      >
-      <div id="medical-weight-hint" class="form-text">Opcional. Entre 0 y 200 kg.</div>
-      <div v-if="submitted && !isWeightValid" class="invalid-feedback">
-        El peso debe estar entre 0 y 200 kg.
-      </div>
-    </div>
-
-    <!-- Next visit (optional) -->
-    <div class="mb-4">
-      <label for="medical-next-visit" class="form-label fw-semibold">
-        Próxima visita
-      </label>
-      <input
-        id="medical-next-visit"
-        v-model="form.next_visit"
-        type="date"
-        class="form-control"
-        aria-describedby="medical-next-visit-hint"
-      >
-      <div id="medical-next-visit-hint" class="form-text">
-        Opcional. Si se establece, aparecerá un recordatorio de fecha en el historial.
-      </div>
     </div>
 
     <!-- Actions -->

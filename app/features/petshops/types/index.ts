@@ -1,58 +1,82 @@
 // ============================================================
 // Petshops feature — domain types
-// Aligned with Mopetoo backend API (Go + Gin)
+// Aligned with Mopetoo backend API (Go + Gin) model.Store
 // RF-700 to RF-709
 // ============================================================
 
-export interface PetshopCategory {
-  id: string
-  name: string   // e.g. "Alimentos", "Accesorios", "Veterinaria"
-  slug: string
-}
+/** Product category values accepted by the backend */
+export type StoreProductCategory =
+  | 'alimento'
+  | 'accesorios'
+  | 'salud'
+  | 'juguetes'
+  | 'higiene'
+  | 'otros'
 
-export interface PetshopHours {
-  monday?: string
-  tuesday?: string
-  wednesday?: string
-  thursday?: string
-  friday?: string
-  saturday?: string
-  sunday?: string
-}
+/** Static list of product categories for filter UI */
+export const PRODUCT_CATEGORIES: { value: StoreProductCategory; label: string }[] = [
+  { value: 'alimento', label: 'Alimentos' },
+  { value: 'accesorios', label: 'Accesorios' },
+  { value: 'salud', label: 'Salud' },
+  { value: 'juguetes', label: 'Juguetes' },
+  { value: 'higiene', label: 'Higiene' },
+  { value: 'otros', label: 'Otros' },
+]
 
+/**
+ * model.Store — aligned with the Go backend.
+ * Backend endpoint: GET /api/stores, GET /api/stores/:id
+ */
 export interface Petshop {
-  id: string
+  id: number
+  name: string
+  email: string
+  description: string
+  logo_url?: string
+  country: string
+  city: string
+  phone_country_code: string
+  phone: string
+  whatsapp_link?: string
+  website?: string
+  verified: boolean
+  is_active: boolean
+  plan: 'free' | 'featured' | ''
+  created_at: string
+  updated_at: string
+}
+
+/**
+ * model.StoreProduct — products sold by a store.
+ * Backend endpoint: GET /api/stores/:id/products
+ */
+export interface StoreProduct {
+  id: number
+  store_id: number
   name: string
   description: string
-  address: string
-  city: string
-  phone?: string
-  email?: string
-  website?: string
+  category: StoreProductCategory
+  price: number
   photo_url?: string
-  /** Category names, e.g. ["Alimentos", "Accesorios"] */
-  categories: string[]
-  hours?: PetshopHours
-  is_verified: boolean
-  /** PRO feature — featured stores appear first in the directory */
-  is_featured: boolean
-  latitude?: number
-  longitude?: number
+  is_available: boolean
   created_at: string
   updated_at: string
 }
 
 /** Query parameters for the petshop directory endpoint */
 export interface PetshopListFilters {
-  search?: string
   city?: string
   category?: string
 }
 
-/** API response envelope shape (backend may return either shape) */
+/** API response envelope for GET /api/stores */
 export interface PetshopListResponse {
   stores: Petshop[]
-  total: number
-  page: number
-  per_page: number
+  message?: string
+}
+
+/** API response envelope for GET /api/stores/:id/products */
+export interface StoreProductListResponse {
+  products: StoreProduct[]
+  message?: string
 }

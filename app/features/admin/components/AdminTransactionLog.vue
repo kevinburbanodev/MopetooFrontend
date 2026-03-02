@@ -1,10 +1,10 @@
 <script setup lang="ts">
 // AdminTransactionLog — paginated financial transaction log.
-// Shows all subscription payments and donations with type and
-// status color-coded badges. Currency formatted as COP.
+// Shows all subscription transactions with plan, status, reference,
+// and amount_cop. Read-only — no action buttons.
 // Supports simple prev/next pagination.
 
-import type { TransactionType, TransactionStatus, AdminFilters } from '../types'
+import type { TransactionStatus, AdminTransactionFilters } from '../types'
 
 const { fetchTransactions, error, adminStore } = useAdmin()
 
@@ -29,40 +29,29 @@ async function nextPage(): Promise<void> {
 }
 
 async function loadTransactions(): Promise<void> {
-  const filters: AdminFilters = {
+  const filters: AdminTransactionFilters = {
     page: currentPage.value,
-    per_page: PER_PAGE,
+    limit: PER_PAGE,
   }
   await fetchTransactions(filters)
 }
 
 // ── Badge helpers ───────────────────────────────────────────
 
-type TypeBadgeClass = 'bg-primary' | 'bg-success'
 type StatusBadgeClass = 'bg-success' | 'bg-warning text-dark' | 'bg-danger' | 'bg-secondary'
 
-const TYPE_LABEL: Record<TransactionType, string> = {
-  subscription: 'Suscripción',
-  donation: 'Donación',
-}
-
-const TYPE_BADGE: Record<TransactionType, TypeBadgeClass> = {
-  subscription: 'bg-primary',
-  donation: 'bg-success',
-}
-
 const STATUS_LABEL: Record<TransactionStatus, string> = {
-  completed: 'Completado',
+  approved: 'Aprobado',
   pending: 'Pendiente',
-  failed: 'Fallido',
-  refunded: 'Reembolsado',
+  declined: 'Rechazado',
+  error: 'Error',
 }
 
 const STATUS_BADGE: Record<TransactionStatus, StatusBadgeClass> = {
-  completed: 'bg-success',
+  approved: 'bg-success',
   pending: 'bg-warning text-dark',
-  failed: 'bg-danger',
-  refunded: 'bg-secondary',
+  declined: 'bg-danger',
+  error: 'bg-secondary',
 }
 
 // ── Formatters ──────────────────────────────────────────────
@@ -132,11 +121,10 @@ onMounted(async () => {
           <thead class="table-light">
             <tr>
               <th scope="col" class="text-muted small">ID</th>
-              <th scope="col">Usuario</th>
-              <th scope="col" class="text-center">Tipo</th>
+              <th scope="col">Plan</th>
               <th scope="col" class="text-end">Monto</th>
               <th scope="col" class="text-center">Estado</th>
-              <th scope="col">Descripción</th>
+              <th scope="col">Referencia</th>
               <th scope="col">Fecha</th>
             </tr>
           </thead>
@@ -145,14 +133,10 @@ onMounted(async () => {
             <template v-if="adminStore.isLoading">
               <tr v-for="n in 5" :key="`skel-${n}`" aria-hidden="true">
                 <td><div class="skeleton-pulse rounded tx-skeleton__id" /></td>
-                <td>
-                  <div class="skeleton-pulse rounded tx-skeleton__name mb-1" />
-                  <div class="skeleton-pulse rounded tx-skeleton__email" />
-                </td>
-                <td class="text-center"><div class="skeleton-pulse rounded tx-skeleton__badge mx-auto" /></td>
+                <td><div class="skeleton-pulse rounded tx-skeleton__badge" /></td>
                 <td class="text-end"><div class="skeleton-pulse rounded tx-skeleton__amount ms-auto" /></td>
                 <td class="text-center"><div class="skeleton-pulse rounded tx-skeleton__badge mx-auto" /></td>
-                <td><div class="skeleton-pulse rounded tx-skeleton__desc" /></td>
+                <td><div class="skeleton-pulse rounded tx-skeleton__ref" /></td>
                 <td><div class="skeleton-pulse rounded tx-skeleton__date" /></td>
               </tr>
             </template>
@@ -160,23 +144,10 @@ onMounted(async () => {
             <!-- Data rows -->
             <template v-else-if="adminStore.transactions.length > 0">
               <tr v-for="tx in adminStore.transactions" :key="tx.id">
-                <td class="text-muted small font-monospace">{{ tx.id.slice(0, 8) }}&hellip;</td>
-                <td>
-                  <div class="fw-semibold small">{{ tx.user_name }}</div>
-                  <div class="text-muted" style="font-size: 0.75rem;">{{ tx.user_email }}</div>
-                </td>
-                <td class="text-center">
-                  <span
-                    class="badge"
-                    :class="TYPE_BADGE[tx.type]"
-                    :aria-label="`Tipo: ${TYPE_LABEL[tx.type]}`"
-                  >
-                    {{ TYPE_LABEL[tx.type] }}
-                  </span>
-                </td>
+                <td class="text-muted small font-monospace">{{ tx.id }}</td>
+                <td class="fw-semibold small">{{ tx.plan }}</td>
                 <td class="text-end fw-semibold">
-                  {{ formatCOP(tx.amount) }}
-                  <div class="text-muted small fw-normal">{{ tx.currency }}</div>
+                  {{ formatCOP(tx.amount_cop) }}
                 </td>
                 <td class="text-center">
                   <span
@@ -187,8 +158,8 @@ onMounted(async () => {
                     {{ STATUS_LABEL[tx.status] }}
                   </span>
                 </td>
-                <td class="text-muted small" style="max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-                  {{ tx.description }}
+                <td class="text-muted small font-monospace" style="max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                  {{ tx.reference }}
                 </td>
                 <td class="text-muted small">{{ formatDate(tx.created_at) }}</td>
               </tr>
@@ -196,7 +167,7 @@ onMounted(async () => {
 
             <!-- Empty state -->
             <tr v-else>
-              <td colspan="7" class="text-center py-5 text-muted">
+              <td colspan="6" class="text-center py-5 text-muted">
                 <div class="fs-2 mb-2" aria-hidden="true">💳</div>
                 No hay transacciones registradas aún.
               </td>
@@ -259,12 +230,10 @@ onMounted(async () => {
 }
 
 .tx-skeleton {
-  &__id { height: 0.75rem; width: 60px; }
-  &__name { height: 0.875rem; width: 100px; }
-  &__email { height: 0.75rem; width: 130px; }
+  &__id { height: 0.75rem; width: 50px; }
   &__badge { height: 1.25rem; width: 4.5rem; border-radius: var(--bs-border-radius-pill) !important; }
   &__amount { height: 0.875rem; width: 70px; }
-  &__desc { height: 0.875rem; width: 160px; }
+  &__ref { height: 0.875rem; width: 140px; }
   &__date { height: 0.875rem; width: 70px; }
 }
 </style>

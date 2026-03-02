@@ -1,13 +1,13 @@
 <script setup lang="ts">
 // ClinicList — public clinic directory.
-// Fetches clinics on mount, provides client-side search + specialty + city
-// filters. Featured clinics appear in a dedicated section above the grid
-// when no filters are active.
+// Fetches clinics on mount, provides client-side search + server-side
+// specialty + city filters. Premium clinics appear in a dedicated section
+// above the grid when no filters are active.
 // Displays skeleton loading and two empty states.
 
 const { fetchClinics, error, clinicsStore } = useClinics()
 
-// ── Client-side filters ────────────────────────────────────
+// ── Filters ─────────────────────────────────────────────────
 const searchQuery = ref('')
 const selectedSpecialty = ref('')
 const selectedCity = ref('')
@@ -37,23 +37,15 @@ const hasActiveFilters = computed(() =>
   || selectedCity.value !== '',
 )
 
-// All clinics after applying client-side filters
+// All clinics after applying client-side search filter
 const filteredClinics = computed(() => {
   let result = clinicsStore.clinics
-
-  if (selectedCity.value) {
-    result = result.filter(c => c.city === selectedCity.value)
-  }
-
-  if (selectedSpecialty.value) {
-    result = result.filter(c => c.specialties.includes(selectedSpecialty.value))
-  }
 
   const q = searchQuery.value.trim().toLowerCase()
   if (q) {
     result = result.filter(c =>
       c.name.toLowerCase().includes(q)
-      || c.description.toLowerCase().includes(q)
+      || (c.description ?? '').toLowerCase().includes(q)
       || c.city.toLowerCase().includes(q),
     )
   }
@@ -61,15 +53,15 @@ const filteredClinics = computed(() => {
   return result
 })
 
-// Featured section only visible when no filters are active
-const showFeaturedSection = computed(() =>
-  !hasActiveFilters.value && clinicsStore.getFeaturedClinics.length > 0,
+// Premium section only visible when no filters are active
+const showPremiumSection = computed(() =>
+  !hasActiveFilters.value && clinicsStore.getPremiumClinics.length > 0,
 )
 
-// Regular (non-featured) clinics for the main grid when no filters active
+// Regular (non-premium) clinics for the main grid when no filters active
 const regularClinics = computed(() => {
   if (hasActiveFilters.value) return filteredClinics.value
-  return filteredClinics.value.filter(c => !c.is_featured)
+  return filteredClinics.value.filter(c => c.plan === '' || c.plan === 'free')
 })
 
 function clearFilters(): void {
@@ -79,6 +71,14 @@ function clearFilters(): void {
 }
 
 const SKELETON_COUNT = 6
+
+// Re-fetch when server-side filters change
+watch([selectedSpecialty, selectedCity], () => {
+  const filters: Record<string, string> = {}
+  if (selectedSpecialty.value) filters.specialty = selectedSpecialty.value
+  if (selectedCity.value) filters.city = selectedCity.value
+  fetchClinics(Object.keys(filters).length > 0 ? filters : undefined)
+})
 
 onMounted(async () => {
   await fetchClinics()
@@ -98,7 +98,7 @@ onMounted(async () => {
     <!-- Filters bar -->
     <div class="card border-0 shadow-sm mb-4 p-3">
       <div class="row g-3 align-items-end">
-        <!-- Search input -->
+        <!-- Search input (client-side only) -->
         <div class="col-12 col-md-5">
           <label for="clinic-search" class="form-label small fw-semibold text-muted">
             Buscar clínica
@@ -244,9 +244,9 @@ onMounted(async () => {
 
     <!-- Results -->
     <template v-else>
-      <!-- Featured clinics section — hidden when filters are active -->
+      <!-- Premium clinics section — hidden when filters are active -->
       <section
-        v-if="showFeaturedSection"
+        v-if="showPremiumSection"
         class="mb-5"
         aria-label="Clínicas destacadas"
       >
@@ -255,12 +255,12 @@ onMounted(async () => {
             <span aria-hidden="true">⭐</span> Clínicas Destacadas
           </h2>
           <span class="badge bg-warning text-dark">
-            {{ clinicsStore.getFeaturedClinics.length }}
+            {{ clinicsStore.getPremiumClinics.length }}
           </span>
         </div>
         <div class="row g-4">
           <div
-            v-for="clinic in clinicsStore.getFeaturedClinics"
+            v-for="clinic in clinicsStore.getPremiumClinics"
             :key="clinic.id"
             class="col-12 col-md-6 col-lg-4"
           >
@@ -276,7 +276,7 @@ onMounted(async () => {
         {{ filteredClinics.length === 1 ? 'clínica' : 'clínicas' }}
       </p>
 
-      <!-- Main grid — all results when filters active, non-featured otherwise -->
+      <!-- Main grid — all results when filters active, non-premium otherwise -->
       <div class="row g-4">
         <div
           v-for="clinic in regularClinics"

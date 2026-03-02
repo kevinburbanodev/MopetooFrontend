@@ -4,22 +4,6 @@
 // RF-1000 to RF-1009
 // ============================================================
 
-// ── KPI stats ──────────────────────────────────────────────
-
-/** Aggregated platform statistics shown on the admin dashboard. */
-export interface AdminStats {
-  total_users: number
-  total_pets: number
-  total_shelters: number
-  total_clinics: number
-  total_stores: number
-  total_adoptions: number
-  total_pro_subscriptions: number
-  total_donations: number
-  revenue_total: number
-  revenue_month: number
-}
-
 // ── Users ──────────────────────────────────────────────────
 
 /** Admin view of a registered user. */
@@ -34,6 +18,7 @@ export interface AdminUser {
   profile_picture_url?: string
   is_pro: boolean
   is_admin: boolean
+  is_active: boolean
   pets_count: number
   created_at: string
   updated_at: string
@@ -41,30 +26,32 @@ export interface AdminUser {
 
 export interface AdminUserFilters {
   search?: string
-  is_pro?: boolean
-  is_admin?: boolean
+  plan?: string
+  active?: boolean
+  country?: string
   page?: number
-  per_page?: number
+  limit?: number
 }
 
 export interface AdminUsersResponse {
   users: AdminUser[]
   total: number
   page: number
-  per_page: number
+  limit: number
 }
 
 // ── Shelters ───────────────────────────────────────────────
 
 /** Admin view of a shelter entity. */
 export interface AdminShelter {
-  id: string
+  id: number
   name: string
   city: string
+  country?: string
   email?: string
   phone?: string
   is_verified: boolean
-  is_featured: boolean
+  is_active: boolean
   pets_count: number
   created_at: string
 }
@@ -73,20 +60,20 @@ export interface AdminSheltersResponse {
   shelters: AdminShelter[]
   total: number
   page: number
-  per_page: number
+  limit: number
 }
 
 // ── Petshops ───────────────────────────────────────────────
 
 /** Admin view of a petshop / pet-friendly store entity. */
 export interface AdminPetshop {
-  id: string
+  id: number
   name: string
   city: string
   email?: string
   phone?: string
-  is_verified: boolean
-  is_featured: boolean
+  is_active: boolean
+  plan: 'free' | 'featured'
   created_at: string
 }
 
@@ -94,21 +81,22 @@ export interface AdminPetshopsResponse {
   stores: AdminPetshop[]
   total: number
   page: number
-  per_page: number
+  limit: number
 }
 
 // ── Clinics ────────────────────────────────────────────────
 
 /** Admin view of a veterinary clinic entity. */
 export interface AdminClinic {
-  id: string
+  id: number
   name: string
   city: string
   email?: string
   phone?: string
   is_verified: boolean
-  is_featured: boolean
-  specialties: string[]
+  is_active: boolean
+  plan: 'free' | 'pro'
+  specialties?: string[]
   created_at: string
 }
 
@@ -116,33 +104,69 @@ export interface AdminClinicsResponse {
   clinics: AdminClinic[]
   total: number
   page: number
-  per_page: number
+  limit: number
 }
 
 // ── Transactions ───────────────────────────────────────────
 
-export type TransactionType = 'subscription' | 'donation'
-export type TransactionStatus = 'completed' | 'pending' | 'failed' | 'refunded'
+export type TransactionStatus = 'pending' | 'approved' | 'declined' | 'error'
 
-/** Financial transaction record (subscription payment or donation). */
+/** Subscription transaction record. */
 export interface AdminTransaction {
-  id: string
+  id: number
   user_id: number
-  user_name: string
-  user_email: string
-  type: TransactionType
-  amount: number
-  currency: string
+  plan: string
+  amount_cop: number
   status: TransactionStatus
-  description: string
+  reference: string
   created_at: string
+}
+
+export interface AdminTransactionFilters {
+  user_id?: number
+  plan?: string
+  status?: TransactionStatus
+  from?: string
+  to?: string
+  page?: number
+  limit?: number
 }
 
 export interface AdminTransactionsResponse {
   transactions: AdminTransaction[]
   total: number
   page: number
-  per_page: number
+  limit: number
+}
+
+// ── Donations ──────────────────────────────────────────────
+
+/** Donation record (separate from subscription transactions). */
+export interface AdminDonation {
+  id: number
+  user_id: number
+  shelter_id: number
+  amount_cop: number
+  status: TransactionStatus
+  reference: string
+  created_at: string
+}
+
+export interface AdminDonationFilters {
+  user_id?: number
+  shelter_id?: number
+  status?: TransactionStatus
+  from?: string
+  to?: string
+  page?: number
+  limit?: number
+}
+
+export interface AdminDonationsResponse {
+  donations: AdminDonation[]
+  total: number
+  page: number
+  limit: number
 }
 
 // ── Shared filter type ─────────────────────────────────────
@@ -151,5 +175,5 @@ export interface AdminTransactionsResponse {
 export interface AdminFilters {
   search?: string
   page?: number
-  per_page?: number
+  limit?: number
 }

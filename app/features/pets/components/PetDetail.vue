@@ -34,7 +34,7 @@ const GENDER_LABEL: Record<string, string> = {
 
 const speciesLabel = computed(() => SPECIES_LABEL[props.pet.species] ?? props.pet.species)
 const genderLabel = computed(() => GENDER_LABEL[props.pet.gender] ?? props.pet.gender)
-const age = computed(() => formatAge(props.pet.birth_date))
+const age = computed(() => formatAge(props.pet.age))
 
 // ── Delete confirmation state ─────────────────────────────────
 const confirmingDelete = ref(false)
@@ -68,12 +68,6 @@ const detailRows = computed<DetailRow[]>(() => {
   ]
   if (props.pet.weight) {
     rows.push({ label: 'Peso', value: `${props.pet.weight} kg`, icon: '⚖️' })
-  }
-  if (props.pet.color) {
-    rows.push({ label: 'Color / pelaje', value: props.pet.color, icon: '🎨' })
-  }
-  if (props.pet.microchip) {
-    rows.push({ label: 'Microchip', value: props.pet.microchip, icon: '📡' })
   }
   return rows
 })
@@ -193,14 +187,6 @@ function formatDate(iso: string): string {
             <dd class="pet-detail__value fw-semibold mb-0">{{ row.value }}</dd>
           </div>
 
-          <!-- Birth date row -->
-          <div class="pet-detail__row d-flex px-4 py-3 border-top">
-            <dt class="pet-detail__label d-flex align-items-center gap-2 text-muted small">
-              <span aria-hidden="true">📅</span>
-              Fecha de nacimiento
-            </dt>
-            <dd class="pet-detail__value fw-semibold mb-0">{{ formatDate(pet.birth_date) }}</dd>
-          </div>
         </dl>
       </div>
     </div>

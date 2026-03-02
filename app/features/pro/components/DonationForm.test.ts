@@ -14,22 +14,13 @@
 // a vi.fn() we control per test. The `error` ref is a reactive ref we
 // set to simulate API error states.
 //
-// Key behaviours tested:
-//   - Unauthenticated: shows login CTA, not the form.
-//   - Authenticated: shows form with shelter name in heading.
-//   - Preset amount buttons (5000, 10000, 25000, 50000): clicking
-//     selects that amount (btn-success active class).
-//   - Custom amount field appears and deselects preset on focus.
-//   - Empty amount → validation error shown, donate not called.
-//   - Amount = 0 → validation error.
-//   - Amount over 10,000,000 → validation error.
-//   - Message over 200 chars → counter shows error (text-danger class).
-//   - Valid submit calls donate() with correct shelterId and amount.
-//   - Message sent when non-empty, omitted when blank.
-//   - Success state shown after donate() returns a result.
-//   - "Hacer otra donación" reset button returns to form.
-//   - Error state shown when donate() returns null.
-//   - Shelter name shown in success message.
+// Key design changes from Stripe version:
+//   - donate() signature: donate(shelterId, { amount, message }) instead
+//     of donate({ shelter_id, amount, message }).
+//   - On success: shows "Redirigiendo al pago..." state (PayU redirect),
+//     NOT a thank-you inline state.
+//   - No "Hacer otra donación" reset button — user leaves the app.
+//   - DonationCheckoutResponse return type (not DonationResponse).
 //
 // Form submit: use `wrapper.find('form').trigger('submit')` — clicking
 // the submit button does NOT fire @submit.prevent in happy-dom.
@@ -44,7 +35,7 @@ import { mountSuspended } from '@nuxt/test-utils/runtime'
 import { createTestingPinia } from '@pinia/testing'
 import { ref, nextTick } from 'vue'
 import DonationForm from './DonationForm.vue'
-import type { DonationResponse } from '../types'
+import type { DonationCheckoutResponse } from '../types'
 
 // ── localStorage stub (module-level) ─────────────────────────
 const localStorageMock = vi.hoisted(() => ({
@@ -75,13 +66,18 @@ const NuxtLinkStub = {
 
 // ── Fixtures ─────────────────────────────────────────────────
 
-const mockDonationResponse: DonationResponse = {
-  id: 'donation-1',
-  shelter_id: 'shelter-abc',
-  user_id: 'user-1',
-  amount: 25000,
-  status: 'completed',
-  created_at: '2026-02-01T00:00:00Z',
+const mockDonationCheckoutResponse: DonationCheckoutResponse = {
+  checkout_url: 'https://checkout.payulatam.com/ppp-web-gateway-payu/',
+  form_params: {
+    merchantId: '123456',
+    referenceCode: 'don-001',
+    amount: '25000',
+    currency: 'COP',
+    signature: 'xyz789',
+  },
+  reference_code: 'don-001',
+  platform_fee: 2500,
+  shelter_amount: 22500,
 }
 
 const defaultProps = {
@@ -119,7 +115,7 @@ function mountForm(
 describe('DonationForm', () => {
   beforeEach(() => {
     mockDonate.mockReset()
-    mockDonate.mockResolvedValue(mockDonationResponse)
+    mockDonate.mockResolvedValue(mockDonationCheckoutResponse)
     mockProError.value = null
     localStorageMock.getItem.mockReturnValue(null)
   })
@@ -135,7 +131,6 @@ describe('DonationForm', () => {
 
     it('shows "Inicia sesión para donar" heading in the CTA', async () => {
       const wrapper = await mountForm({ isAuthenticated: false })
-      // The heading text in the template is "Inicia sesión para donar"
       expect(wrapper.text()).toContain('Inicia sesión para donar')
     })
 
@@ -203,7 +198,6 @@ describe('DonationForm', () => {
     it('clicking a preset button applies btn-success class (active state)', async () => {
       const wrapper = await mountForm({ isAuthenticated: true })
       const presetButtons = wrapper.findAll('[aria-label^="Donar"]')
-      // Click the 3rd preset (COP 25.000)
       await presetButtons[2].trigger('click')
       expect(presetButtons[2].classes()).toContain('btn-success')
     })
@@ -271,50 +265,6 @@ describe('DonationForm', () => {
       expect(wrapper.find('#donation-amount-error').exists()).toBe(true)
     })
 
-    it('does not call donate() when custom amount is 0', async () => {
-      // Use the preset button to trigger "0 amount" scenario — preset clicks set
-      // selectedAmount directly. We test the 0 case by relying on no amount being
-      // selected and no custom amount filled in (effectiveAmount === null → invalid).
-      // Note: type="number" inputs in happy-dom coerce setValue to a number, causing
-      // customAmount.value.replace() to throw. We test zero validation via the
-      // missing-amount path instead (selectedAmount=null, customAmount='').
-      const wrapper = await mountForm({ isAuthenticated: true })
-      // No selection, no custom input → effectiveAmount is null → invalid
-      await wrapper.find('form').trigger('submit')
-      await nextTick()
-      expect(mockDonate).not.toHaveBeenCalled()
-    })
-
-    it('shows amount error when no amount is selected or typed (covers 0/null case)', async () => {
-      const wrapper = await mountForm({ isAuthenticated: true })
-      await wrapper.find('form').trigger('submit')
-      await nextTick()
-      expect(wrapper.find('#donation-amount-error').exists()).toBe(true)
-    })
-
-    it('does not call donate() when custom amount exceeds 10,000,000', async () => {
-      // happy-dom coerces type="number" input values to numbers via v-model, which
-      // breaks `.replace()` in the effectiveAmount computed. We test the >10M guard
-      // by using a preset (25000) and then verifying a high preset is rejected if
-      // we directly manipulate the internal ref via Vue's reactivity. Instead we
-      // confirm this guard by mocking a donate response and checking donate was NOT
-      // called when validation is triggered by submit without a valid amount.
-      // The over-limit case is definitively covered by the effectiveAmount unit
-      // logic; here we verify the submit guard prevents calling donate at all.
-      const wrapper = await mountForm({ isAuthenticated: true })
-      // Trigger submit without any valid amount — guard fires, donate not called
-      await wrapper.find('form').trigger('submit')
-      await nextTick()
-      expect(mockDonate).not.toHaveBeenCalled()
-    })
-
-    it('shows amount error when validation fails after submit', async () => {
-      const wrapper = await mountForm({ isAuthenticated: true })
-      await wrapper.find('form').trigger('submit')
-      await nextTick()
-      expect(wrapper.find('#donation-amount-error').exists()).toBe(true)
-    })
-
     it('applies is-invalid to the custom amount input when amount is invalid', async () => {
       const wrapper = await mountForm({ isAuthenticated: true })
       await wrapper.find('form').trigger('submit')
@@ -353,20 +303,12 @@ describe('DonationForm', () => {
       await nextTick()
 
       expect(mockDonate).toHaveBeenCalledWith(
-        expect.objectContaining({
-          shelter_id: 'shelter-abc',
-          amount: 25000,
-        }),
+        'shelter-abc',
+        expect.objectContaining({ amount: 25000 }),
       )
     })
 
-    it('calls donate() via preset with the correct amount passed to donate()', async () => {
-      // In happy-dom, setting a value on <input type="number"> coerces the v-model
-      // bound ref to a number, causing customAmount.value.replace() to throw.
-      // We test the "correct amount in payload" contract via the preset amount path
-      // (which uses selectedAmount ref directly, no string parsing) to verify the
-      // donate() call shape. The custom amount parsing logic (parseInt + replace) is
-      // an implementation detail tested as a unit via the effectiveAmount computed.
+    it('calls donate() with the correct amount via preset selection', async () => {
       const wrapper = await mountForm({ isAuthenticated: true })
       const presetButtons = wrapper.findAll('[aria-label^="Donar"]')
       await presetButtons[1].trigger('click') // 10000
@@ -375,6 +317,7 @@ describe('DonationForm', () => {
       await nextTick()
 
       expect(mockDonate).toHaveBeenCalledWith(
+        'shelter-abc',
         expect.objectContaining({ amount: 10000 }),
       )
     })
@@ -389,6 +332,7 @@ describe('DonationForm', () => {
       await nextTick()
 
       expect(mockDonate).toHaveBeenCalledWith(
+        'shelter-abc',
         expect.objectContaining({ message: '¡Mucho ánimo para los animales!' }),
       )
     })
@@ -396,14 +340,13 @@ describe('DonationForm', () => {
     it('omits message from the donate() payload when message is blank', async () => {
       const wrapper = await mountForm({ isAuthenticated: true })
       const presetButtons = wrapper.findAll('[aria-label^="Donar"]')
-      await presetButtons[0].trigger('click') // 5000
-      // message stays empty (default)
+      await presetButtons[0].trigger('click')
 
       await wrapper.find('form').trigger('submit')
       await nextTick()
 
-      const callArg = mockDonate.mock.calls[0][0] as Record<string, unknown>
-      expect(callArg.message).toBeUndefined()
+      const callArgs = mockDonate.mock.calls[0] as [string, Record<string, unknown>]
+      expect(callArgs[1].message).toBeUndefined()
     })
 
     it('trims whitespace-only message and omits it', async () => {
@@ -415,26 +358,26 @@ describe('DonationForm', () => {
       await wrapper.find('form').trigger('submit')
       await nextTick()
 
-      const callArg = mockDonate.mock.calls[0][0] as Record<string, unknown>
-      expect(callArg.message).toBeUndefined()
+      const callArgs = mockDonate.mock.calls[0] as [string, Record<string, unknown>]
+      expect(callArgs[1].message).toBeUndefined()
     })
   })
 
-  // ── Success state ──────────────────────────────────────────
+  // ── Redirect state (PayU) ─────────────────────────────────
 
-  describe('success state', () => {
-    it('shows the success state after a successful donation', async () => {
+  describe('redirect state', () => {
+    it('shows "Redirigiendo al pago..." after a successful donation', async () => {
       const wrapper = await mountForm({ isAuthenticated: true })
       const presetButtons = wrapper.findAll('[aria-label^="Donar"]')
-      await presetButtons[2].trigger('click') // 25000
+      await presetButtons[2].trigger('click')
 
       await wrapper.find('form').trigger('submit')
       await nextTick()
 
-      expect(wrapper.text()).toContain('¡Gracias por tu donación!')
+      expect(wrapper.text()).toContain('Redirigiendo al pago...')
     })
 
-    it('shows the shelter name in the success message', async () => {
+    it('shows the shelter name in the redirect message', async () => {
       const wrapper = await mountForm({ isAuthenticated: true })
       const presetButtons = wrapper.findAll('[aria-label^="Donar"]')
       await presetButtons[0].trigger('click')
@@ -445,7 +388,7 @@ describe('DonationForm', () => {
       expect(wrapper.text()).toContain('Hogar Animal Bogotá')
     })
 
-    it('hides the form in the success state', async () => {
+    it('hides the form in the redirect state', async () => {
       const wrapper = await mountForm({ isAuthenticated: true })
       const presetButtons = wrapper.findAll('[aria-label^="Donar"]')
       await presetButtons[0].trigger('click')
@@ -456,7 +399,7 @@ describe('DonationForm', () => {
       expect(wrapper.find('form').exists()).toBe(false)
     })
 
-    it('"Hacer otra donación" button resets back to the form', async () => {
+    it('shows a spinner in the redirect state', async () => {
       const wrapper = await mountForm({ isAuthenticated: true })
       const presetButtons = wrapper.findAll('[aria-label^="Donar"]')
       await presetButtons[0].trigger('click')
@@ -464,24 +407,7 @@ describe('DonationForm', () => {
       await wrapper.find('form').trigger('submit')
       await nextTick()
 
-      const resetBtn = wrapper.find('button.btn-outline-success')
-      expect(resetBtn.exists()).toBe(true)
-      await resetBtn.trigger('click')
-      await nextTick()
-
-      // Form should be back
-      expect(wrapper.find('form').exists()).toBe(true)
-    })
-
-    it('shows the "Hacer otra donación" button in the success state', async () => {
-      const wrapper = await mountForm({ isAuthenticated: true })
-      const presetButtons = wrapper.findAll('[aria-label^="Donar"]')
-      await presetButtons[0].trigger('click')
-
-      await wrapper.find('form').trigger('submit')
-      await nextTick()
-
-      expect(wrapper.text()).toContain('Hacer otra donación')
+      expect(wrapper.find('.spinner-border').exists()).toBe(true)
     })
   })
 
@@ -505,7 +431,7 @@ describe('DonationForm', () => {
       expect(wrapper.find('.alert-danger').text()).toContain('Error al procesar la donación')
     })
 
-    it('does not show the success state when donate() returns null', async () => {
+    it('does not show the redirect state when donate() returns null', async () => {
       mockDonate.mockResolvedValue(null)
 
       const wrapper = await mountForm({ isAuthenticated: true })
@@ -515,7 +441,7 @@ describe('DonationForm', () => {
       await wrapper.find('form').trigger('submit')
       await nextTick()
 
-      expect(wrapper.text()).not.toContain('¡Gracias por tu donación!')
+      expect(wrapper.text()).not.toContain('Redirigiendo al pago...')
     })
   })
 
@@ -533,7 +459,6 @@ describe('DonationForm', () => {
       const wrapper = await mountForm({ isAuthenticated: true })
       await wrapper.find('#donation-message').setValue('Hola')
       const counter = wrapper.find('[aria-live="polite"]')
-      // 200 - 4 = 196 chars left
       expect(counter.text()).toContain('196')
     })
   })

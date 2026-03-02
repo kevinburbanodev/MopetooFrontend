@@ -4,14 +4,12 @@
 //
 // Amount selection: preset COP amounts + optional custom input.
 // Validation: amount > 0 and ≤ 10_000_000; message ≤ 200 chars.
-// On success: renders a thank-you state with reset option.
-
-import type { DonationRequest } from '../types'
+// On success: redirects to PayU checkout via hidden form (user leaves the app).
 
 const props = defineProps<{
   /** Shelter receiving the donation. */
   shelterId: string
-  /** Human-readable shelter name shown in the success state. */
+  /** Human-readable shelter name shown in the UI. */
   shelterName: string
 }>()
 
@@ -30,8 +28,7 @@ const customAmount = ref('')
 const message = ref('')
 const submitted = ref(false)
 const isLoading = ref(false)
-const success = ref(false)
-const donatedAmount = ref<number | null>(null)
+const isRedirecting = ref(false)
 
 // ── Computed ──────────────────────────────────────────────
 
@@ -79,30 +76,18 @@ async function handleSubmit(): Promise<void> {
   if (amt === null || amt < AMOUNT_MIN || amt > AMOUNT_MAX) return
   if (message.value.length > MESSAGE_MAX) return
 
-  const payload: DonationRequest = {
-    shelter_id: props.shelterId,
+  isLoading.value = true
+  const result = await donate(props.shelterId, {
     amount: amt,
     message: message.value.trim() || undefined,
-  }
-
-  isLoading.value = true
-  const result = await donate(payload)
+  })
   isLoading.value = false
 
   if (result) {
-    donatedAmount.value = amt
-    success.value = true
+    // PayU form redirect has been triggered by the composable.
+    // Show "Redirigiendo..." state while the browser navigates.
+    isRedirecting.value = true
   }
-}
-
-function reset(): void {
-  selectedAmount.value = null
-  customAmount.value = ''
-  message.value = ''
-  submitted.value = false
-  success.value = false
-  donatedAmount.value = null
-  error.value = null
 }
 
 function formatCOP(amount: number): string {
@@ -147,31 +132,23 @@ function formatCOP(amount: number): string {
         </div>
       </template>
 
-      <!-- ── Success state ────────────────────────────────────── -->
-      <template v-else-if="success">
+      <!-- ── Redirecting to PayU ─────────────────────────────── -->
+      <template v-else-if="isRedirecting">
         <div
           class="text-center py-4"
           role="status"
           aria-live="polite"
         >
-          <span class="fs-1 d-block" aria-hidden="true">💚</span>
-          <h3 class="h5 fw-bold mt-3 mb-2">¡Gracias por tu donación!</h3>
-          <p class="text-muted mb-1">
-            Donaste
-            <strong class="text-success">{{ formatCOP(donatedAmount!) }}</strong>
-            a
+          <span
+            class="spinner-border text-success mb-3"
+            role="status"
+            aria-hidden="true"
+          />
+          <h3 class="h5 fw-bold mt-2 mb-2">Redirigiendo al pago...</h3>
+          <p class="text-muted small mb-0">
+            Serás redirigido a la plataforma de pago para completar tu donación a
             <strong>{{ shelterName }}</strong>.
           </p>
-          <p class="text-muted small mb-4">
-            Tu generosidad ayuda a que más animales encuentren un hogar.
-          </p>
-          <button
-            type="button"
-            class="btn btn-outline-success btn-sm"
-            @click="reset"
-          >
-            Hacer otra donación
-          </button>
         </div>
       </template>
 

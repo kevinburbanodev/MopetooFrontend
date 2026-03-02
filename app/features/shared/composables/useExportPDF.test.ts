@@ -356,5 +356,20 @@ describe('useExportPDF', () => {
         expect.any(Object),
       )
     })
+
+    it('passes an onResponse callback to $fetch for maintenance detection', async () => {
+      fetchMock.mockResolvedValueOnce(new Blob(['%PDF'], { type: 'application/pdf' }))
+      const { useExportPDF } = await import('./useExportPDF')
+      const { downloadPDF } = useExportPDF()
+
+      await downloadPDF('/api/pets/42/export', 'perfil-max.pdf')
+
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          onResponse: expect.any(Function),
+        }),
+      )
+    })
   })
 })

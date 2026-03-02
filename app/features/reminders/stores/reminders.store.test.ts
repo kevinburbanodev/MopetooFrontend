@@ -20,20 +20,20 @@ import type { Reminder } from '../types'
 
 function makeReminder(overrides: Partial<Reminder> = {}): Reminder {
   return {
-    id: 1,
-    pet_id: 42,
+    id: '1',
+    pet_id: '42',
     type: 'vacuna',
     title: 'Vacuna antirrábica',
-    scheduled_date: '2027-06-15T10:00',
+    scheduled_date: '2027-06-15T10:00:00Z',
     created_at: '2026-01-01T00:00:00Z',
     updated_at: '2026-01-01T00:00:00Z',
     ...overrides,
   }
 }
 
-const reminderA = makeReminder({ id: 1, title: 'Vacuna antirrábica', type: 'vacuna', pet_id: 42 })
-const reminderB = makeReminder({ id: 2, title: 'Desparasitación', type: 'medicina', pet_id: 42 })
-const reminderC = makeReminder({ id: 3, title: 'Baño mensual', type: 'baño', pet_id: 99 })
+const reminderA = makeReminder({ id: '1', title: 'Vacuna antirrábica', type: 'vacuna', pet_id: '42' })
+const reminderB = makeReminder({ id: '2', title: 'Desparasitación', type: 'medicina', pet_id: '42' })
+const reminderC = makeReminder({ id: '3', title: 'Baño mensual', type: 'baño', pet_id: '99' })
 
 // ── Suite ────────────────────────────────────────────────────
 
@@ -84,14 +84,14 @@ describe('useRemindersStore', () => {
     it('becomes false again after removing the last reminder', () => {
       const store = useRemindersStore()
       store.addReminder(reminderA)
-      store.removeReminder(1)
+      store.removeReminder('1')
       expect(store.hasReminders).toBe(false)
     })
 
     it('stays true when some reminders remain after a removal', () => {
       const store = useRemindersStore()
       store.setReminders([reminderA, reminderB])
-      store.removeReminder(1)
+      store.removeReminder('1')
       expect(store.hasReminders).toBe(true)
     })
   })
@@ -102,24 +102,24 @@ describe('useRemindersStore', () => {
     it('returns the matching reminder when the id is in the list', () => {
       const store = useRemindersStore()
       store.setReminders([reminderA, reminderB])
-      expect(store.getReminderById(2)).toEqual(reminderB)
+      expect(store.getReminderById('2')).toEqual(reminderB)
     })
 
     it('returns undefined when the id is not in the list', () => {
       const store = useRemindersStore()
       store.setReminders([reminderA])
-      expect(store.getReminderById(999)).toBeUndefined()
+      expect(store.getReminderById('999')).toBeUndefined()
     })
 
     it('returns undefined when the reminders list is empty', () => {
       const store = useRemindersStore()
-      expect(store.getReminderById(1)).toBeUndefined()
+      expect(store.getReminderById('1')).toBeUndefined()
     })
 
     it('returns the first reminder correctly when there is only one', () => {
       const store = useRemindersStore()
       store.setReminders([reminderA])
-      expect(store.getReminderById(1)).toEqual(reminderA)
+      expect(store.getReminderById('1')).toEqual(reminderA)
     })
   })
 
@@ -196,8 +196,8 @@ describe('useRemindersStore', () => {
       const store = useRemindersStore()
       store.addReminder(reminderA)
       store.addReminder(reminderB)
-      expect(store.reminders[0].id).toBe(1)
-      expect(store.reminders[1].id).toBe(2)
+      expect(store.reminders[0].id).toBe('1')
+      expect(store.reminders[1].id).toBe('2')
     })
   })
 
@@ -222,7 +222,7 @@ describe('useRemindersStore', () => {
     it('is a no-op when the id is not found in the list', () => {
       const store = useRemindersStore()
       store.setReminders([reminderA])
-      const phantom = makeReminder({ id: 999, title: 'Fantasma' })
+      const phantom = makeReminder({ id: '999', title: 'Fantasma' })
       store.updateReminder(phantom)
       expect(store.reminders).toEqual([reminderA])
     })
@@ -274,28 +274,28 @@ describe('useRemindersStore', () => {
     it('removes the reminder with the matching id', () => {
       const store = useRemindersStore()
       store.setReminders([reminderA, reminderB])
-      store.removeReminder(1)
+      store.removeReminder('1')
       expect(store.reminders).toEqual([reminderB])
     })
 
     it('does not affect other reminders in the list', () => {
       const store = useRemindersStore()
       store.setReminders([reminderA, reminderB, reminderC])
-      store.removeReminder(2)
+      store.removeReminder('2')
       expect(store.reminders).toEqual([reminderA, reminderC])
     })
 
     it('is a no-op when the id is not found', () => {
       const store = useRemindersStore()
       store.setReminders([reminderA])
-      store.removeReminder(999)
+      store.removeReminder('999')
       expect(store.reminders).toEqual([reminderA])
     })
 
     it('results in an empty list when the only reminder is removed', () => {
       const store = useRemindersStore()
       store.setReminders([reminderA])
-      store.removeReminder(1)
+      store.removeReminder('1')
       expect(store.reminders).toEqual([])
     })
 
@@ -303,7 +303,7 @@ describe('useRemindersStore', () => {
       const store = useRemindersStore()
       store.setReminders([reminderA, reminderB])
       store.setSelectedReminder(reminderA)
-      store.removeReminder(1)
+      store.removeReminder('1')
       expect(store.selectedReminder).toBeNull()
     })
 
@@ -311,21 +311,21 @@ describe('useRemindersStore', () => {
       const store = useRemindersStore()
       store.setReminders([reminderA, reminderB])
       store.setSelectedReminder(reminderB)
-      store.removeReminder(1)
+      store.removeReminder('1')
       expect(store.selectedReminder).toEqual(reminderB)
     })
 
     it('makes hasReminders false when the last reminder is removed', () => {
       const store = useRemindersStore()
       store.setReminders([reminderA])
-      store.removeReminder(1)
+      store.removeReminder('1')
       expect(store.hasReminders).toBe(false)
     })
 
     it('does not change list length when id is not found', () => {
       const store = useRemindersStore()
       store.setReminders([reminderA, reminderB])
-      store.removeReminder(999)
+      store.removeReminder('999')
       expect(store.reminders).toHaveLength(2)
     })
   })
@@ -356,7 +356,7 @@ describe('useRemindersStore', () => {
     it('stores the full reminder object reference', () => {
       const store = useRemindersStore()
       store.setSelectedReminder(reminderC)
-      expect(store.selectedReminder?.pet_id).toBe(99)
+      expect(store.selectedReminder?.pet_id).toBe('99')
       expect(store.selectedReminder?.type).toBe('baño')
     })
   })

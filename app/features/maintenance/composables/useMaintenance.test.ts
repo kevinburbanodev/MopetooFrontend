@@ -9,11 +9,14 @@
 //     so real store action logic runs and we can inspect store state.
 //
 // Key behaviours under test:
-//   - fetchStatus(): dual API response shapes (envelope vs direct),
+//   - fetchStatus(): calls GET /api/admin/maintenance, stores response,
 //     SILENT error handling (error.value stays null on failure),
 //     loading flag lifecycle.
-//   - toggleMaintenance(): dual API shapes, error surfacing with all
-//     three extractErrorMessage shapes, loading flag lifecycle.
+//   - activateMaintenance(): calls PATCH /api/admin/maintenance/activate
+//     with { message, estimated_return? }, optimistic store update,
+//     error surfacing with all extractErrorMessage shapes.
+//   - deactivateMaintenance(): calls PATCH /api/admin/maintenance/deactivate,
+//     optimistic store update, error surfacing.
 //   - error ref: starts null, cleared at the beginning of each call.
 // ============================================================
 
@@ -25,17 +28,17 @@ import type { MaintenanceStatus } from '../types'
 // ── useApi mock ───────────────────────────────────────────────
 
 const mockGet = vi.fn()
-const mockPut = vi.fn()
+const mockPatch = vi.fn()
 
 vi.mock('../../shared/composables/useApi', () => ({
-  useApi: () => ({ get: mockGet, put: mockPut }),
+  useApi: () => ({ get: mockGet, patch: mockPatch }),
 }))
 
 // ── Fixtures ─────────────────────────────────────────────────
 
 function makeStatus(overrides: Partial<MaintenanceStatus> = {}): MaintenanceStatus {
   return {
-    is_enabled: false,
+    is_active: false,
     ...overrides,
   }
 }
@@ -52,76 +55,65 @@ describe('useMaintenance', () => {
     const { useMaintenanceStore } = await import('../stores/maintenance.store')
     maintenanceStore = useMaintenanceStore()
     mockGet.mockReset()
-    mockPut.mockReset()
+    mockPatch.mockReset()
   })
 
-  // ── fetchStatus — envelope shape ─────────────────────────────
+  // ── fetchStatus ────────────────────────────────────────────────
 
-  describe('fetchStatus() — envelope response shape { maintenance: MaintenanceStatus }', () => {
+  describe('fetchStatus()', () => {
     it('calls GET /api/admin/maintenance', async () => {
-      mockGet.mockResolvedValue({ maintenance: makeStatus({ is_enabled: true }) })
+      mockGet.mockResolvedValue(makeStatus({ is_active: true }))
       const { fetchStatus } = useMaintenance()
       await fetchStatus()
       expect(mockGet).toHaveBeenCalledWith('/api/admin/maintenance')
     })
 
-    it('stores the maintenance field from the envelope', async () => {
-      const data = makeStatus({ is_enabled: true, message: 'Maintenance active' })
-      mockGet.mockResolvedValue({ maintenance: data })
+    it('stores the response in the store', async () => {
+      const data = makeStatus({ is_active: true, message: 'Maintenance active' })
+      mockGet.mockResolvedValue(data)
       const { fetchStatus } = useMaintenance()
       await fetchStatus()
       expect(maintenanceStore.status).toEqual(data)
     })
 
-    it('hasStatus becomes true after successful envelope fetch', async () => {
-      mockGet.mockResolvedValue({ maintenance: makeStatus() })
+    it('hasStatus becomes true after successful fetch', async () => {
+      mockGet.mockResolvedValue(makeStatus())
       const { fetchStatus } = useMaintenance()
       await fetchStatus()
       expect(maintenanceStore.hasStatus).toBe(true)
     })
 
     it('does not set error.value on success', async () => {
-      mockGet.mockResolvedValue({ maintenance: makeStatus() })
+      mockGet.mockResolvedValue(makeStatus())
       const { fetchStatus, error } = useMaintenance()
       await fetchStatus()
       expect(error.value).toBeNull()
     })
 
-    it('stores full envelope status with all optional fields', async () => {
+    it('stores full status with all optional fields', async () => {
       const data: MaintenanceStatus = {
-        is_enabled: true,
+        is_active: true,
         message: 'Back soon',
-        updated_at: '2025-01-15T10:00:00Z',
-        updated_by: 'admin@mopetoo.com',
+        estimated_return: '2025-01-15T12:00:00Z',
+        activated_at: '2025-01-15T10:00:00Z',
+        activated_by_admin_id: 1,
       }
-      mockGet.mockResolvedValue({ maintenance: data })
-      const { fetchStatus } = useMaintenance()
-      await fetchStatus()
-      expect(maintenanceStore.status).toEqual(data)
-    })
-  })
-
-  // ── fetchStatus — direct shape ───────────────────────────────
-
-  describe('fetchStatus() — direct response shape MaintenanceStatus', () => {
-    it('stores the response directly when no maintenance wrapper present', async () => {
-      const data = makeStatus({ is_enabled: true, message: 'test' })
       mockGet.mockResolvedValue(data)
       const { fetchStatus } = useMaintenance()
       await fetchStatus()
       expect(maintenanceStore.status).toEqual(data)
     })
 
-    it('stores direct shape with is_enabled: false', async () => {
-      const data = makeStatus({ is_enabled: false })
+    it('stores status with is_active: false', async () => {
+      const data = makeStatus({ is_active: false })
       mockGet.mockResolvedValue(data)
       const { fetchStatus } = useMaintenance()
       await fetchStatus()
       expect(maintenanceStore.status).toEqual(data)
     })
 
-    it('isEnabled reflects the direct shape is_enabled field', async () => {
-      mockGet.mockResolvedValue(makeStatus({ is_enabled: true }))
+    it('isEnabled reflects the is_active field', async () => {
+      mockGet.mockResolvedValue(makeStatus({ is_active: true }))
       const { fetchStatus } = useMaintenance()
       await fetchStatus()
       expect(maintenanceStore.isEnabled).toBe(true)
@@ -178,12 +170,11 @@ describe('useMaintenance', () => {
       mockGet.mockRejectedValue({ data: { error: 'Acceso denegado' } })
       const { fetchStatus, error } = useMaintenance()
       await fetchStatus()
-      // fetchStatus silently swallows ALL errors — no error surfacing
       expect(error.value).toBeNull()
     })
 
     it('preserves existing store status when a subsequent fetch fails', async () => {
-      const originalStatus = makeStatus({ is_enabled: false })
+      const originalStatus = makeStatus({ is_active: false })
       mockGet.mockResolvedValueOnce(originalStatus)
       const { fetchStatus } = useMaintenance()
       await fetchStatus()
@@ -191,164 +182,247 @@ describe('useMaintenance', () => {
 
       mockGet.mockRejectedValue(new Error('Network error'))
       await fetchStatus()
-      // Status is NOT cleared on failure
       expect(maintenanceStore.status).toEqual(originalStatus)
     })
   })
 
-  // ── fetchStatus — error cleared on call ──────────────────────
+  // ── activateMaintenance ───────────────────────────────────────
 
-  describe('fetchStatus() — error.value is cleared at the start of each call', () => {
-    it('clears error.value at the beginning of fetchStatus', async () => {
-      // Inject a previous error state by first calling toggleMaintenance which
-      // does surface errors, then verify fetchStatus clears it.
-      mockPut.mockRejectedValue({ message: 'Previous toggle error' })
-      const { fetchStatus, toggleMaintenance, error } = useMaintenance()
-      await toggleMaintenance(true)
-      expect(error.value).not.toBeNull()
-
-      mockGet.mockResolvedValue(makeStatus())
-      await fetchStatus()
-      expect(error.value).toBeNull()
-    })
-  })
-
-  // ── toggleMaintenance — envelope shape ───────────────────────
-
-  describe('toggleMaintenance() — envelope response shape { maintenance: MaintenanceStatus }', () => {
-    it('calls PUT /api/admin/maintenance with { is_enabled: true }', async () => {
-      mockPut.mockResolvedValue({ maintenance: makeStatus({ is_enabled: true }) })
-      const { toggleMaintenance } = useMaintenance()
-      await toggleMaintenance(true)
-      expect(mockPut).toHaveBeenCalledWith('/api/admin/maintenance', { is_enabled: true })
+  describe('activateMaintenance()', () => {
+    it('calls PATCH /api/admin/maintenance/activate with request body', async () => {
+      mockPatch.mockResolvedValue({ message: 'Modo mantenimiento activado' })
+      const { activateMaintenance } = useMaintenance()
+      await activateMaintenance({ message: 'Down for updates' })
+      expect(mockPatch).toHaveBeenCalledWith(
+        '/api/admin/maintenance/activate',
+        { message: 'Down for updates' },
+      )
     })
 
-    it('calls PUT /api/admin/maintenance with { is_enabled: false }', async () => {
-      mockPut.mockResolvedValue({ maintenance: makeStatus({ is_enabled: false }) })
-      const { toggleMaintenance } = useMaintenance()
-      await toggleMaintenance(false)
-      expect(mockPut).toHaveBeenCalledWith('/api/admin/maintenance', { is_enabled: false })
+    it('sends estimated_return when provided', async () => {
+      mockPatch.mockResolvedValue({ message: 'Modo mantenimiento activado' })
+      const { activateMaintenance } = useMaintenance()
+      await activateMaintenance({
+        message: 'Scheduled maintenance',
+        estimated_return: '2025-06-01T14:00:00Z',
+      })
+      expect(mockPatch).toHaveBeenCalledWith(
+        '/api/admin/maintenance/activate',
+        { message: 'Scheduled maintenance', estimated_return: '2025-06-01T14:00:00Z' },
+      )
     })
 
-    it('stores the maintenance field from the envelope', async () => {
-      const data = makeStatus({ is_enabled: true, message: 'Now active' })
-      mockPut.mockResolvedValue({ maintenance: data })
-      const { toggleMaintenance } = useMaintenance()
-      await toggleMaintenance(true)
-      expect(maintenanceStore.status).toEqual(data)
+    it('optimistically updates store with is_active: true after success', async () => {
+      mockPatch.mockResolvedValue({ message: 'Modo mantenimiento activado' })
+      const { activateMaintenance } = useMaintenance()
+      await activateMaintenance({ message: 'Down' })
+      expect(maintenanceStore.status?.is_active).toBe(true)
+    })
+
+    it('stores the message in optimistic update', async () => {
+      mockPatch.mockResolvedValue({ message: 'Modo mantenimiento activado' })
+      const { activateMaintenance } = useMaintenance()
+      await activateMaintenance({ message: 'Custom message' })
+      expect(maintenanceStore.status?.message).toBe('Custom message')
+    })
+
+    it('stores estimated_return in optimistic update', async () => {
+      mockPatch.mockResolvedValue({ message: 'ok' })
+      const { activateMaintenance } = useMaintenance()
+      await activateMaintenance({
+        message: 'Down',
+        estimated_return: '2025-06-01T14:00:00Z',
+      })
+      expect(maintenanceStore.status?.estimated_return).toBe('2025-06-01T14:00:00Z')
+    })
+
+    it('sets activated_at in optimistic update', async () => {
+      mockPatch.mockResolvedValue({ message: 'ok' })
+      const { activateMaintenance } = useMaintenance()
+      await activateMaintenance({ message: 'Down' })
+      expect(maintenanceStore.status?.activated_at).toBeDefined()
     })
 
     it('does not set error.value on success', async () => {
-      mockPut.mockResolvedValue({ maintenance: makeStatus({ is_enabled: true }) })
-      const { toggleMaintenance, error } = useMaintenance()
-      await toggleMaintenance(true)
+      mockPatch.mockResolvedValue({ message: 'ok' })
+      const { activateMaintenance, error } = useMaintenance()
+      await activateMaintenance({ message: 'Down' })
       expect(error.value).toBeNull()
     })
 
-    it('stores full envelope payload with all optional fields', async () => {
-      const data: MaintenanceStatus = {
-        is_enabled: true,
-        message: 'Scheduled maintenance',
-        updated_at: '2025-06-01T08:00:00Z',
-        updated_by: 'superadmin',
-      }
-      mockPut.mockResolvedValue({ maintenance: data })
-      const { toggleMaintenance } = useMaintenance()
-      await toggleMaintenance(true)
-      expect(maintenanceStore.status).toEqual(data)
-    })
-  })
-
-  // ── toggleMaintenance — direct shape ─────────────────────────
-
-  describe('toggleMaintenance() — direct response shape MaintenanceStatus', () => {
-    it('stores the response directly when no maintenance wrapper present', async () => {
-      const data = makeStatus({ is_enabled: false })
-      mockPut.mockResolvedValue(data)
-      const { toggleMaintenance } = useMaintenance()
-      await toggleMaintenance(false)
-      expect(maintenanceStore.status).toEqual(data)
-    })
-
-    it('isEnabled reflects the updated direct shape', async () => {
-      mockPut.mockResolvedValue(makeStatus({ is_enabled: true }))
-      const { toggleMaintenance } = useMaintenance()
-      await toggleMaintenance(true)
+    it('isEnabled becomes true after activation', async () => {
+      mockPatch.mockResolvedValue({ message: 'ok' })
+      const { activateMaintenance } = useMaintenance()
+      await activateMaintenance({ message: 'Down' })
       expect(maintenanceStore.isEnabled).toBe(true)
     })
   })
 
-  // ── toggleMaintenance — loading lifecycle ────────────────────
+  // ── activateMaintenance — loading lifecycle ───────────────────
 
-  describe('toggleMaintenance() — loading lifecycle', () => {
+  describe('activateMaintenance() — loading lifecycle', () => {
     it('sets isLoading to true during the request', async () => {
       const loadingStates: boolean[] = []
-      mockPut.mockImplementation(async () => {
+      mockPatch.mockImplementation(async () => {
         loadingStates.push(maintenanceStore.isLoading)
-        return makeStatus({ is_enabled: true })
+        return { message: 'ok' }
       })
-      const { toggleMaintenance } = useMaintenance()
-      await toggleMaintenance(true)
+      const { activateMaintenance } = useMaintenance()
+      await activateMaintenance({ message: 'Down' })
       expect(loadingStates[0]).toBe(true)
     })
 
     it('sets isLoading to false after the request completes', async () => {
-      mockPut.mockResolvedValue(makeStatus())
-      const { toggleMaintenance } = useMaintenance()
-      await toggleMaintenance(false)
+      mockPatch.mockResolvedValue({ message: 'ok' })
+      const { activateMaintenance } = useMaintenance()
+      await activateMaintenance({ message: 'Down' })
       expect(maintenanceStore.isLoading).toBe(false)
     })
 
-    it('sets isLoading to false even after a PUT failure', async () => {
-      mockPut.mockRejectedValue({ message: 'Server error' })
-      const { toggleMaintenance } = useMaintenance()
-      await toggleMaintenance(true)
+    it('sets isLoading to false even after a failure', async () => {
+      mockPatch.mockRejectedValue({ message: 'Server error' })
+      const { activateMaintenance } = useMaintenance()
+      await activateMaintenance({ message: 'Down' })
       expect(maintenanceStore.isLoading).toBe(false)
     })
   })
 
-  // ── toggleMaintenance — error handling (surfaces errors) ─────
+  // ── activateMaintenance — error handling ──────────────────────
 
-  describe('toggleMaintenance() — error handling', () => {
+  describe('activateMaintenance() — error handling', () => {
     it('sets error.value from { data: { error: "..." } } shape', async () => {
-      mockPut.mockRejectedValue({ data: { error: 'Error de servidor' } })
-      const { toggleMaintenance, error } = useMaintenance()
-      await toggleMaintenance(true)
+      mockPatch.mockRejectedValue({ data: { error: 'Error de servidor' } })
+      const { activateMaintenance, error } = useMaintenance()
+      await activateMaintenance({ message: 'Down' })
       expect(error.value).toBe('Error de servidor')
     })
 
     it('sets error.value from { data: "string" } shape', async () => {
-      mockPut.mockRejectedValue({ data: 'Forbidden' })
-      const { toggleMaintenance, error } = useMaintenance()
-      await toggleMaintenance(true)
+      mockPatch.mockRejectedValue({ data: 'Forbidden' })
+      const { activateMaintenance, error } = useMaintenance()
+      await activateMaintenance({ message: 'Down' })
       expect(error.value).toBe('Forbidden')
     })
 
     it('sets error.value from { message: "..." } shape', async () => {
-      mockPut.mockRejectedValue({ message: 'Network error' })
-      const { toggleMaintenance, error } = useMaintenance()
-      await toggleMaintenance(true)
+      mockPatch.mockRejectedValue({ message: 'Network error' })
+      const { activateMaintenance, error } = useMaintenance()
+      await activateMaintenance({ message: 'Down' })
       expect(error.value).toBe('Network error')
     })
 
     it('falls back to generic error message for unknown error shape', async () => {
-      mockPut.mockRejectedValue('plain string error')
-      const { toggleMaintenance, error } = useMaintenance()
-      await toggleMaintenance(true)
+      mockPatch.mockRejectedValue('plain string error')
+      const { activateMaintenance, error } = useMaintenance()
+      await activateMaintenance({ message: 'Down' })
       expect(error.value).toBe('Ocurrió un error inesperado. Intenta de nuevo.')
     })
 
-    it('falls back to generic message for null rejection', async () => {
-      mockPut.mockRejectedValue(null)
-      const { toggleMaintenance, error } = useMaintenance()
-      await toggleMaintenance(true)
+    it('does not update the store status when PATCH fails', async () => {
+      mockPatch.mockRejectedValue({ message: 'Server error' })
+      const { activateMaintenance } = useMaintenance()
+      await activateMaintenance({ message: 'Down' })
+      expect(maintenanceStore.status).toBeNull()
+    })
+  })
+
+  // ── deactivateMaintenance ─────────────────────────────────────
+
+  describe('deactivateMaintenance()', () => {
+    it('calls PATCH /api/admin/maintenance/deactivate with empty body', async () => {
+      mockPatch.mockResolvedValue({ message: 'Modo mantenimiento desactivado' })
+      const { deactivateMaintenance } = useMaintenance()
+      await deactivateMaintenance()
+      expect(mockPatch).toHaveBeenCalledWith(
+        '/api/admin/maintenance/deactivate',
+        {},
+      )
+    })
+
+    it('optimistically updates store with is_active: false after success', async () => {
+      // Start with active state
+      maintenanceStore.setStatus(makeStatus({ is_active: true, message: 'Down' }))
+
+      mockPatch.mockResolvedValue({ message: 'ok' })
+      const { deactivateMaintenance } = useMaintenance()
+      await deactivateMaintenance()
+      expect(maintenanceStore.status?.is_active).toBe(false)
+    })
+
+    it('isEnabled becomes false after deactivation', async () => {
+      maintenanceStore.setStatus(makeStatus({ is_active: true }))
+
+      mockPatch.mockResolvedValue({ message: 'ok' })
+      const { deactivateMaintenance } = useMaintenance()
+      await deactivateMaintenance()
+      expect(maintenanceStore.isEnabled).toBe(false)
+    })
+
+    it('does not set error.value on success', async () => {
+      mockPatch.mockResolvedValue({ message: 'ok' })
+      const { deactivateMaintenance, error } = useMaintenance()
+      await deactivateMaintenance()
+      expect(error.value).toBeNull()
+    })
+  })
+
+  // ── deactivateMaintenance — loading lifecycle ─────────────────
+
+  describe('deactivateMaintenance() — loading lifecycle', () => {
+    it('sets isLoading to true during the request', async () => {
+      const loadingStates: boolean[] = []
+      mockPatch.mockImplementation(async () => {
+        loadingStates.push(maintenanceStore.isLoading)
+        return { message: 'ok' }
+      })
+      const { deactivateMaintenance } = useMaintenance()
+      await deactivateMaintenance()
+      expect(loadingStates[0]).toBe(true)
+    })
+
+    it('sets isLoading to false after the request completes', async () => {
+      mockPatch.mockResolvedValue({ message: 'ok' })
+      const { deactivateMaintenance } = useMaintenance()
+      await deactivateMaintenance()
+      expect(maintenanceStore.isLoading).toBe(false)
+    })
+
+    it('sets isLoading to false even after a failure', async () => {
+      mockPatch.mockRejectedValue({ message: 'Server error' })
+      const { deactivateMaintenance } = useMaintenance()
+      await deactivateMaintenance()
+      expect(maintenanceStore.isLoading).toBe(false)
+    })
+  })
+
+  // ── deactivateMaintenance — error handling ────────────────────
+
+  describe('deactivateMaintenance() — error handling', () => {
+    it('sets error.value from { data: { error: "..." } } shape', async () => {
+      mockPatch.mockRejectedValue({ data: { error: 'Error de servidor' } })
+      const { deactivateMaintenance, error } = useMaintenance()
+      await deactivateMaintenance()
+      expect(error.value).toBe('Error de servidor')
+    })
+
+    it('sets error.value from { message: "..." } shape', async () => {
+      mockPatch.mockRejectedValue({ message: 'Network error' })
+      const { deactivateMaintenance, error } = useMaintenance()
+      await deactivateMaintenance()
+      expect(error.value).toBe('Network error')
+    })
+
+    it('falls back to generic error for null rejection', async () => {
+      mockPatch.mockRejectedValue(null)
+      const { deactivateMaintenance, error } = useMaintenance()
+      await deactivateMaintenance()
       expect(error.value).toBe('Ocurrió un error inesperado. Intenta de nuevo.')
     })
 
-    it('does not update the store status when PUT fails', async () => {
-      mockPut.mockRejectedValue({ message: 'Server error' })
-      const { toggleMaintenance } = useMaintenance()
-      await toggleMaintenance(true)
+    it('does not update the store status when PATCH fails', async () => {
+      mockPatch.mockRejectedValue({ message: 'Server error' })
+      const { deactivateMaintenance } = useMaintenance()
+      await deactivateMaintenance()
       expect(maintenanceStore.status).toBeNull()
     })
   })
@@ -361,34 +435,43 @@ describe('useMaintenance', () => {
       expect(error.value).toBeNull()
     })
 
-    it('is cleared at the start of toggleMaintenance regardless of previous error', async () => {
-      mockPut.mockRejectedValue({ message: 'First error' })
-      const { toggleMaintenance, error } = useMaintenance()
-      await toggleMaintenance(true)
+    it('is cleared at the start of activateMaintenance regardless of previous error', async () => {
+      mockPatch.mockRejectedValue({ message: 'First error' })
+      const { activateMaintenance, error } = useMaintenance()
+      await activateMaintenance({ message: 'Down' })
       expect(error.value).toBe('First error')
 
-      mockPut.mockResolvedValue(makeStatus({ is_enabled: false }))
-      await toggleMaintenance(false)
+      mockPatch.mockResolvedValue({ message: 'ok' })
+      await activateMaintenance({ message: 'Down again' })
+      expect(error.value).toBeNull()
+    })
+
+    it('is cleared at the start of deactivateMaintenance', async () => {
+      mockPatch.mockRejectedValue({ message: 'First error' })
+      const { activateMaintenance, deactivateMaintenance, error } = useMaintenance()
+      await activateMaintenance({ message: 'Down' })
+      expect(error.value).not.toBeNull()
+
+      mockPatch.mockResolvedValue({ message: 'ok' })
+      await deactivateMaintenance()
       expect(error.value).toBeNull()
     })
 
     it('is cleared at the start of fetchStatus', async () => {
-      // Start with a known error via toggleMaintenance
-      mockPut.mockRejectedValue({ message: 'Toggle error' })
-      const { fetchStatus, toggleMaintenance, error } = useMaintenance()
-      await toggleMaintenance(true)
+      mockPatch.mockRejectedValue({ message: 'Toggle error' })
+      const { fetchStatus, activateMaintenance, error } = useMaintenance()
+      await activateMaintenance({ message: 'Down' })
       expect(error.value).not.toBeNull()
 
-      // fetchStatus clears it even if GET also fails (silently)
       mockGet.mockRejectedValue(new Error('403'))
       await fetchStatus()
       expect(error.value).toBeNull()
     })
 
-    it('is null after a successful toggleMaintenance call', async () => {
-      mockPut.mockResolvedValue(makeStatus({ is_enabled: true }))
-      const { toggleMaintenance, error } = useMaintenance()
-      await toggleMaintenance(true)
+    it('is null after a successful activateMaintenance call', async () => {
+      mockPatch.mockResolvedValue({ message: 'ok' })
+      const { activateMaintenance, error } = useMaintenance()
+      await activateMaintenance({ message: 'Down' })
       expect(error.value).toBeNull()
     })
 

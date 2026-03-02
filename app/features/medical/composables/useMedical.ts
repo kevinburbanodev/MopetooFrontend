@@ -6,11 +6,11 @@
 // ============================================================
 
 import type { MedicalRecord, CreateMedicalRecordDTO, UpdateMedicalRecordDTO } from '../types'
+import { extractErrorMessage } from '../../shared/utils/extractErrorMessage'
 
 export function useMedical() {
   const { get, post, put, del } = useApi()
   const medicalStore = useMedicalStore()
-  const authStore = useAuthStore()
 
   const error = ref<string | null>(null)
 
@@ -28,10 +28,10 @@ export function useMedical() {
         `/api/pets/${petId}/medical-records`,
       )
       if (Array.isArray(response)) {
-        medicalStore.setRecords(response)
+        medicalStore.setRecords(normalizeRecords(response))
       }
       else {
-        medicalStore.setRecords(response.medical_records ?? [])
+        medicalStore.setRecords(normalizeRecords(response.medical_records ?? []))
       }
     }
     catch (err: unknown) {
@@ -46,15 +46,16 @@ export function useMedical() {
    * Fetch a single medical record by id and store it as selectedRecord.
    * Returns the record or null on failure.
    */
-  async function fetchMedicalRecord(petId: string, recordId: string): Promise<MedicalRecord | null> {
+  async function fetchMedicalRecord(recordId: string): Promise<MedicalRecord | null> {
     medicalStore.setLoading(true)
     error.value = null
     try {
       const record = await get<MedicalRecord>(
-        `/api/pets/${petId}/medical-records/${recordId}`,
+        `/api/medical-records/${recordId}`,
       )
-      medicalStore.setSelectedRecord(record)
-      return record
+      const normalized = normalizeRecord(record)
+      medicalStore.setSelectedRecord(normalized)
+      return normalized
     }
     catch (err: unknown) {
       error.value = extractErrorMessage(err)
@@ -77,11 +78,12 @@ export function useMedical() {
     error.value = null
     try {
       const record = await post<MedicalRecord>(
-        `/api/pets/${petId}/medical-records`,
-        data,
+        `/api/medical-records`,
+        { ...data, pet_id: Number(petId) },
       )
-      medicalStore.addRecord(record)
-      return record
+      const normalized = normalizeRecord(record)
+      medicalStore.addRecord(normalized)
+      return normalized
     }
     catch (err: unknown) {
       error.value = extractErrorMessage(err)
@@ -97,7 +99,6 @@ export function useMedical() {
    * Returns the updated record or null on failure.
    */
   async function updateMedicalRecord(
-    petId: string,
     recordId: string,
     data: UpdateMedicalRecordDTO,
   ): Promise<MedicalRecord | null> {
@@ -105,11 +106,18 @@ export function useMedical() {
     error.value = null
     try {
       const record = await put<MedicalRecord>(
-        `/api/pets/${petId}/medical-records/${recordId}`,
+        `/api/medical-records/${recordId}`,
         data,
       )
-      medicalStore.updateRecord(record)
-      return record
+      const normalized = normalizeRecord(record)
+      // Preserve created_at from the existing record in the store
+      // since the backend UpdateMedicalRecordResponse may not include it
+      const existing = medicalStore.getRecordById(recordId)
+      if (existing && !normalized.created_at) {
+        normalized.created_at = existing.created_at
+      }
+      medicalStore.updateRecord(normalized)
+      return normalized
     }
     catch (err: unknown) {
       error.value = extractErrorMessage(err)
@@ -124,11 +132,11 @@ export function useMedical() {
    * Delete a medical record and remove it from the store.
    * Returns true on success, false on failure.
    */
-  async function deleteMedicalRecord(petId: string, recordId: string): Promise<boolean> {
+  async function deleteMedicalRecord(recordId: string): Promise<boolean> {
     medicalStore.setLoading(true)
     error.value = null
     try {
-      await del<void>(`/api/pets/${petId}/medical-records/${recordId}`)
+      await del<void>(`/api/medical-records/${recordId}`)
       medicalStore.removeRecord(recordId)
       return true
     }
@@ -142,7 +150,8 @@ export function useMedical() {
   }
 
   /**
-   * Export the pet's medical history as a PDF blob and trigger a browser download.
+   * Export the pet's profile (including medical history) as a PDF blob
+   * and trigger a browser download.
    * This is a client-only operation — always guarded by import.meta.client.
    *
    * @param petId - The pet's ID
@@ -154,34 +163,9 @@ export function useMedical() {
     medicalStore.setLoading(true)
     error.value = null
     try {
-      const config = useRuntimeConfig()
-      const baseURL = (config.public.apiBase as string) ?? ''
-      const token = authStore.token
-
-      const response = await $fetch<Blob>(
-        `${baseURL}/api/pets/${petId}/medical-records/export`,
-        {
-          method: 'GET',
-          responseType: 'blob',
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-        },
-      )
-
-      // Construct a safe filename from the pet name
-      const safeName = petName
-        ? petName.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
-        : petId
-      const filename = `historial-medico-${safeName}.pdf`
-
-      // Trigger download via a temporary anchor element
-      const url = window.URL.createObjectURL(response)
-      const anchor = document.createElement('a')
-      anchor.href = url
-      anchor.download = filename
-      document.body.appendChild(anchor)
-      anchor.click()
-      document.body.removeChild(anchor)
-      window.URL.revokeObjectURL(url)
+      const { downloadPDF, slugify } = useExportPDF()
+      const slug = petName ? slugify(petName) : petId
+      await downloadPDF(`/api/pets/${petId}/export`, `historial-medico-${slug}.pdf`)
     }
     catch (err: unknown) {
       error.value = extractErrorMessage(err)
@@ -205,18 +189,11 @@ export function useMedical() {
 
 // ── Helpers ─────────────────────────────────────────────────
 
-function extractErrorMessage(err: unknown): string {
-  if (typeof err === 'object' && err !== null) {
-    if ('data' in err) {
-      const data = (err as { data: unknown }).data
-      if (typeof data === 'object' && data !== null && 'error' in data) {
-        return String((data as { error: unknown }).error)
-      }
-      if (typeof data === 'string' && data.length > 0) return data
-    }
-    if ('message' in err && typeof (err as { message: unknown }).message === 'string') {
-      return (err as { message: string }).message
-    }
-  }
-  return 'Ocurrió un error inesperado. Intenta de nuevo.'
+function normalizeRecord(record: MedicalRecord): MedicalRecord {
+  return { ...record, id: String(record.id), pet_id: String(record.pet_id) }
 }
+
+function normalizeRecords(records: MedicalRecord[]): MedicalRecord[] {
+  return records.map(normalizeRecord)
+}
+

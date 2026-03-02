@@ -1,10 +1,10 @@
 <script setup lang="ts">
 // AdminDashboard — KPI statistics overview for the admin panel.
-// Fetches platform stats on mount and renders them as a grid of
-// KPI cards. Revenue is formatted as COP currency. Includes a
-// quick-navigation list-group to all admin sub-sections.
+// Fetches platform stats via useStats().fetchOverview() and renders
+// them as a grid of KPI cards. Revenue is formatted as COP currency.
+// Includes a quick-navigation list-group to all admin sub-sections.
 
-const { fetchStats, error, adminStore } = useAdmin()
+const { fetchOverview, error, statsStore } = useStats()
 
 // ── Currency / number formatters (SSR-safe — no window access) ─
 
@@ -28,17 +28,17 @@ interface KpiCard {
 }
 
 const kpiRow1: KpiCard[] = [
-  { icon: '👥', label: 'Usuarios', value: () => adminStore.stats?.total_users ?? 0, color: 'primary' },
-  { icon: '🐾', label: 'Mascotas', value: () => adminStore.stats?.total_pets ?? 0, color: 'success' },
-  { icon: '🏠', label: 'Refugios', value: () => adminStore.stats?.total_shelters ?? 0, color: 'info' },
-  { icon: '🏥', label: 'Clínicas', value: () => adminStore.stats?.total_clinics ?? 0, color: 'warning' },
+  { icon: '👥', label: 'Usuarios registrados', value: () => statsStore.overview?.users.total ?? 0, color: 'primary' },
+  { icon: '🐾', label: 'Mascotas registradas', value: () => statsStore.overview?.content.total_pets ?? 0, color: 'success' },
+  { icon: '🏠', label: 'Refugios activos', value: () => statsStore.overview?.shelters.active ?? 0, color: 'info' },
+  { icon: '🏥', label: 'Clínicas registradas', value: () => statsStore.overview?.clinics.total ?? 0, color: 'warning' },
 ]
 
 const kpiRow2: KpiCard[] = [
-  { icon: '🛍️', label: 'Tiendas', value: () => adminStore.stats?.total_stores ?? 0, color: 'secondary' },
-  { icon: '🐶', label: 'Adopciones', value: () => adminStore.stats?.total_adoptions ?? 0, color: 'success' },
-  { icon: '⭐', label: 'Suscripciones PRO', value: () => adminStore.stats?.total_pro_subscriptions ?? 0, color: 'warning' },
-  { icon: '💝', label: 'Donaciones', value: () => adminStore.stats?.total_donations ?? 0, color: 'danger' },
+  { icon: '🛍️', label: 'Tiendas pet-friendly', value: () => statsStore.overview?.stores.total ?? 0, color: 'secondary' },
+  { icon: '🐶', label: 'Adopciones procesadas', value: () => statsStore.overview?.content.active_adoption_listings ?? 0, color: 'success' },
+  { icon: '⭐', label: 'Suscripciones PRO', value: () => statsStore.overview?.users.pro_active ?? 0, color: 'warning' },
+  { icon: '💝', label: 'Donaciones realizadas', value: () => statsStore.overview?.donations_cop.total_count ?? 0, color: 'danger' },
 ]
 
 // ── Quick navigation links ──────────────────────────────────
@@ -54,7 +54,7 @@ const quickNavLinks = [
 // ── Lifecycle ──────────────────────────────────────────────
 
 onMounted(async () => {
-  await fetchStats()
+  await fetchOverview()
 })
 </script>
 
@@ -72,7 +72,7 @@ onMounted(async () => {
 
     <!-- Loading skeleton -->
     <div
-      v-if="adminStore.isLoading && !adminStore.hasStats"
+      v-if="statsStore.isLoading && !statsStore.hasOverview"
       aria-busy="true"
       aria-label="Cargando estadísticas"
     >
@@ -92,7 +92,7 @@ onMounted(async () => {
     </div>
 
     <!-- KPI cards -->
-    <template v-else-if="adminStore.hasStats">
+    <template v-else-if="statsStore.hasOverview">
       <!-- Row 1: Usuarios, Mascotas, Refugios, Clínicas -->
       <div class="row g-4 mb-4">
         <div
@@ -153,10 +153,10 @@ onMounted(async () => {
               <div class="admin-revenue-card__icon fs-1" aria-hidden="true">📅</div>
               <div>
                 <div class="text-muted small fw-semibold text-uppercase mb-1" style="letter-spacing: 0.04em;">
-                  Ingresos del mes
+                  Ingresos del periodo
                 </div>
                 <div class="h4 fw-bold text-success mb-0">
-                  {{ formatCOP(adminStore.stats!.revenue_month) }}
+                  {{ formatCOP(statsStore.overview!.revenue_cop.in_period) }}
                 </div>
               </div>
             </div>
@@ -171,7 +171,7 @@ onMounted(async () => {
                   Ingresos totales
                 </div>
                 <div class="h4 fw-bold text-primary mb-0">
-                  {{ formatCOP(adminStore.stats!.revenue_total) }}
+                  {{ formatCOP(statsStore.overview!.revenue_cop.total_accumulated) }}
                 </div>
               </div>
             </div>
@@ -209,7 +209,7 @@ onMounted(async () => {
 
     <!-- Empty / error state — no stats yet and not loading -->
     <div
-      v-else-if="!adminStore.isLoading"
+      v-else-if="!statsStore.isLoading"
       class="text-center py-5"
     >
       <div class="fs-1" aria-hidden="true">📊</div>
@@ -220,7 +220,7 @@ onMounted(async () => {
       <button
         type="button"
         class="btn btn-primary"
-        @click="fetchStats"
+        @click="fetchOverview"
       >
         Reintentar
       </button>

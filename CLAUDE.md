@@ -20,19 +20,19 @@ npm run test:coverage    # Single run with coverage report
 **Config:** `vitest.config.ts` at project root (environment: `nuxt`, `globals: true`, `env.NUXT_PUBLIC_API_BASE` set to avoid `useRuntimeConfig` mock pitfalls)
 **Colocation rule:** test files live next to the source file inside the feature slice.
 **Status:**
-- Auth feature slice (RF-001–RF-009): 85 tests (store 41, composable 36, auth middleware 4, guest middleware 4)
-- Pets feature slice (RF-100–RF-109): 244 tests (store 44, usePets 63, usePetAge 17, PetAvatar 21, PetCard 22, PetList 16, PetForm 32, PetDetail 29)
-- Reminders feature slice (RF-200–RF-209): 256 tests (store 44, useReminders 75, ReminderCard 26, ReminderList 29, ReminderForm 46) ✅
+- Auth feature slice (RF-001–RF-009): 90 tests (store 42, composable 40, auth middleware 4, guest middleware 4) ✅ — multi-entity updateProfile/deleteAccount, JWT user_id number
+- Pets feature slice (RF-100–RF-109): 255 tests (store 40, usePets 64, usePetAge 8, PetAvatar 22, PetCard 24, PetList 19, PetForm 48, PetDetail 30) ✅ — createPet photo required, pending ref removed
+- Reminders feature slice (RF-200–RF-209): 228 tests (store 53, useReminders 57, ReminderCard 25, ReminderList 38, ReminderForm 55) ✅ — IDs normalized to string
 - Medical feature slice (RF-300–RF-309): 273 tests (store 44, useMedical 65, MedicalRecordCard 38, MedicalHistory 31, MedicalRecordForm 86) ✅
-- Export/PDF slice (RF-400–RF-409): 24 tests (useExportPDF 24) ✅ — exportProfilePDF tests in usePets, exportRemindersPDF tests in useReminders
-- Shelters slice (RF-500–RF-509): 252 tests (store 65, useShelters 67, ShelterCard 21, ShelterList 25, AdoptionPetCard 35, AdoptionDetail 39) ✅
-- Blog slice (RF-600–RF-609): 208 tests (store 44, useBlog 60, BlogCategoryFilter 18, BlogCard 24, BlogList 28, BlogArticle 34) ✅
-- Petshops slice (RF-700–RF-709): 187 tests (store 44, usePetshops 60, PetshopCard 26, PetshopList 37, PetshopDetail 40) ✅
-- Pro/Monetización slice (RF-800–RF-809): 216 tests (store 44, usePro 60, ProBanner 22, PricingTable 30, ProUpgradeModal 26, DonationForm 34) ✅
-- Clinics slice (RF-900–RF-909): 178 tests (store 42, useClinics 37, ClinicCard 34, ClinicList 29, ClinicDetail 35) ✅
-- Admin slice (RF-1000–RF-1009): 327 tests (store 75, useAdmin 76, AdminDashboard 27, AdminUserManager 31, AdminShelterManager 27, AdminStoreManager 27, AdminClinicManager 29, AdminTransactionLog 28, admin middleware 7) ✅
-- Stats slice (RF-1100–RF-1109): 165 tests (store 37, useStats 45, StatsOverview 27, StatsChart 22, RevenueReport 20, ActivityLog 34) ✅
-- Maintenance slice (RF-1200–RF-1209): 163 tests (store 32, useMaintenance 37, MaintenancePage 18, MaintenanceToggle 52, maintenance middleware 24) ✅
+- Export/PDF slice (RF-400–RF-409): 25 tests (useExportPDF 25) ✅ — maintenance header detection added; exportProfilePDF tests in usePets, exportRemindersPDF tests in useReminders
+- Shelters slice (RF-500–RF-509): 157 tests (store 35, useShelters 35, ShelterList 22, AdoptionPetCard 25, AdoptionDetail 40) ✅
+- Blog slice (RF-600–RF-609): 147 tests (store 34, useBlog 26, BlogCategoryFilter 20, BlogCard 16, BlogList 27, BlogArticle 24) ✅ — synced with backend model.BlogPost
+- Petshops slice (RF-700–RF-709): 203 tests (store 49, usePetshops 45, PetshopCard 29, PetshopList 38, PetshopDetail 42) ✅ — getPremiumPetshops filters plan === 'featured'; plan typed as union
+- Pro/Monetización slice (RF-800–RF-809): 157 tests (store 24, usePro 38, ProBanner 23, PricingTable 16, ProUpgradeModal 19, DonationForm 37) ✅ — donate(shelterId: number); SubscribeRequest removed
+- Clinics slice (RF-900–RF-909): 186 tests (store 43, useClinics 36, ClinicCard 36, ClinicList 30, ClinicDetail 41) ✅ — synced with backend model.Clinic
+- Admin slice (RF-1000–RF-1009): 330 tests (store 60, useAdmin 85, AdminDashboard 28, AdminUserManager 34, AdminShelterManager 27, AdminStoreManager 27, AdminClinicManager 34, AdminTransactionLog 28, admin middleware 7) ✅ — synced with backend PATCH endpoints (no PUT/DELETE)
+- Stats slice (RF-1100–RF-1109): 117 tests (store 31, useStats 25, StatsOverview 26, StatsChart 14, RevenueReport 21) ✅ — synced with backend nested StatsOverview + RevenueStats; ActivityLog removed (fabricated endpoint)
+- Maintenance slice (RF-1200–RF-1209): 187 tests (store 33, useMaintenance 47, MaintenancePage 18, MaintenanceToggle 65, maintenance middleware 24) ✅ — synced with backend activate/deactivate PATCH endpoints
 
 ## Architecture
 
@@ -50,13 +50,13 @@ app/features/
 ├── pets/            # Pet profile CRUD
 ├── reminders/       # Reminder CRUD
 ├── medical/         # Medical record CRUD
-├── shelters/        # Shelter directory & adoption pets (public + auth)
+├── shelters/        # Adoption listings directory & detail (public + auth)
 ├── blog/            # Blog editorial (public: listing + article detail)
 ├── petshops/        # Pet-friendly stores directory (public: listing + detail)
 ├── pro/             # Monetización: PRO subscriptions, pricing table, donations (RF-800–RF-809)
 ├── clinics/         # Veterinary clinics directory (public: listing + detail) (RF-900–RF-909)
 ├── admin/           # Admin panel: stats, user/shelter/store/clinic management, transactions (RF-1000–RF-1009)
-├── stats/           # Statistics & metrics: KPI overview, revenue chart/table, activity log (RF-1100–RF-1109)
+├── stats/           # Statistics & metrics: KPI overview (nested), revenue chart/table (RF-1100–RF-1109)
 └── maintenance/     # Maintenance mode: toggle (admin), page, x-maintenance header detection (RF-1200–RF-1209)
 ```
 
@@ -88,14 +88,14 @@ This means `useApi()`, `useAuth()`, `useAuthStore()`, etc. are available in any 
 | `usePetsStore` | `pets[]`, `selectedPet`, `isLoading` |
 | `useRemindersStore` | `reminders[]`, `selectedReminder`, `isLoading` |
 | `useMedicalStore` | `records[]`, `selectedRecord`, `isLoading` |
-| `useSheltersStore` | `shelters[]`, `selectedShelter`, `adoptionPets[]`, `selectedAdoptionPet`, `isLoading` |
-| `useBlogStore` | `posts[]`, `selectedPost`, `categories[]`, `isLoading`, `currentPage`, `totalPages`, `total` |
-| `usePetshopsStore` | `petshops[]`, `selectedPetshop`, `isLoading` |
-| `useProStore` | `subscription`, `plans[]`, `isLoading`, `isSubscribed`, `getMonthlyPlan`, `getAnnualPlan` |
-| `useClinicsStore` | `clinics[]`, `selectedClinic`, `isLoading`, `hasClinics`, `getFeaturedClinics` |
-| `useAdminStore` | `stats`, `users[]`, `shelters[]`, `petshops[]`, `clinics[]`, `transactions[]`, `selectedUser`, `isLoading`, total-count refs, `hasStats`, `hasUsers` |
-| `useStatsStore` | `overview`, `revenueData[]`, `activityEntries[]`, `totalActivity`, `isLoading`, `hasOverview`, `hasRevenueData`, `hasActivity` |
-| `useMaintenanceStore` | `status` (MaintenanceStatus \| null), `isLoading`, `isEnabled` (computed), `hasStatus` (computed) |
+| `useSheltersStore` | `adoptionListings[]`, `selectedListing`, `isLoading`, `hasAdoptionListings`, `getAvailableListings` |
+| `useBlogStore` | `posts[]`, `selectedPost`, `isLoading`, `hasPosts`, `getPostBySlug` |
+| `usePetshopsStore` | `petshops[]`, `selectedPetshop`, `storeProducts[]`, `isLoading`, `hasPetshops`, `getPremiumPetshops` |
+| `useProStore` | `subscription`, `isLoading`, `isSubscribed` |
+| `useClinicsStore` | `clinics[]`, `selectedClinic`, `isLoading`, `hasClinics`, `getPremiumClinics` |
+| `useAdminStore` | `users[]`, `selectedUser`, `shelters[]`, `petshops[]`, `clinics[]`, `transactions[]`, `donations[]`, `isLoading`, total-count refs (Users/Shelters/Petshops/Clinics/Transactions/Donations), `hasUsers` |
+| `useStatsStore` | `overview`, `revenueData[]`, `revenueStats`, `isLoading`, `hasOverview`, `hasRevenueData`, `hasRevenueStats` |
+| `useMaintenanceStore` | `status` (MaintenanceStatus \| null), `isLoading`, `isEnabled` (computed from `status.is_active`), `hasStatus` (computed) |
 
 Token is persisted to `localStorage` under key `mopetoo_token`. The auth store exposes `setSession()`, `clearSession()`, and `restoreFromStorage()`.
 
@@ -222,10 +222,14 @@ Any change to token storage or auth flow warrants a security review.
 
 **Mocking notes for pro slice:**
 - `usePro` composable: mock via `vi.mock('../composables/usePro', () => ({ usePro: () => ({ ... }) }))` with reactive refs for `error`, `proStore.*`
-- Bootstrap `Modal` JS: stub with `vi.mock('bootstrap', () => ({ Modal: { getOrCreateInstance: vi.fn(() => ({ show: vi.fn(), hide: vi.fn() })) } }))` in `ProUpgradeModal` tests
-- `createCheckoutSession` tests: mock `import.meta.client` as `true` (default in happy-dom); stub `navigateTo` via `mockNuxtImport('navigateTo', ...)`
+- Bootstrap `Modal` JS: stub with `vi.mock('bootstrap', () => ({ Modal: vi.fn(() => ({ show: vi.fn(), hide: vi.fn() })) }))` in `ProUpgradeModal` tests
+- Plans are constants (`PRO_PLANS` in `types/index.ts`) — no fetch, no loading, no empty state tests needed
+- `subscribe(plan: PlanValue)` replaces `createCheckoutSession()` — calls `POST /api/users/${userId}/subscribe`, redirects via hidden form POST to PayU
+- PayU form redirect testing: `vi.spyOn(HTMLFormElement.prototype, 'submit').mockImplementation(mockFormSubmit)` to verify form submission without navigation
 - `DonationForm` auth gate: form is wrapped in `<ClientOnly>` — mount first with `isAuthenticated: true` in `createTestingPinia`, then `await nextTick()` to see form render
-- Security fix: `donate()` in `usePro.ts` validates `shelter_id` against `/^[\w-]{1,64}$/` before API call — test invalid IDs return null with error
+- `DonationForm` redirect state: `isRedirecting` ref replaces inline success state — shows "Redirigiendo al pago..." + spinner after successful donate
+- Security fix: `donate()` in `usePro.ts` validates `shelterId` is a positive integer before API call — test 0, negative, and non-integer IDs return null with error
+- `subscribe()` validates HTTPS on `checkout_url` — test `http://` URLs return null with security error
 
 **Mocking notes for pets and reminders slices:**
 - `useApi` is a project composable — mock via `vi.mock('../../shared/composables/useApi', ...)`, NOT `mockNuxtImport`
@@ -234,33 +238,36 @@ Any change to token storage or auth flow warrants a security review.
 - `URL.createObjectURL` / `URL.revokeObjectURL` must be spied on via `vi.spyOn(URL, 'createObjectURL')` — do NOT replace the entire `URL` global or Nuxt internals break
 - `NuxtLink` should be stubbed via `global.stubs: { NuxtLink: true }` in component tests
 - Resetting select filters to null: use clearFilters button click, not `setValue(null)` (happy-dom limitation)
-- `Pet.id` is `string`; `Reminder.pet_id` is `number` — compare with `String(pet_id) === pet.id`
+- `Pet.id` is `string`; `Reminder.id` and `Reminder.pet_id` are `string` (normalized from backend `number` via `normalizeReminder()`)
 - `AdoptionDetail` adoption form is wrapped in `<ClientOnly>` — in tests, set `isAuthenticated: true` via `createTestingPinia` and verify the form renders after client hydration
-- `AdoptionPetCard` passes `?shelterId=` query param in its NuxtLink href — verify with `wrapper.find('a').attributes('href')`
+- `AdoptionPetCard` link format is `/shelter/adoptions/${listing.id}` (no shelterId query param)
 - **Auth store reset across tests (critical):** `setActivePinia(createPinia())` in `beforeEach` does NOT reset the Nuxt test env's auth store. Explicitly reset with: `const { useAuthStore } = await import('../../auth/stores/auth.store'); useAuthStore().token = null`
 - **Mount-first, then set token:** Setting `useAuthStore().token` BEFORE `mountSuspended` does NOT work. Mount first, then set token, then `await nextTick()` to trigger re-render of auth-conditional DOM
 - **Form submit in happy-dom:** `wrapper.find('button[type="submit"]').trigger('click')` does NOT propagate to `@submit.prevent`. Use `await wrapper.find('form').trigger('submit')` instead
 - **NuxtLink href assertions:** `{ NuxtLink: false }` or `{ NuxtLink: true }` stubs do not produce plain `<a href>`. Use a custom stub: `{ NuxtLink: { template: '<a :href="to"><slot /></a>', props: ['to'] } }`
 
 **Mocking notes for admin slice:**
-- `useAdmin` composable: mock at module level with reactive refs (`mockStats`, `mockUsers`, `mockShelters`, `mockPetshops`, `mockClinics`, `mockTransactions`, `mockIsLoading`, `mockError`) — canonical pattern from clinics/petshops slices
+- `useAdmin` composable: mock at module level with `reactive()` for store state and `ref()` for error — canonical pattern from clinics/petshops slices
 - `admin.ts` middleware test: same `vi.hoisted()` + `mockNuxtImport('navigateTo', ...)` + `vi.resetModules()` pattern as `auth.test.ts`
-- 2-step delete confirmation: `confirmingDeleteId` ref — first button click sets id, second click calls `deleteUser/deleteShelter/deletePetshop/deleteAdminClinic`. Test both steps independently.
-- Toggle PRO/Admin: click "Dar PRO" → `updateUser(id, { is_pro: true })`; click "Quitar PRO" → `updateUser(id, { is_pro: false })`. Same for Admin/Verificado/Destacado toggles.
-- Self-protection guard: "Quitar Admin" and "Eliminar" buttons are disabled when `user.id === authStore.currentUser.id`. Set `currentUser: { id: 1, is_admin: true }` in `createTestingPinia` and use `user.id = 1` to verify `disabled` attribute.
-- KPI card skeleton: 8 skeleton cards with `aria-busy="true"` visible when `isLoading=true` and no stats loaded yet.
-- Transaction type badges: `subscription` → `.bg-primary`; `donation` → `.bg-success`. Status badges: `completed` → `.bg-success`; `pending` → `.bg-warning`; `failed` → `.bg-danger`; `refunded` → `.bg-secondary`.
-- Transaction log is read-only: assert no Eliminar, Verificar, or Destacar buttons rendered.
+- **AdminDashboard uses `useStats`**: mock `../../stats/composables/useStats` (not `useAdmin`) for KPIs. Overview is nested: `overview.users.total`, `overview.content.total_pets`, `overview.revenue_cop.in_period`, etc. Stub `MaintenanceToggle` component.
+- **No DELETE/PUT endpoints in backend**: All mutations use specific PATCH endpoints (grant-pro, revoke-pro, grant-admin, revoke-admin, activate, deactivate, verify, plan). No 2-step delete confirmation.
+- Toggle PRO: click "Dar PRO" → `grantPro(id, 'pro_monthly')`; click "Quitar PRO" → `revokePro(id)`. Admin: `grantAdmin(id)` / `revokeAdmin(id)`. Activate/Deactivate: `activateUser(id)` / `deactivateUser(id)`.
+- Self-protection guard: "Quitar Admin" and "Desactivar" buttons are disabled when `user.id === authStore.currentUser.id`. Set `currentEntity: { id: 99, is_admin: true }` in `createTestingPinia` and use `user.id = 99` to verify `disabled` attribute.
+- KPI card skeleton: 8 skeleton cards with `aria-busy="true"` visible when `statsStore.isLoading=true` and `!statsStore.hasOverview`.
+- Transaction status badges: `approved` → `.bg-success`; `pending` → `.bg-warning`; `declined` → `.bg-danger`; `error` → `.bg-secondary`. No type column (transactions and donations are separate endpoints).
+- Store plan badges: `featured` → `.bg-warning`; `free` → `.bg-secondary`. Clinic plan: `pro` → `.bg-info`; `free` → `.bg-secondary`.
+- All entity IDs are `number` (not string). All pagination uses `limit` (not `per_page`).
 
 **Mocking notes for maintenance slice:**
-- `useMaintenance` composable: mock at module level with reactive refs (`mockFetchStatus`, `mockToggleMaintenance`, `mockError = ref(null)`, `mockMaintenanceStore = reactive({...})`) — same canonical pattern as stats/clinics slices
+- `useMaintenance` composable: mock at module level with reactive refs (`mockFetchStatus`, `mockActivateMaintenance`, `mockDeactivateMaintenance`, `mockError = ref(null)`, `mockMaintenanceStore = reactive({...})`) — same canonical pattern as stats/clinics slices
 - `maintenance.ts` middleware: same `vi.hoisted()` + `mockNuxtImport('navigateTo', ...)` + `vi.resetModules()` pattern as `admin.test.ts`
-- **Critical**: `maintenanceStore.isEnabled` is a computed from `status.is_enabled`. In `createTestingPinia`, set `maintenance: { status: { is_enabled: true } }` (NOT `maintenance: { isEnabled: true }`) to control the state
+- **Critical**: `maintenanceStore.isEnabled` is a computed from `status.is_active` (NOT `is_enabled`). In `createTestingPinia`, set `maintenance: { status: { is_active: true } }` to control the state
 - Middleware also reads `useAuthStore` — both stores must be set in `initialState` when testing the middleware: `{ auth: { token, currentUser }, maintenance: { status } }`
 - `fetchStatus()` fails **silently** (no `error.value` set) — test that `error.value` stays `null` after API rejection
-- `toggleMaintenance()` **surfaces** errors — test all three error shapes: `{ data: { error: 'msg' } }`, `{ message: 'msg' }`, and fallback generic message
+- `activateMaintenance(request)` takes `{ message, estimated_return? }` and calls `PATCH /api/admin/maintenance/activate`. `deactivateMaintenance()` calls `PATCH /api/admin/maintenance/deactivate` with no body. Both surface errors.
+- Maintenance status fields: `is_active` (not `is_enabled`), `activated_at` (not `updated_at`), `activated_by_admin_id` (number, not `updated_by` string), `estimated_return` (ISO-8601 optional)
 - `MaintenancePage` is a pure presentational component — no composable mock needed; use `mountSuspended` with NuxtLink stub
-- `MaintenanceToggle` calls `fetchStatus()` on mount — ensure `mockFetchStatus` is a `vi.fn()` that resolves immediately to prevent accidental store mutations
+- `MaintenanceToggle` calls `fetchStatus()` on mount — ensure `mockFetchStatus` is a `vi.fn()` that resolves immediately to prevent accidental store mutations. Toggle shows activation form (message input + estimated return input) when confirming enable.
 
 Invoke this agent for any new feature slice tests.
 

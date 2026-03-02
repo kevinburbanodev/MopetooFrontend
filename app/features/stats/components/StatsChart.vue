@@ -1,15 +1,15 @@
 <script setup lang="ts">
-// StatsChart — monthly revenue bar chart using CSS progress bars.
+// StatsChart — revenue bar chart using CSS progress bars.
 // No external chart library required — rendered with Bootstrap progress
 // bars proportional to the maximum value in the dataset.
-// Supports three metrics: total, subscriptions, donations.
+// Uses RevenueSeriesPoint with a single `revenue` metric.
 
-import type { RevenueDataPoint } from '../types'
+import type { RevenueSeriesPoint } from '../types'
 
 // ── Props ─────────────────────────────────────────────────────
 
 interface Props {
-  data: RevenueDataPoint[]
+  data: RevenueSeriesPoint[]
   isLoading?: boolean
 }
 
@@ -17,32 +17,15 @@ const props = withDefaults(defineProps<Props>(), {
   isLoading: false,
 })
 
-// ── Metric selector ───────────────────────────────────────────
-
-type MetricKey = 'total' | 'subscriptions' | 'donations'
-
-const activeMetric = ref<MetricKey>('total')
-
-const metrics: { key: MetricKey; label: string; colorClass: string }[] = [
-  { key: 'total', label: 'Total', colorClass: 'bg-primary' },
-  { key: 'subscriptions', label: 'Suscripciones', colorClass: 'bg-info' },
-  { key: 'donations', label: 'Donaciones', colorClass: 'bg-success' },
-]
-
-const activeColorClass = computed(
-  () => metrics.find(m => m.key === activeMetric.value)?.colorClass ?? 'bg-primary',
-)
-
 // ── Bar chart computations ─────────────────────────────────────
 
 const maxValue = computed(() => {
   if (!props.data.length) return 1
-  return Math.max(...props.data.map(d => d[activeMetric.value]), 1)
+  return Math.max(...props.data.map(d => d.revenue), 1)
 })
 
-function barPercent(point: RevenueDataPoint): number {
-  const val = point[activeMetric.value]
-  return Math.round((val / maxValue.value) * 100)
+function barPercent(point: RevenueSeriesPoint): number {
+  return Math.round((point.revenue / maxValue.value) * 100)
 }
 
 // ── Formatters ────────────────────────────────────────────────
@@ -57,42 +40,22 @@ function formatCOP(amount: number): string {
   return copFormatter.format(amount)
 }
 
-function formatMonthLabel(month: string): string {
-  // month = "YYYY-MM"
+function formatDateLabel(date: string): string {
   try {
-    const [year, m] = month.split('-')
-    const date = new Date(Number(year), Number(m) - 1, 1)
-    return new Intl.DateTimeFormat('es-ES', { month: 'short', year: '2-digit' }).format(date)
+    const parts = date.split('-')
+    const d = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2] ?? 1))
+    return new Intl.DateTimeFormat('es-ES', { month: 'short', year: '2-digit' }).format(d)
   } catch {
-    return month
+    return date
   }
 }
 </script>
 
 <template>
   <section aria-label="Gráfico de ingresos por mes">
-    <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
-      <h2 class="h5 fw-bold mb-0">
-        <span aria-hidden="true">📈</span> Ingresos por Mes
-      </h2>
-      <!-- Metric toggle -->
-      <div
-        class="btn-group btn-group-sm"
-        role="group"
-        aria-label="Seleccionar métrica de ingresos"
-      >
-        <button
-          v-for="metric in metrics"
-          :key="metric.key"
-          type="button"
-          class="btn"
-          :class="activeMetric === metric.key ? 'btn-primary' : 'btn-outline-secondary'"
-          @click="activeMetric = metric.key"
-        >
-          {{ metric.label }}
-        </button>
-      </div>
-    </div>
+    <h2 class="h5 fw-bold mb-3">
+      <span aria-hidden="true">📈</span> Ingresos por Mes
+    </h2>
 
     <!-- Loading skeleton -->
     <div
@@ -117,15 +80,15 @@ function formatMonthLabel(month: string): string {
     <div v-else-if="data.length > 0">
       <div
         v-for="point in data"
-        :key="point.month"
+        :key="point.date"
         class="mb-3"
       >
         <div class="d-flex align-items-center gap-3">
           <div
-            class="chart__month-label text-muted small fw-semibold text-end"
+            class="chart__date-label text-muted small fw-semibold text-end"
             style="min-width: 3.5rem;"
           >
-            {{ formatMonthLabel(point.month) }}
+            {{ formatDateLabel(point.date) }}
           </div>
           <div
             class="progress flex-grow-1"
@@ -134,11 +97,10 @@ function formatMonthLabel(month: string): string {
             :aria-valuenow="barPercent(point)"
             aria-valuemin="0"
             aria-valuemax="100"
-            :aria-label="`${formatMonthLabel(point.month)}: ${formatCOP(point[activeMetric])}`"
+            :aria-label="`${formatDateLabel(point.date)}: ${formatCOP(point.revenue)}`"
           >
             <div
-              class="progress-bar"
-              :class="activeColorClass"
+              class="progress-bar bg-primary"
               :style="`width: ${barPercent(point)}%`"
             />
           </div>
@@ -146,7 +108,7 @@ function formatMonthLabel(month: string): string {
             class="chart__amount text-muted small fw-semibold text-end"
             style="min-width: 6rem;"
           >
-            {{ formatCOP(point[activeMetric]) }}
+            {{ formatCOP(point.revenue) }}
           </div>
         </div>
       </div>

@@ -2,8 +2,10 @@
 // ProUpgradeModal — Bootstrap 5 modal for upgrading to PRO.
 // Controlled externally via v-model (modelValue: boolean).
 //
+// Plans are hardcoded constants (PRO_PLANS) — no fetch, no loading skeleton.
+//
 // Lifecycle:
-//  - When modelValue flips to true → fetch plans if not loaded → show modal
+//  - When modelValue flips to true → show modal
 //  - When modelValue flips to false → hide modal
 //  - Bootstrap modal "hidden.bs.modal" event → emit update:modelValue(false)
 //    so the parent v-model stays in sync when user closes via Esc / backdrop.
@@ -12,7 +14,7 @@
 // SSR errors. The modal DOM element is a standard Bootstrap 5 structure —
 // no Teleport, modal JS handles focus trapping natively.
 
-import type { ProPlan } from '../types'
+import { PRO_PLANS, type ProPlanDef, type PlanValue } from '../types'
 
 const props = defineProps<{
   /** Controls visibility — bind with v-model. */
@@ -23,13 +25,15 @@ const emit = defineEmits<{
   'update:modelValue': [value: boolean]
 }>()
 
-const { fetchPlans, createCheckoutSession, error, proStore } = usePro()
+const { subscribe, error } = usePro()
 
 // ── Plan selection ────────────────────────────────────────
-const selectedPlanId = ref<string | null>(null)
+const selectedPlan = ref<PlanValue>(
+  PRO_PLANS.find(p => p.is_popular)?.value ?? PRO_PLANS[0].value,
+)
 
-const monthlyPlan = computed(() => proStore.getMonthlyPlan)
-const annualPlan = computed(() => proStore.getAnnualPlan)
+const monthlyPlan = computed(() => PRO_PLANS.find(p => p.interval === 'monthly'))
+const annualPlan = computed(() => PRO_PLANS.find(p => p.interval === 'annual'))
 
 /**
  * Percentage discount of annual vs monthly (based on total annual cost vs 12 * monthly).
@@ -44,18 +48,6 @@ const annualSavingsPercent = computed<number | null>(() => {
   return Math.round(((annualEquivalent - a.price) / annualEquivalent) * 100)
 })
 
-// Pre-select the popular plan (annual) or monthly as fallback
-watch(
-  () => proStore.plans,
-  (plans) => {
-    if (plans.length > 0 && !selectedPlanId.value) {
-      const popular = plans.find(p => p.is_popular)
-      selectedPlanId.value = popular?.id ?? plans[0]?.id ?? null
-    }
-  },
-  { immediate: true },
-)
-
 // ── Bootstrap modal instance ──────────────────────────────
 // Typed as unknown to avoid importing bootstrap types at module scope.
 // The instance is created lazily on first open.
@@ -63,10 +55,6 @@ let modalInstance: unknown = null
 const modalRef = useTemplateRef<HTMLElement>('modalEl')
 
 async function openModal(): Promise<void> {
-  // Fetch plans if the store has none yet
-  if (!proStore.hasPlans) {
-    await fetchPlans()
-  }
   if (!import.meta.client) return
   // Lazy-import Bootstrap Modal — avoids including Bootstrap JS in SSR bundle.
   const { Modal } = await import('bootstrap')
@@ -104,26 +92,23 @@ const isCheckingOut = ref(false)
 const checkoutError = ref<string | null>(null)
 
 async function handleCheckout(): Promise<void> {
-  if (!selectedPlanId.value || isCheckingOut.value) return
+  if (!selectedPlan.value || isCheckingOut.value) return
   isCheckingOut.value = true
   checkoutError.value = null
   error.value = null
 
-  const session = await createCheckoutSession(selectedPlanId.value)
+  const result = await subscribe(selectedPlan.value)
   isCheckingOut.value = false
 
-  if (!session) {
-    // createCheckoutSession sets error.value on failure
+  if (!result) {
+    // subscribe sets error.value on failure
     checkoutError.value = error.value ?? 'No se pudo iniciar el proceso de pago.'
   }
-  // On success, navigateTo inside createCheckoutSession has already redirected
-  // the user to Stripe — no further action needed here.
+  // On success, submitPayUForm inside subscribe has already redirected
+  // the user to PayU — no further action needed here.
 }
 
-function formatPrice(plan: ProPlan): string {
-  // Use Intl.NumberFormat for locale-aware number formatting.
-  // Currency label appended manually since the backend provides the currency
-  // code and we want to avoid locale-currency mismatch.
+function formatPrice(plan: ProPlanDef): string {
   try {
     const formatted = new Intl.NumberFormat('es-CO', {
       style: 'currency',
@@ -169,29 +154,8 @@ function formatPrice(plan: ProPlan): string {
 
         <!-- Body -->
         <div class="modal-body pt-3 pb-2">
-          <!-- Loading plans skeleton -->
+          <!-- Plan cards (always available — PRO_PLANS constant) -->
           <div
-            v-if="proStore.isLoading && !proStore.hasPlans"
-            class="row g-3"
-            aria-busy="true"
-            aria-label="Cargando planes"
-          >
-            <div v-for="n in 2" :key="n" class="col-12 col-sm-6">
-              <div class="card border-2 h-100 p-3" aria-hidden="true">
-                <div class="skeleton-pulse rounded mb-2 pro-modal-skeleton__title" />
-                <div class="skeleton-pulse rounded mb-3 pro-modal-skeleton__price" />
-                <div
-                  v-for="i in 4"
-                  :key="i"
-                  class="skeleton-pulse rounded mb-2 pro-modal-skeleton__line"
-                />
-              </div>
-            </div>
-          </div>
-
-          <!-- Plan cards -->
-          <div
-            v-else-if="proStore.hasPlans"
             class="row g-3"
             role="group"
             aria-label="Selecciona un plan PRO"
@@ -202,13 +166,13 @@ function formatPrice(plan: ProPlan): string {
                 type="button"
                 :class="[
                   'card border-2 h-100 w-100 text-start pro-modal__plan-card',
-                  selectedPlanId === monthlyPlan.id
+                  selectedPlan === monthlyPlan.value
                     ? 'border-primary pro-modal__plan-card--selected'
                     : 'border-secondary-subtle',
                 ]"
-                :aria-pressed="selectedPlanId === monthlyPlan.id"
+                :aria-pressed="selectedPlan === monthlyPlan.value"
                 :aria-label="`Seleccionar plan ${monthlyPlan.name}`"
-                @click="selectedPlanId = monthlyPlan.id"
+                @click="selectedPlan = monthlyPlan.value"
               >
                 <div class="card-body p-4">
                   <h3 class="h6 fw-bold text-muted text-uppercase mb-1" style="letter-spacing: 0.06em;">
@@ -238,13 +202,13 @@ function formatPrice(plan: ProPlan): string {
                 type="button"
                 :class="[
                   'card border-2 h-100 w-100 text-start pro-modal__plan-card position-relative',
-                  selectedPlanId === annualPlan.id
+                  selectedPlan === annualPlan.value
                     ? 'border-primary pro-modal__plan-card--selected'
                     : 'border-secondary-subtle',
                 ]"
-                :aria-pressed="selectedPlanId === annualPlan.id"
+                :aria-pressed="selectedPlan === annualPlan.value"
                 :aria-label="`Seleccionar plan ${annualPlan.name}`"
-                @click="selectedPlanId = annualPlan.id"
+                @click="selectedPlan = annualPlan.value"
               >
                 <!-- "Más popular" badge -->
                 <div
@@ -287,15 +251,6 @@ function formatPrice(plan: ProPlan): string {
             </div>
           </div>
 
-          <!-- No plans (API error or empty catalogue) -->
-          <div
-            v-else-if="!proStore.isLoading"
-            class="text-center py-4 text-muted"
-          >
-            <span class="fs-2" aria-hidden="true">📋</span>
-            <p class="mt-2 mb-0 small">No se pudieron cargar los planes. Intenta de nuevo.</p>
-          </div>
-
           <!-- Checkout error -->
           <div
             v-if="checkoutError"
@@ -319,7 +274,7 @@ function formatPrice(plan: ProPlan): string {
           <button
             type="button"
             class="btn btn-primary fw-semibold px-4"
-            :disabled="!selectedPlanId || isCheckingOut || proStore.isLoading"
+            :disabled="!selectedPlan || isCheckingOut"
             :aria-busy="isCheckingOut"
             aria-label="Continuar al proceso de pago"
             @click="handleCheckout"
@@ -376,47 +331,6 @@ function formatPrice(plan: ProPlan): string {
     font-size: 0.7rem;
     letter-spacing: 0.04em;
     padding: 0.3em 0.6em;
-  }
-}
-
-// ── Skeleton shimmer ──────────────────────────────────────────
-.skeleton-pulse {
-  background: linear-gradient(
-    90deg,
-    var(--bs-secondary-bg) 25%,
-    var(--bs-tertiary-bg, #e8e8e8) 50%,
-    var(--bs-secondary-bg) 75%
-  );
-  background-size: 200% 100%;
-  animation: skeleton-shimmer 1.4s ease-in-out infinite;
-
-  @media (prefers-reduced-motion: reduce) {
-    animation: none;
-    background: var(--bs-secondary-bg);
-  }
-}
-
-@keyframes skeleton-shimmer {
-  0% { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
-}
-
-.pro-modal-skeleton {
-  &__title {
-    height: 0.85rem;
-    width: 55%;
-  }
-
-  &__price {
-    height: 2rem;
-    width: 70%;
-  }
-
-  &__line {
-    height: 0.75rem;
-    width: 100%;
-
-    &:last-child { width: 80%; }
   }
 }
 </style>

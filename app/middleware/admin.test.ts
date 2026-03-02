@@ -44,7 +44,7 @@ describe('admin middleware', () => {
       setActivePinia(
         createTestingPinia({
           initialState: {
-            auth: { token: null, currentUser: null },
+            auth: { token: null, currentEntity: null },
           },
         }),
       )
@@ -70,7 +70,8 @@ describe('admin middleware', () => {
           initialState: {
             auth: {
               token: 'jwt.test.token',
-              currentUser: { id: 1, is_admin: false },
+              currentEntity: { id: 1, is_admin: false },
+              entityType: 'user',
             },
           },
         }),
@@ -103,7 +104,8 @@ describe('admin middleware', () => {
           initialState: {
             auth: {
               token: 'admin.jwt.token',
-              currentUser: { id: 1, is_admin: true },
+              currentEntity: { id: 1, is_admin: true },
+              entityType: 'user',
             },
           },
         }),

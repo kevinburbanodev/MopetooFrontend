@@ -5,17 +5,17 @@
 // Strategy: mountSuspended resolves Nuxt auto-imports. The component
 // calls useBlog() which internally calls useApi() and useBlogStore().
 // We mock useBlog at the composable boundary so we can control
-// the store state and stub fetchPosts / fetchCategories without
-// making HTTP calls.
+// the store state and stub fetchPosts without making HTTP calls.
 //
 // Key design points:
-//   - On mount, fetchCategories() and fetchPosts() are called in parallel.
+//   - On mount, fetchPosts() is called (no fetchCategories — categories are hardcoded).
+//   - BlogCategoryFilter always visible (uses BLOG_CATEGORIES constant).
 //   - While isLoading is true and no posts exist: skeleton cards (SKELETON_COUNT=6).
 //   - When posts are empty post-load: "El blog está en construcción" empty state.
 //   - When posts are loaded: BlogCard per post + result count.
-//   - Client-side search filters on title, excerpt, author name, tag.
-//   - "Cargar más" button shown only when currentPage < totalPages and no search active.
-//   - BlogCategoryFilter shown only when hasCategories is true.
+//   - Client-side search filters on title and content only (no author/tags).
+//   - Client-side category filter (no re-fetch).
+//   - No pagination — backend returns all posts at once.
 //   - Error alert shown when error ref is non-null.
 //   - "Limpiar" button in search input clears the query.
 //
@@ -24,64 +24,40 @@
 //   - The mock exposes reactive refs and store state the component reads directly.
 //
 // Stub naming:
-//   - Vue Test Utils creates lowercase hyphenated element names from PascalCase stubs.
-//     BlogCard: true → <blog-card-stub>
-//     BlogCategoryFilter: true → <blog-category-filter-stub>
-//   - For counting rendered items, we use custom template stubs with known CSS classes
-//     (mirrors the ShelterList test pattern) so that findAll('.blog-card-stub') works
-//     correctly regardless of Vue stub naming conventions.
+//   - Custom template stubs with known CSS classes so findAll works predictably.
 //
 // What this suite does NOT cover intentionally:
 //   - CSS animations or SCSS styles.
 //   - Category server-side filtering (tested in useBlog.test.ts).
-//   - "Limpiar búsqueda" button inside the "Sin resultados" empty state reuses
-//     the same clearSearch function — verified via the search input "Limpiar" tests.
 // ============================================================
 
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { mountSuspended } from '@nuxt/test-utils/runtime'
 import { ref } from 'vue'
 import BlogList from './BlogList.vue'
-import type { BlogPost, BlogCategory } from '../types'
+import type { BlogPost } from '../types'
 
 // ── Fixtures ─────────────────────────────────────────────────
 
-function makeBlogCategory(overrides: Partial<BlogCategory> = {}): BlogCategory {
-  return {
-    id: 'cat-1',
-    slug: 'salud',
-    name: 'Salud',
-    post_count: 5,
-    ...overrides,
-  }
-}
-
 function makeBlogPost(overrides: Partial<BlogPost> = {}): BlogPost {
   return {
-    id: 'post-1',
+    id: 1,
     slug: 'cuidado-perros',
     title: 'Cuidado de perros en verano',
-    excerpt: 'Consejos para mantener a tu perro fresco durante el verano.',
     content: 'Párrafo uno.\nPárrafo dos.',
-    featured_image: 'https://example.com/image.jpg',
-    author: {
-      id: 'author-1',
-      name: 'Ana García',
-      avatar: 'https://example.com/avatar.jpg',
-    },
-    category: makeBlogCategory(),
-    tags: ['perros', 'verano', 'salud'],
+    cover_image_url: 'https://example.com/image.jpg',
+    category: 'salud',
+    published: true,
     published_at: '2025-06-15T10:00:00Z',
+    created_at: '2025-06-15T10:00:00Z',
     updated_at: '2025-06-15T10:00:00Z',
-    reading_time_minutes: 5,
-    is_published: true,
     ...overrides,
   }
 }
 
-const postA = makeBlogPost({ id: 'post-1', title: 'Cuidado de perros en verano', tags: ['perros'] })
-const postB = makeBlogPost({ id: 'post-2', slug: 'nutricion-gatos', title: 'Nutrición para gatos', excerpt: 'Todo sobre la dieta felina.', author: { id: 'a2', name: 'Carlos López', avatar: undefined }, tags: ['gatos', 'nutricion'] })
-const postC = makeBlogPost({ id: 'post-3', slug: 'vacunas-mascotas', title: 'Vacunas para mascotas', tags: ['salud', 'vacunas'] })
+const postA = makeBlogPost({ id: 1, title: 'Cuidado de perros en verano', category: 'salud' })
+const postB = makeBlogPost({ id: 2, slug: 'nutricion-gatos', title: 'Nutrición para gatos', content: 'Todo sobre la dieta felina.', category: 'nutricion' })
+const postC = makeBlogPost({ id: 3, slug: 'vacunas-mascotas', title: 'Vacunas para mascotas', category: 'cuidados' })
 
 // ── Stubs ─────────────────────────────────────────────────────
 // Custom template stubs with known CSS classes so that findAll works
@@ -91,33 +67,20 @@ const BlogCardStub = { template: '<div class="blog-card-stub" />' }
 const BlogCategoryFilterStub = { template: '<div class="blog-category-filter-stub" />' }
 
 // ── useBlog mock ──────────────────────────────────────────────
-// We mock the composable so we can control store state and stub
-// fetch functions without real HTTP calls.
 
 const mockFetchPosts = vi.fn()
-const mockFetchCategories = vi.fn()
 const mockError = ref<string | null>(null)
 const mockPosts = ref<BlogPost[]>([])
-const mockCategories = ref<BlogCategory[]>([])
 const mockIsLoading = ref(false)
-const mockCurrentPage = ref(1)
-const mockTotalPages = ref(1)
 
 vi.mock('../composables/useBlog', () => ({
   useBlog: () => ({
     fetchPosts: mockFetchPosts,
-    fetchCategories: mockFetchCategories,
     error: mockError,
     blogStore: {
-      // Expose reactive state the component reads directly.
-      // Plain JS getters returning ref.value — readable inside Vue computed.
       get posts() { return mockPosts.value },
-      get categories() { return mockCategories.value },
       get isLoading() { return mockIsLoading.value },
-      get currentPage() { return mockCurrentPage.value },
-      get totalPages() { return mockTotalPages.value },
       get hasPosts() { return mockPosts.value.length > 0 },
-      get hasCategories() { return mockCategories.value.length > 0 },
     },
   }),
 }))
@@ -128,26 +91,14 @@ describe('BlogList', () => {
   beforeEach(() => {
     mockFetchPosts.mockReset()
     mockFetchPosts.mockResolvedValue(undefined)
-    mockFetchCategories.mockReset()
-    mockFetchCategories.mockResolvedValue(undefined)
     mockError.value = null
     mockPosts.value = []
-    mockCategories.value = []
     mockIsLoading.value = false
-    mockCurrentPage.value = 1
-    mockTotalPages.value = 1
   })
 
   // ── On mount ───────────────────────────────────────────────
 
   describe('on mount', () => {
-    it('calls fetchCategories on mount', async () => {
-      await mountSuspended(BlogList, {
-        global: { stubs: { NuxtLink: true, BlogCard: BlogCardStub, BlogCategoryFilter: BlogCategoryFilterStub } },
-      })
-      expect(mockFetchCategories).toHaveBeenCalledOnce()
-    })
-
     it('calls fetchPosts on mount', async () => {
       await mountSuspended(BlogList, {
         global: { stubs: { NuxtLink: true, BlogCard: BlogCardStub, BlogCategoryFilter: BlogCategoryFilterStub } },
@@ -155,18 +106,36 @@ describe('BlogList', () => {
       expect(mockFetchPosts).toHaveBeenCalledOnce()
     })
 
-    it('calls fetchCategories and fetchPosts in the same mount cycle (Promise.all pattern)', async () => {
-      const callOrder: string[] = []
-      mockFetchCategories.mockImplementation(async () => { callOrder.push('categories') })
-      mockFetchPosts.mockImplementation(async () => { callOrder.push('posts') })
-
+    it('does NOT call fetchCategories (no categories endpoint)', async () => {
       await mountSuspended(BlogList, {
         global: { stubs: { NuxtLink: true, BlogCard: BlogCardStub, BlogCategoryFilter: BlogCategoryFilterStub } },
       })
+      // useBlog mock does not expose fetchCategories at all
+      expect(mockFetchPosts).toHaveBeenCalledOnce()
+    })
+  })
 
-      // Both were called — order may vary (parallel), but both must be present
-      expect(callOrder).toContain('categories')
-      expect(callOrder).toContain('posts')
+  // ── BlogCategoryFilter visibility ──────────────────────────
+
+  describe('BlogCategoryFilter visibility', () => {
+    it('always renders BlogCategoryFilter (hardcoded categories)', async () => {
+      mockPosts.value = []
+
+      const wrapper = await mountSuspended(BlogList, {
+        global: { stubs: { NuxtLink: true, BlogCard: BlogCardStub, BlogCategoryFilter: BlogCategoryFilterStub } },
+      })
+
+      expect(wrapper.find('.blog-category-filter-stub').exists()).toBe(true)
+    })
+
+    it('renders BlogCategoryFilter when posts are loaded', async () => {
+      mockPosts.value = [postA]
+
+      const wrapper = await mountSuspended(BlogList, {
+        global: { stubs: { NuxtLink: true, BlogCard: BlogCardStub, BlogCategoryFilter: BlogCategoryFilterStub } },
+      })
+
+      expect(wrapper.find('.blog-category-filter-stub').exists()).toBe(true)
     })
   })
 
@@ -301,32 +270,6 @@ describe('BlogList', () => {
     })
   })
 
-  // ── BlogCategoryFilter visibility ──────────────────────────
-
-  describe('BlogCategoryFilter visibility', () => {
-    it('renders BlogCategoryFilter when hasCategories is true', async () => {
-      mockCategories.value = [makeBlogCategory()]
-      mockPosts.value = [postA]
-
-      const wrapper = await mountSuspended(BlogList, {
-        global: { stubs: { NuxtLink: true, BlogCard: BlogCardStub, BlogCategoryFilter: BlogCategoryFilterStub } },
-      })
-
-      expect(wrapper.find('.blog-category-filter-stub').exists()).toBe(true)
-    })
-
-    it('does NOT render BlogCategoryFilter when hasCategories is false', async () => {
-      mockCategories.value = []
-      mockPosts.value = [postA]
-
-      const wrapper = await mountSuspended(BlogList, {
-        global: { stubs: { NuxtLink: true, BlogCard: BlogCardStub, BlogCategoryFilter: BlogCategoryFilterStub } },
-      })
-
-      expect(wrapper.find('.blog-category-filter-stub').exists()).toBe(false)
-    })
-  })
-
   // ── Client-side search ─────────────────────────────────────
 
   describe('client-side search', () => {
@@ -352,7 +295,7 @@ describe('BlogList', () => {
       expect(wrapper.findAll('.blog-card-stub')).toHaveLength(1)
     })
 
-    it('filters posts by excerpt match', async () => {
+    it('filters posts by content match', async () => {
       mockPosts.value = [postA, postB, postC]
 
       const wrapper = await mountSuspended(BlogList, {
@@ -361,32 +304,6 @@ describe('BlogList', () => {
 
       await wrapper.find('input[type="search"]').setValue('dieta felina')
 
-      expect(wrapper.findAll('.blog-card-stub')).toHaveLength(1)
-    })
-
-    it('filters posts by author name match', async () => {
-      mockPosts.value = [postA, postB, postC]
-
-      const wrapper = await mountSuspended(BlogList, {
-        global: { stubs: { NuxtLink: true, BlogCard: BlogCardStub, BlogCategoryFilter: BlogCategoryFilterStub } },
-      })
-
-      await wrapper.find('input[type="search"]').setValue('carlos')
-
-      // Only postB has author 'Carlos López'
-      expect(wrapper.findAll('.blog-card-stub')).toHaveLength(1)
-    })
-
-    it('filters posts by tag match', async () => {
-      mockPosts.value = [postA, postB, postC]
-
-      const wrapper = await mountSuspended(BlogList, {
-        global: { stubs: { NuxtLink: true, BlogCard: BlogCardStub, BlogCategoryFilter: BlogCategoryFilterStub } },
-      })
-
-      await wrapper.find('input[type="search"]').setValue('vacunas')
-
-      // Only postC has the 'vacunas' tag
       expect(wrapper.findAll('.blog-card-stub')).toHaveLength(1)
     })
 
@@ -457,66 +374,6 @@ describe('BlogList', () => {
 
       // After clearing, all 3 posts should render again
       expect(wrapper.findAll('.blog-card-stub')).toHaveLength(3)
-    })
-  })
-
-  // ── "Cargar más" button ────────────────────────────────────
-
-  describe('"Cargar más" button', () => {
-    it('shows "Cargar más" button when currentPage < totalPages and no active search', async () => {
-      mockPosts.value = [postA, postB]
-      mockCurrentPage.value = 1
-      mockTotalPages.value = 3
-
-      const wrapper = await mountSuspended(BlogList, {
-        global: { stubs: { NuxtLink: true, BlogCard: BlogCardStub, BlogCategoryFilter: BlogCategoryFilterStub } },
-      })
-
-      expect(wrapper.text()).toContain('Cargar más artículos')
-    })
-
-    it('hides "Cargar más" button when currentPage >= totalPages', async () => {
-      mockPosts.value = [postA, postB]
-      mockCurrentPage.value = 3
-      mockTotalPages.value = 3
-
-      const wrapper = await mountSuspended(BlogList, {
-        global: { stubs: { NuxtLink: true, BlogCard: BlogCardStub, BlogCategoryFilter: BlogCategoryFilterStub } },
-      })
-
-      expect(wrapper.text()).not.toContain('Cargar más artículos')
-    })
-
-    it('hides "Cargar más" button when a search query is active', async () => {
-      mockPosts.value = [postA, postB, postC]
-      mockCurrentPage.value = 1
-      mockTotalPages.value = 3
-
-      const wrapper = await mountSuspended(BlogList, {
-        global: { stubs: { NuxtLink: true, BlogCard: BlogCardStub, BlogCategoryFilter: BlogCategoryFilterStub } },
-      })
-
-      await wrapper.find('input[type="search"]').setValue('perros')
-
-      expect(wrapper.text()).not.toContain('Cargar más artículos')
-    })
-
-    it('clicking "Cargar más" calls fetchPosts', async () => {
-      mockPosts.value = [postA, postB]
-      mockCurrentPage.value = 1
-      mockTotalPages.value = 3
-
-      const wrapper = await mountSuspended(BlogList, {
-        global: { stubs: { NuxtLink: true, BlogCard: BlogCardStub, BlogCategoryFilter: BlogCategoryFilterStub } },
-      })
-
-      // Find the "Cargar más artículos" button specifically
-      const loadMoreBtn = wrapper.findAll('button').find(b => b.text().includes('Cargar más'))
-      expect(loadMoreBtn).toBeDefined()
-      await loadMoreBtn!.trigger('click')
-
-      // fetchPosts should have been called at mount (once) + once more for load-more
-      expect(mockFetchPosts.mock.calls.length).toBeGreaterThanOrEqual(2)
     })
   })
 

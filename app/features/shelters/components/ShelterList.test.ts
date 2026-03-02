@@ -1,80 +1,59 @@
 // ============================================================
 // ShelterList.test.ts
-// Tests for the ShelterList component.
+// Tests for the ShelterList component (adoption listings directory).
 //
 // Strategy: mountSuspended resolves Nuxt auto-imports. The component
 // calls useShelters() which internally calls useApi() and useSheltersStore().
 // We mock useShelters at the composable boundary so we can control
-// the store state and stub fetchShelters without making HTTP calls.
-//
-// Key design points:
-//   - On mount, fetchShelters() is called to load the directory.
-//   - While isLoading is true: skeleton cards are shown (SKELETON_COUNT = 6).
-//   - When shelters array is empty (post-load): empty state is shown.
-//   - When shelters are loaded: ShelterCard components are rendered.
-//   - Client-side search (name/city/description) and species filters.
-//   - "Limpiar filtros" button appears only when filters are active.
-//   - Result count is shown when there are results.
-//
-// Mocking:
-//   - useShelters is mocked via vi.mock because it is a project composable
-//     (not a Nuxt auto-import that requires mockNuxtImport).
-//   - The mock exposes a sheltersStore stub with reactive state we control.
-//
-// What this suite does NOT cover intentionally:
-//   - CSS animations or SCSS styles.
-//   - Error alert display — that state comes through the composable's
-//     error ref which is covered in useShelters.test.ts.
+// the store state and stub fetchAdoptionListings without making HTTP calls.
 // ============================================================
 
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { mountSuspended } from '@nuxt/test-utils/runtime'
-import { ref, computed } from 'vue'
+import { ref } from 'vue'
 import ShelterList from './ShelterList.vue'
-import type { Shelter } from '../types'
+import type { AdoptionListing } from '../types'
 
 // ── Fixtures ─────────────────────────────────────────────────
 
-function makeShelter(overrides: Partial<Shelter> = {}): Shelter {
+function makeAdoptionListing(overrides: Partial<AdoptionListing> = {}): AdoptionListing {
   return {
-    id: '1',
-    name: 'Refugio Esperanza',
-    description: 'Un refugio para animales necesitados',
-    location: 'Bogotá, Colombia',
+    id: 1,
+    shelter_id: 1,
+    name: 'Max',
+    species: 'dog',
+    breed: 'Labrador',
+    age: 2,
+    weight: 25.5,
+    gender: 'male',
+    photo_url: 'https://example.com/max.jpg',
+    story: 'Un perro muy cariñoso',
     city: 'Bogotá',
-    address: 'Calle 100 #20-30',
-    phone: '+57 300 000 0000',
-    email: 'info@refugio.com',
-    website: 'https://refugio.com',
-    photo_url: 'https://example.com/shelter.jpg',
-    species: ['dogs', 'cats'],
-    is_verified: true,
+    country: 'Colombia',
+    status: 'available',
     created_at: '2024-01-01T00:00:00Z',
     updated_at: '2024-01-01T00:00:00Z',
     ...overrides,
   }
 }
 
-const shelterA = makeShelter({ id: '1', name: 'Refugio Esperanza', city: 'Bogotá', species: ['dogs', 'cats'], description: 'Refugio grande en Bogotá' })
-const shelterB = makeShelter({ id: '2', name: 'Patitas Felices', city: 'Medellín', species: ['cats'], description: 'Solo gatos en Medellín', is_verified: false })
-const shelterC = makeShelter({ id: '3', name: 'Amigos Peludos', city: 'Cali', species: ['dogs'], description: 'Perros en adopción en Cali', is_verified: false })
+const listingA = makeAdoptionListing({ id: 1, name: 'Max', species: 'dog', city: 'Bogotá' })
+const listingB = makeAdoptionListing({ id: 2, name: 'Luna', species: 'cat', city: 'Medellín' })
+const listingC = makeAdoptionListing({ id: 3, name: 'Toby', species: 'dog', city: 'Cali' })
 
 // ── useShelters mock ──────────────────────────────────────────
-// We mock the composable so we can control the store state
-// and stub fetchShelters without real HTTP calls.
 
-const mockFetchShelters = vi.fn()
+const mockFetchAdoptionListings = vi.fn()
 const mockError = ref<string | null>(null)
-const mockShelters = ref<Shelter[]>([])
+const mockAdoptionListings = ref<AdoptionListing[]>([])
 const mockIsLoading = ref(false)
 
 vi.mock('../composables/useShelters', () => ({
   useShelters: () => ({
-    fetchShelters: mockFetchShelters,
+    fetchAdoptionListings: mockFetchAdoptionListings,
     error: mockError,
     sheltersStore: {
-      // Expose reactive state that the component reads directly
-      get shelters() { return mockShelters.value },
+      get adoptionListings() { return mockAdoptionListings.value },
       get isLoading() { return mockIsLoading.value },
     },
   }),
@@ -84,28 +63,28 @@ vi.mock('../composables/useShelters', () => ({
 
 describe('ShelterList', () => {
   beforeEach(() => {
-    mockFetchShelters.mockReset()
-    mockFetchShelters.mockResolvedValue(undefined)
+    mockFetchAdoptionListings.mockReset()
+    mockFetchAdoptionListings.mockResolvedValue(undefined)
     mockError.value = null
-    mockShelters.value = []
+    mockAdoptionListings.value = []
     mockIsLoading.value = false
   })
 
   // ── On mount ───────────────────────────────────────────────
 
   describe('on mount', () => {
-    it('calls fetchShelters on mount', async () => {
+    it('calls fetchAdoptionListings on mount', async () => {
       await mountSuspended(ShelterList, {
-        global: { stubs: { NuxtLink: true, ShelterCard: true } },
+        global: { stubs: { NuxtLink: true, AdoptionPetCard: true } },
       })
-      expect(mockFetchShelters).toHaveBeenCalledTimes(1)
+      expect(mockFetchAdoptionListings).toHaveBeenCalledTimes(1)
     })
 
-    it('calls fetchShelters with no arguments (no initial filters)', async () => {
+    it('calls fetchAdoptionListings with no arguments', async () => {
       await mountSuspended(ShelterList, {
-        global: { stubs: { NuxtLink: true, ShelterCard: true } },
+        global: { stubs: { NuxtLink: true, AdoptionPetCard: true } },
       })
-      expect(mockFetchShelters).toHaveBeenCalledWith()
+      expect(mockFetchAdoptionListings).toHaveBeenCalledWith()
     })
   })
 
@@ -115,9 +94,8 @@ describe('ShelterList', () => {
     it('shows 6 skeleton cards while isLoading is true', async () => {
       mockIsLoading.value = true
       const wrapper = await mountSuspended(ShelterList, {
-        global: { stubs: { NuxtLink: true, ShelterCard: true } },
+        global: { stubs: { NuxtLink: true, AdoptionPetCard: true } },
       })
-      // Skeleton cards are identified by the aria-hidden="true" on each skeleton article
       const skeletonCards = wrapper.findAll('[aria-hidden="true"]')
       expect(skeletonCards.length).toBeGreaterThanOrEqual(6)
     })
@@ -125,7 +103,7 @@ describe('ShelterList', () => {
     it('renders the loading region with aria-busy="true"', async () => {
       mockIsLoading.value = true
       const wrapper = await mountSuspended(ShelterList, {
-        global: { stubs: { NuxtLink: true, ShelterCard: true } },
+        global: { stubs: { NuxtLink: true, AdoptionPetCard: true } },
       })
       const busyRegion = wrapper.find('[aria-busy="true"]')
       expect(busyRegion.exists()).toBe(true)
@@ -134,112 +112,100 @@ describe('ShelterList', () => {
     it('does not show the empty state while loading', async () => {
       mockIsLoading.value = true
       const wrapper = await mountSuspended(ShelterList, {
-        global: { stubs: { NuxtLink: true, ShelterCard: true } },
+        global: { stubs: { NuxtLink: true, AdoptionPetCard: true } },
       })
-      expect(wrapper.text()).not.toContain('No hay refugios disponibles')
+      expect(wrapper.text()).not.toContain('No hay mascotas en adopción')
     })
   })
 
   // ── Empty state ────────────────────────────────────────────
 
-  describe('empty state (no shelters)', () => {
-    it('shows the "No hay refugios disponibles" heading when shelters is empty', async () => {
-      mockShelters.value = []
+  describe('empty state (no listings)', () => {
+    it('shows the "No hay mascotas en adopción" heading when listings is empty', async () => {
+      mockAdoptionListings.value = []
       const wrapper = await mountSuspended(ShelterList, {
-        global: { stubs: { NuxtLink: true, ShelterCard: true } },
+        global: { stubs: { NuxtLink: true, AdoptionPetCard: true } },
       })
-      expect(wrapper.text()).toContain('No hay refugios disponibles')
+      expect(wrapper.text()).toContain('No hay mascotas en adopción')
     })
 
-    it('does not render shelter cards in the empty state', async () => {
-      mockShelters.value = []
+    it('does not render listing cards in the empty state', async () => {
+      mockAdoptionListings.value = []
       const wrapper = await mountSuspended(ShelterList, {
-        global: { stubs: { NuxtLink: true, ShelterCard: { template: '<div class="shelter-card-stub" />' } } },
+        global: { stubs: { NuxtLink: true, AdoptionPetCard: { template: '<div class="listing-card-stub" />' } } },
       })
-      expect(wrapper.findAll('.shelter-card-stub')).toHaveLength(0)
+      expect(wrapper.findAll('.listing-card-stub')).toHaveLength(0)
     })
   })
 
-  // ── Shelter grid (data loaded) ─────────────────────────────
+  // ── Listing grid (data loaded) ─────────────────────────────
 
-  describe('shelter grid', () => {
-    it('renders a ShelterCard for each shelter', async () => {
-      mockShelters.value = [shelterA, shelterB, shelterC]
+  describe('listing grid', () => {
+    it('renders an AdoptionPetCard for each listing', async () => {
+      mockAdoptionListings.value = [listingA, listingB, listingC]
       const wrapper = await mountSuspended(ShelterList, {
-        global: { stubs: { NuxtLink: true, ShelterCard: { template: '<div class="shelter-card-stub" />' } } },
+        global: { stubs: { NuxtLink: true, AdoptionPetCard: { template: '<div class="listing-card-stub" />' } } },
       })
-      expect(wrapper.findAll('.shelter-card-stub')).toHaveLength(3)
+      expect(wrapper.findAll('.listing-card-stub')).toHaveLength(3)
     })
 
-    it('does not show the empty state when shelters are loaded', async () => {
-      mockShelters.value = [shelterA]
+    it('does not show the empty state when listings are loaded', async () => {
+      mockAdoptionListings.value = [listingA]
       const wrapper = await mountSuspended(ShelterList, {
-        global: { stubs: { NuxtLink: true, ShelterCard: true } },
+        global: { stubs: { NuxtLink: true, AdoptionPetCard: true } },
       })
-      expect(wrapper.text()).not.toContain('No hay refugios disponibles')
+      expect(wrapper.text()).not.toContain('No hay mascotas en adopción')
     })
 
-    it('shows the result count when shelters are loaded', async () => {
-      mockShelters.value = [shelterA, shelterB]
+    it('shows the result count when listings are loaded', async () => {
+      mockAdoptionListings.value = [listingA, listingB]
       const wrapper = await mountSuspended(ShelterList, {
-        global: { stubs: { NuxtLink: true, ShelterCard: true } },
+        global: { stubs: { NuxtLink: true, AdoptionPetCard: true } },
       })
       expect(wrapper.text()).toContain('2')
-      expect(wrapper.text()).toContain('refugios encontrados')
+      expect(wrapper.text()).toContain('mascotas encontradas')
     })
 
-    it('shows singular "refugio encontrado" when exactly 1 result', async () => {
-      mockShelters.value = [shelterA]
+    it('shows singular "mascota encontrada" when exactly 1 result', async () => {
+      mockAdoptionListings.value = [listingA]
       const wrapper = await mountSuspended(ShelterList, {
-        global: { stubs: { NuxtLink: true, ShelterCard: true } },
+        global: { stubs: { NuxtLink: true, AdoptionPetCard: true } },
       })
-      expect(wrapper.text()).toContain('1 refugio encontrado')
+      expect(wrapper.text()).toContain('1 mascota encontrada')
     })
   })
 
   // ── Search filter ──────────────────────────────────────────
 
   describe('search filter', () => {
-    it('filters shelters by name (case-insensitive)', async () => {
-      mockShelters.value = [shelterA, shelterB, shelterC]
+    it('filters listings by name (case-insensitive)', async () => {
+      mockAdoptionListings.value = [listingA, listingB, listingC]
       const wrapper = await mountSuspended(ShelterList, {
-        global: { stubs: { NuxtLink: true, ShelterCard: { template: '<div class="shelter-card-stub" />' } } },
+        global: { stubs: { NuxtLink: true, AdoptionPetCard: { template: '<div class="listing-card-stub" />' } } },
       })
 
       const searchInput = wrapper.find('input[type="search"]')
-      await searchInput.setValue('esperanza')
+      await searchInput.setValue('luna')
 
-      expect(wrapper.findAll('.shelter-card-stub')).toHaveLength(1)
+      expect(wrapper.findAll('.listing-card-stub')).toHaveLength(1)
     })
 
-    it('filters shelters by city (case-insensitive)', async () => {
-      mockShelters.value = [shelterA, shelterB, shelterC]
+    it('filters listings by city (case-insensitive)', async () => {
+      mockAdoptionListings.value = [listingA, listingB, listingC]
       const wrapper = await mountSuspended(ShelterList, {
-        global: { stubs: { NuxtLink: true, ShelterCard: { template: '<div class="shelter-card-stub" />' } } },
+        global: { stubs: { NuxtLink: true, AdoptionPetCard: { template: '<div class="listing-card-stub" />' } } },
       })
 
       const searchInput = wrapper.find('input[type="search"]')
       await searchInput.setValue('medellín')
 
-      expect(wrapper.findAll('.shelter-card-stub')).toHaveLength(1)
+      expect(wrapper.findAll('.listing-card-stub')).toHaveLength(1)
     })
 
-    it('filters shelters by description (case-insensitive)', async () => {
-      mockShelters.value = [shelterA, shelterB, shelterC]
+    it('shows no-results state when search term does not match any listing', async () => {
+      mockAdoptionListings.value = [listingA, listingB]
       const wrapper = await mountSuspended(ShelterList, {
-        global: { stubs: { NuxtLink: true, ShelterCard: { template: '<div class="shelter-card-stub" />' } } },
-      })
-
-      const searchInput = wrapper.find('input[type="search"]')
-      await searchInput.setValue('solo gatos')
-
-      expect(wrapper.findAll('.shelter-card-stub')).toHaveLength(1)
-    })
-
-    it('shows no-results state when search term does not match any shelter', async () => {
-      mockShelters.value = [shelterA, shelterB]
-      const wrapper = await mountSuspended(ShelterList, {
-        global: { stubs: { NuxtLink: true, ShelterCard: true } },
+        global: { stubs: { NuxtLink: true, AdoptionPetCard: true } },
       })
 
       await wrapper.find('input[type="search"]').setValue('xyz no existe')
@@ -248,12 +214,12 @@ describe('ShelterList', () => {
     })
 
     it('shows the "Limpiar filtros" button when a search query is active', async () => {
-      mockShelters.value = [shelterA]
+      mockAdoptionListings.value = [listingA]
       const wrapper = await mountSuspended(ShelterList, {
-        global: { stubs: { NuxtLink: true, ShelterCard: true } },
+        global: { stubs: { NuxtLink: true, AdoptionPetCard: true } },
       })
 
-      await wrapper.find('input[type="search"]').setValue('esperanza')
+      await wrapper.find('input[type="search"]').setValue('max')
 
       expect(wrapper.text()).toContain('Limpiar filtros')
     })
@@ -262,57 +228,27 @@ describe('ShelterList', () => {
   // ── Species filter ─────────────────────────────────────────
 
   describe('species filter', () => {
-    it('filters shelters to only those accepting the selected species', async () => {
-      mockShelters.value = [shelterA, shelterB, shelterC] // A has dogs+cats, B cats only, C dogs only
+    it('filters listings to only those matching the selected species', async () => {
+      mockAdoptionListings.value = [listingA, listingB, listingC] // A=dog, B=cat, C=dog
       const wrapper = await mountSuspended(ShelterList, {
-        global: { stubs: { NuxtLink: true, ShelterCard: { template: '<div class="shelter-card-stub" />' } } },
+        global: { stubs: { NuxtLink: true, AdoptionPetCard: { template: '<div class="listing-card-stub" />' } } },
       })
 
-      const select = wrapper.find('select')
-      await select.setValue('cats')
+      const speciesSelect = wrapper.find('#listing-species')
+      await speciesSelect.setValue('cat')
 
-      // shelterA (dogs+cats) and shelterB (cats only) match
-      expect(wrapper.findAll('.shelter-card-stub')).toHaveLength(2)
+      expect(wrapper.findAll('.listing-card-stub')).toHaveLength(1)
     })
 
-    it('filters shelters to only dogs when "dogs" is selected', async () => {
-      mockShelters.value = [shelterA, shelterB, shelterC] // A has dogs, B does not
+    it('filters to dogs when "dog" is selected', async () => {
+      mockAdoptionListings.value = [listingA, listingB, listingC]
       const wrapper = await mountSuspended(ShelterList, {
-        global: { stubs: { NuxtLink: true, ShelterCard: { template: '<div class="shelter-card-stub" />' } } },
+        global: { stubs: { NuxtLink: true, AdoptionPetCard: { template: '<div class="listing-card-stub" />' } } },
       })
 
-      await wrapper.find('select').setValue('dogs')
+      await wrapper.find('#listing-species').setValue('dog')
 
-      // shelterA (dogs+cats) and shelterC (dogs only) match
-      expect(wrapper.findAll('.shelter-card-stub')).toHaveLength(2)
-    })
-
-    it('shows "Limpiar filtros" when a species filter is active', async () => {
-      mockShelters.value = [shelterA]
-      const wrapper = await mountSuspended(ShelterList, {
-        global: { stubs: { NuxtLink: true, ShelterCard: true } },
-      })
-
-      await wrapper.find('select').setValue('dogs')
-
-      expect(wrapper.text()).toContain('Limpiar filtros')
-    })
-  })
-
-  // ── Combined filters ───────────────────────────────────────
-
-  describe('combined search and species filters', () => {
-    it('applies search and species filters simultaneously', async () => {
-      mockShelters.value = [shelterA, shelterB, shelterC]
-      const wrapper = await mountSuspended(ShelterList, {
-        global: { stubs: { NuxtLink: true, ShelterCard: { template: '<div class="shelter-card-stub" />' } } },
-      })
-
-      // Species "dogs" matches A and C; search "Bogotá" narrows to A only
-      await wrapper.find('select').setValue('dogs')
-      await wrapper.find('input[type="search"]').setValue('Bogotá')
-
-      expect(wrapper.findAll('.shelter-card-stub')).toHaveLength(1)
+      expect(wrapper.findAll('.listing-card-stub')).toHaveLength(2)
     })
   })
 
@@ -320,45 +256,43 @@ describe('ShelterList', () => {
 
   describe('Limpiar filtros button', () => {
     it('does not show "Limpiar filtros" when no filters are active', async () => {
-      mockShelters.value = [shelterA]
+      mockAdoptionListings.value = [listingA]
       const wrapper = await mountSuspended(ShelterList, {
-        global: { stubs: { NuxtLink: true, ShelterCard: true } },
+        global: { stubs: { NuxtLink: true, AdoptionPetCard: true } },
       })
-      // No input into filters — button should not be present
       const buttons = wrapper.findAll('button')
       const clearBtn = buttons.find(b => b.text() === 'Limpiar filtros')
       expect(clearBtn).toBeUndefined()
     })
 
     it('clicking "Limpiar filtros" resets the search query', async () => {
-      mockShelters.value = [shelterA, shelterB, shelterC]
+      mockAdoptionListings.value = [listingA, listingB, listingC]
       const wrapper = await mountSuspended(ShelterList, {
-        global: { stubs: { NuxtLink: true, ShelterCard: { template: '<div class="shelter-card-stub" />' } } },
+        global: { stubs: { NuxtLink: true, AdoptionPetCard: { template: '<div class="listing-card-stub" />' } } },
       })
 
-      await wrapper.find('input[type="search"]').setValue('esperanza')
-      expect(wrapper.findAll('.shelter-card-stub')).toHaveLength(1)
+      await wrapper.find('input[type="search"]').setValue('luna')
+      expect(wrapper.findAll('.listing-card-stub')).toHaveLength(1)
 
       const clearBtn = wrapper.findAll('button').find(b => b.text() === 'Limpiar filtros')!
       await clearBtn.trigger('click')
 
-      expect(wrapper.findAll('.shelter-card-stub')).toHaveLength(3)
+      expect(wrapper.findAll('.listing-card-stub')).toHaveLength(3)
     })
 
     it('clicking "Limpiar filtros" in the no-results panel also resets filters', async () => {
-      mockShelters.value = [shelterA, shelterB]
+      mockAdoptionListings.value = [listingA, listingB]
       const wrapper = await mountSuspended(ShelterList, {
-        global: { stubs: { NuxtLink: true, ShelterCard: { template: '<div class="shelter-card-stub" />' } } },
+        global: { stubs: { NuxtLink: true, AdoptionPetCard: { template: '<div class="listing-card-stub" />' } } },
       })
 
       await wrapper.find('input[type="search"]').setValue('xyz no existe')
       expect(wrapper.text()).toContain('Sin resultados')
 
-      // The no-results panel has a "Limpiar filtros" button
       const clearBtns = wrapper.findAll('button').filter(b => b.text() === 'Limpiar filtros')
       await clearBtns[0].trigger('click')
 
-      expect(wrapper.findAll('.shelter-card-stub')).toHaveLength(2)
+      expect(wrapper.findAll('.listing-card-stub')).toHaveLength(2)
       expect(wrapper.text()).not.toContain('Sin resultados')
     })
   })
@@ -367,20 +301,20 @@ describe('ShelterList', () => {
 
   describe('result count display', () => {
     it('shows the correct count when filters narrow the result set', async () => {
-      mockShelters.value = [shelterA, shelterB, shelterC]
+      mockAdoptionListings.value = [listingA, listingB, listingC]
       const wrapper = await mountSuspended(ShelterList, {
-        global: { stubs: { NuxtLink: true, ShelterCard: true } },
+        global: { stubs: { NuxtLink: true, AdoptionPetCard: true } },
       })
 
-      await wrapper.find('select').setValue('cats') // matches A and B
+      await wrapper.find('#listing-species').setValue('cat')
 
-      expect(wrapper.text()).toContain('2 refugios encontrados')
+      expect(wrapper.text()).toContain('1 mascota encontrada')
     })
 
     it('shows the result count with role="status" for screen readers', async () => {
-      mockShelters.value = [shelterA]
+      mockAdoptionListings.value = [listingA]
       const wrapper = await mountSuspended(ShelterList, {
-        global: { stubs: { NuxtLink: true, ShelterCard: true } },
+        global: { stubs: { NuxtLink: true, AdoptionPetCard: true } },
       })
 
       const status = wrapper.find('[role="status"]')

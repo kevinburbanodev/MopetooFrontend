@@ -13,19 +13,19 @@
 //   - The mock exposes a petshopsStore stub with reactive state we control
 //     via module-level refs (same pattern as ShelterList.test.ts).
 //   - PetshopCard is stubbed with a custom template so findAll('.petshop-card-stub')
-//     gives a reliable count (avoids multi-word component stub naming pitfalls).
+//     gives a reliable count.
 //
 // Key behaviours tested:
 //   - Loading skeleton rendered while isLoading is true.
 //   - Empty state (no petshops, no filters) shows "No hay tiendas disponibles".
 //   - Results grid renders PetshopCard per petshop.
 //   - Client-side search filter: name, city, description.
-//   - Category filter.
 //   - City filter.
-//   - Featured section visible/hidden logic.
+//   - Premium section visible/hidden logic (plan-based).
 //   - Filtered no-results state.
 //   - fetchPetshops called on mount.
 //   - Result counter.
+//   - Re-fetch on category/city filter change.
 //
 // What this suite does NOT cover intentionally:
 //   - CSS transitions / SCSS visual styles.
@@ -34,7 +34,7 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { mountSuspended } from '@nuxt/test-utils/runtime'
-import { ref, computed } from 'vue'
+import { ref } from 'vue'
 import PetshopList from './PetshopList.vue'
 import type { Petshop } from '../types'
 
@@ -42,27 +42,27 @@ import type { Petshop } from '../types'
 
 function makePetshop(overrides: Partial<Petshop> = {}): Petshop {
   return {
-    id: '1',
+    id: 1,
     name: 'Mascotas Felices',
-    description: 'Una tienda completa para mascotas',
-    address: 'Calle 50 #10-20',
-    city: 'Bogotá',
-    phone: '+57 300 123 4567',
     email: 'info@mascotasfelices.com',
-    website: 'https://mascotasfelices.com',
-    photo_url: 'https://example.com/tienda.jpg',
-    categories: ['Alimentos', 'Accesorios'],
-    is_verified: true,
-    is_featured: false,
+    description: 'Una tienda completa para mascotas',
+    logo_url: 'https://example.com/tienda.jpg',
+    country: 'Colombia',
+    city: 'Bogotá',
+    phone_country_code: '+57',
+    phone: '300 123 4567',
+    verified: true,
+    is_active: true,
+    plan: '',
     created_at: '2024-01-01T00:00:00Z',
     updated_at: '2024-01-01T00:00:00Z',
     ...overrides,
   }
 }
 
-const shopA = makePetshop({ id: '1', name: 'Mascotas Felices', city: 'Bogotá', categories: ['Alimentos'], is_featured: false })
-const shopB = makePetshop({ id: '2', name: 'PetWorld', city: 'Medellín', categories: ['Accesorios'], is_featured: true, description: 'Tienda de accesorios premium' })
-const shopC = makePetshop({ id: '3', name: 'Mundo Animal', city: 'Cali', categories: ['Alimentos', 'Veterinaria'], is_featured: true })
+const shopA = makePetshop({ id: 1, name: 'Mascotas Felices', city: 'Bogotá', plan: '' })
+const shopB = makePetshop({ id: 2, name: 'PetWorld', city: 'Medellín', plan: 'premium', description: 'Tienda de accesorios premium' })
+const shopC = makePetshop({ id: 3, name: 'Mundo Animal', city: 'Cali', plan: 'basic' })
 
 // ── usePetshops mock ──────────────────────────────────────────
 // Module-level reactive refs control the mock state per test.
@@ -81,17 +81,15 @@ vi.mock('../composables/usePetshops', () => ({
       // Expose reactive state that the component reads directly
       get petshops() { return mockPetshops.value },
       get isLoading() { return mockIsLoading.value },
-      // getFeaturedPetshops is a getter on the real store — replicate it here
-      get getFeaturedPetshops() {
-        return mockPetshops.value.filter(p => p.is_featured)
+      // getPremiumPetshops — replicate the plan-based getter
+      get getPremiumPetshops() {
+        return mockPetshops.value.filter(p => p.plan !== '')
       },
     },
   }),
 }))
 
 // Custom stub so findAll('.petshop-card-stub') gives a reliable count.
-// { PetshopCard: true } creates <petshop-card-stub> but multi-word component
-// kebab-case lookup is fragile — a template stub is always reliable.
 const PetshopCardStub = { template: '<div class="petshop-card-stub" />' }
 
 // ── Suite ─────────────────────────────────────────────────────
@@ -200,12 +198,11 @@ describe('PetshopList', () => {
   // ── Results grid ───────────────────────────────────────────
 
   describe('results grid', () => {
-    it('renders PetshopCards when petshops are loaded (non-featured in main grid)', async () => {
-      mockPetshops.value = [shopA] // non-featured
+    it('renders PetshopCards when petshops are loaded (non-premium in main grid)', async () => {
+      mockPetshops.value = [shopA] // non-premium
       const wrapper = await mountSuspended(PetshopList, {
         global: { stubs: { NuxtLink: true, PetshopCard: PetshopCardStub } },
       })
-      // shopA is non-featured, appears in regularPetshops (main grid)
       expect(wrapper.findAll('.petshop-card-stub').length).toBeGreaterThanOrEqual(1)
     })
 
@@ -238,16 +235,15 @@ describe('PetshopList', () => {
       const wrapper = await mountSuspended(PetshopList, {
         global: { stubs: { NuxtLink: true, PetshopCard: PetshopCardStub } },
       })
-      // filteredPetshops = all 3 (no filters active)
       expect(wrapper.find('[role="status"]').text()).toContain('3')
     })
   })
 
-  // ── Featured section ───────────────────────────────────────
+  // ── Premium section ────────────────────────────────────────
 
   describe('"Tiendas Destacadas" section', () => {
-    it('shows the featured section when there are featured petshops and no filters are active', async () => {
-      mockPetshops.value = [shopA, shopB] // shopB is featured
+    it('shows the premium section when there are petshops with plan and no filters are active', async () => {
+      mockPetshops.value = [shopA, shopB] // shopB has plan
       const wrapper = await mountSuspended(PetshopList, {
         global: { stubs: { NuxtLink: true, PetshopCard: PetshopCardStub } },
       })
@@ -255,22 +251,22 @@ describe('PetshopList', () => {
     })
 
     it('shows the "Tiendas Destacadas" heading', async () => {
-      mockPetshops.value = [shopA, shopB] // shopB is featured
+      mockPetshops.value = [shopA, shopB] // shopB has plan
       const wrapper = await mountSuspended(PetshopList, {
         global: { stubs: { NuxtLink: true, PetshopCard: PetshopCardStub } },
       })
       expect(wrapper.text()).toContain('Tiendas Destacadas')
     })
 
-    it('hides the featured section when no featured petshops exist', async () => {
-      mockPetshops.value = [shopA] // shopA is not featured
+    it('hides the premium section when no petshops have a plan', async () => {
+      mockPetshops.value = [shopA] // shopA has plan === ''
       const wrapper = await mountSuspended(PetshopList, {
         global: { stubs: { NuxtLink: true, PetshopCard: PetshopCardStub } },
       })
       expect(wrapper.find('[aria-label="Tiendas destacadas"]').exists()).toBe(false)
     })
 
-    it('hides the featured section when a search filter is active', async () => {
+    it('hides the premium section when a search filter is active', async () => {
       mockPetshops.value = [shopA, shopB, shopC]
       const wrapper = await mountSuspended(PetshopList, {
         global: { stubs: { NuxtLink: true, PetshopCard: PetshopCardStub } },
@@ -279,16 +275,16 @@ describe('PetshopList', () => {
       expect(wrapper.find('[aria-label="Tiendas destacadas"]').exists()).toBe(false)
     })
 
-    it('hides the featured section when a category filter is active', async () => {
+    it('hides the premium section when a category filter is active', async () => {
       mockPetshops.value = [shopA, shopB, shopC]
       const wrapper = await mountSuspended(PetshopList, {
         global: { stubs: { NuxtLink: true, PetshopCard: PetshopCardStub } },
       })
-      await wrapper.find('#petshop-category').setValue('Alimentos')
+      await wrapper.find('#petshop-category').setValue('alimento')
       expect(wrapper.find('[aria-label="Tiendas destacadas"]').exists()).toBe(false)
     })
 
-    it('hides the featured section when a city filter is active', async () => {
+    it('hides the premium section when a city filter is active', async () => {
       mockPetshops.value = [shopA, shopB, shopC]
       const wrapper = await mountSuspended(PetshopList, {
         global: { stubs: { NuxtLink: true, PetshopCard: PetshopCardStub } },
@@ -307,7 +303,6 @@ describe('PetshopList', () => {
         global: { stubs: { NuxtLink: true, PetshopCard: PetshopCardStub } },
       })
       await wrapper.find('#petshop-search').setValue('petworld')
-      // Only shopB matches "petworld" in name; result counter reflects filtered count
       expect(wrapper.find('[role="status"]').text()).toContain('1')
     })
 
@@ -317,7 +312,6 @@ describe('PetshopList', () => {
         global: { stubs: { NuxtLink: true, PetshopCard: PetshopCardStub } },
       })
       await wrapper.find('#petshop-search').setValue('cali')
-      // Only shopC is in Cali
       expect(wrapper.find('[role="status"]').text()).toContain('1')
     })
 
@@ -327,7 +321,6 @@ describe('PetshopList', () => {
         global: { stubs: { NuxtLink: true, PetshopCard: PetshopCardStub } },
       })
       await wrapper.find('#petshop-search').setValue('accesorios premium')
-      // Only shopB description contains "accesorios premium"
       expect(wrapper.find('[role="status"]').text()).toContain('1')
     })
 
@@ -353,17 +346,41 @@ describe('PetshopList', () => {
     })
   })
 
-  // ── Category filter ────────────────────────────────────────
+  // ── City filter ────────────────────────────────────────────
 
-  describe('category filter', () => {
-    it('filters petshops by category', async () => {
+  describe('city filter', () => {
+    it('re-fetches when city select changes', async () => {
       mockPetshops.value = [shopA, shopB, shopC]
       const wrapper = await mountSuspended(PetshopList, {
         global: { stubs: { NuxtLink: true, PetshopCard: PetshopCardStub } },
       })
-      // shopA (Alimentos) and shopC (Alimentos + Veterinaria) match; shopB does not
-      await wrapper.find('#petshop-category').setValue('Alimentos')
-      expect(wrapper.find('[role="status"]').text()).toContain('2')
+      mockFetchPetshops.mockClear()
+      await wrapper.find('#petshop-city').setValue('Medellín')
+      expect(mockFetchPetshops).toHaveBeenCalled()
+    })
+  })
+
+  // ── Category filter ────────────────────────────────────────
+
+  describe('category filter', () => {
+    it('re-fetches when category select changes', async () => {
+      mockPetshops.value = [shopA, shopB, shopC]
+      const wrapper = await mountSuspended(PetshopList, {
+        global: { stubs: { NuxtLink: true, PetshopCard: PetshopCardStub } },
+      })
+      mockFetchPetshops.mockClear()
+      await wrapper.find('#petshop-category').setValue('alimento')
+      expect(mockFetchPetshops).toHaveBeenCalled()
+    })
+
+    it('uses static product categories (not derived from data)', async () => {
+      mockPetshops.value = [shopA]
+      const wrapper = await mountSuspended(PetshopList, {
+        global: { stubs: { NuxtLink: true, PetshopCard: PetshopCardStub } },
+      })
+      const options = wrapper.find('#petshop-category').findAll('option')
+      // "Todas las categorías" + 6 PRODUCT_CATEGORIES
+      expect(options.length).toBe(7)
     })
 
     it('clears category filter when "Limpiar filtros" is clicked', async () => {
@@ -371,26 +388,11 @@ describe('PetshopList', () => {
       const wrapper = await mountSuspended(PetshopList, {
         global: { stubs: { NuxtLink: true, PetshopCard: PetshopCardStub } },
       })
-      await wrapper.find('#petshop-category').setValue('Veterinaria')
-      // "Limpiar filtros" button appears (btn-outline-secondary in filter bar)
+      await wrapper.find('#petshop-category').setValue('alimento')
       const clearBtn = wrapper.findAll('button').find(b => b.text().includes('Limpiar filtros'))!
       await clearBtn.trigger('click')
       // All 3 petshops should be visible again
       expect(wrapper.find('[role="status"]').text()).toContain('3')
-    })
-  })
-
-  // ── City filter ────────────────────────────────────────────
-
-  describe('city filter', () => {
-    it('filters petshops by city (exact match from select)', async () => {
-      mockPetshops.value = [shopA, shopB, shopC]
-      const wrapper = await mountSuspended(PetshopList, {
-        global: { stubs: { NuxtLink: true, PetshopCard: PetshopCardStub } },
-      })
-      await wrapper.find('#petshop-city').setValue('Medellín')
-      // Only shopB is in Medellín
-      expect(wrapper.find('[role="status"]').text()).toContain('1')
     })
   })
 
@@ -422,7 +424,6 @@ describe('PetshopList', () => {
       })
       await wrapper.find('#petshop-search').setValue('nonexistent xyz store')
       expect(wrapper.text()).toContain('Sin resultados')
-      // The no-results panel has a btn-outline-primary button
       const clearBtn = wrapper.find('button.btn-outline-primary')
       expect(clearBtn.exists()).toBe(true)
       await clearBtn.trigger('click')

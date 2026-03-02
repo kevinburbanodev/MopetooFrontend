@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // PetshopCard — compact card for a single petshop in the directory.
-// Shows: photo (with fallback), name, city/address, category chips,
-// contact icons, and verified/featured badges.
+// Shows: logo (with fallback), name, city/country, composed phone,
+// contact icons (phone, email, website, whatsapp), and verified/plan badges.
 // "Ver tienda" navigates to /stores/:id via a stretched-link.
 
 import type { Petshop } from '../types'
@@ -25,32 +25,31 @@ function isSafeImageUrl(url: string | undefined): boolean {
   }
 }
 
-const safePhotoUrl = computed(() =>
-  isSafeImageUrl(props.petshop.photo_url) ? props.petshop.photo_url : null,
+const safeLogoUrl = computed(() =>
+  isSafeImageUrl(props.petshop.logo_url) ? props.petshop.logo_url : null,
 )
 
 // Reset img error when the petshop prop changes (e.g. list refresh)
 const imgError = ref(false)
-const showPhoto = computed(() => !!safePhotoUrl.value && !imgError.value)
+const showPhoto = computed(() => !!safeLogoUrl.value && !imgError.value)
 
 function onImgError(): void {
   imgError.value = true
 }
 
-watch(() => props.petshop.photo_url, () => {
+watch(() => props.petshop.logo_url, () => {
   imgError.value = false
 })
 
 // ── Contact safety guards ─────────────────────────────────
 
-/**
- * Sanitizes phone: only digits, +, -, spaces, parens, and dots allowed.
- * Prevents tel: href injection.
- */
-const safePhone = computed<string | null>(() => {
+/** Composed phone: phone_country_code + phone */
+const composedPhone = computed<string | null>(() => {
   const phone = props.petshop.phone
   if (!phone) return null
-  return /^[+\d\s\-().]{4,25}$/.test(phone) ? phone : null
+  const code = props.petshop.phone_country_code || ''
+  const full = code ? `${code} ${phone}` : phone
+  return /^[+\d\s\-().]{4,30}$/.test(full) ? full : null
 })
 
 /**
@@ -79,16 +78,20 @@ const safeWebsiteUrl = computed<string | null>(() => {
   }
 })
 
-// ── Category display — max 3 visible, overflow as "+N" ────
-const MAX_VISIBLE_CATEGORIES = 3
-
-const visibleCategories = computed(() =>
-  props.petshop.categories.slice(0, MAX_VISIBLE_CATEGORIES),
-)
-
-const hiddenCategoryCount = computed(() =>
-  Math.max(0, props.petshop.categories.length - MAX_VISIBLE_CATEGORIES),
-)
+/**
+ * Sanitizes WhatsApp link: must be http/https URL.
+ */
+const safeWhatsappUrl = computed<string | null>(() => {
+  const url = props.petshop.whatsapp_link
+  if (!url) return null
+  try {
+    const parsed = new URL(url)
+    return (parsed.protocol === 'https:' || parsed.protocol === 'http:') ? url : null
+  }
+  catch {
+    return null
+  }
+})
 </script>
 
 <template>
@@ -100,8 +103,8 @@ const hiddenCategoryCount = computed(() =>
     <div class="petshop-card__photo-wrap">
       <img
         v-if="showPhoto"
-        :src="safePhotoUrl!"
-        :alt="`Foto de la tienda ${petshop.name}`"
+        :src="safeLogoUrl!"
+        :alt="`Logo de la tienda ${petshop.name}`"
         class="petshop-card__photo"
         width="400"
         height="200"
@@ -118,18 +121,18 @@ const hiddenCategoryCount = computed(() =>
       <!-- Badges overlaid on photo -->
       <div class="petshop-card__badges">
         <span
-          v-if="petshop.is_featured"
+          v-if="petshop.plan !== ''"
           class="badge bg-warning text-dark petshop-card__badge"
           aria-label="Tienda destacada"
         >
-          ⭐ Destacado
+          Destacado
         </span>
         <span
-          v-if="petshop.is_verified"
+          v-if="petshop.verified"
           class="badge bg-success petshop-card__badge"
           aria-label="Tienda verificada"
         >
-          Verificado ✓
+          Verificado
         </span>
       </div>
     </div>
@@ -138,43 +141,21 @@ const hiddenCategoryCount = computed(() =>
       <!-- Name -->
       <h3 class="h6 fw-bold mb-0 petshop-card__name">{{ petshop.name }}</h3>
 
-      <!-- City + address -->
+      <!-- City + country -->
       <p class="text-muted small mb-0 petshop-card__location">
         <span aria-hidden="true">📍</span>
-        {{ petshop.address ? `${petshop.address}, ${petshop.city}` : petshop.city }}
+        {{ petshop.city }}, {{ petshop.country }}
       </p>
 
-      <!-- Category chips — max 3 + overflow badge -->
+      <!-- Contact row: phone, email, website, whatsapp icons -->
       <div
-        v-if="petshop.categories.length > 0"
-        class="d-flex flex-wrap gap-1"
-        aria-label="Categorías de la tienda"
-      >
-        <span
-          v-for="cat in visibleCategories"
-          :key="cat"
-          class="badge bg-secondary bg-opacity-10 text-secondary fw-normal petshop-card__category"
-        >
-          {{ cat }}
-        </span>
-        <span
-          v-if="hiddenCategoryCount > 0"
-          class="badge bg-secondary bg-opacity-10 text-secondary fw-normal"
-          :aria-label="`${hiddenCategoryCount} categorías más`"
-        >
-          +{{ hiddenCategoryCount }}
-        </span>
-      </div>
-
-      <!-- Contact row: phone, email, website icons -->
-      <div
-        v-if="safePhone || safeEmail || safeWebsiteUrl"
+        v-if="composedPhone || safeEmail || safeWebsiteUrl || safeWhatsappUrl"
         class="d-flex flex-wrap gap-3 mt-auto"
         aria-label="Información de contacto"
       >
         <a
-          v-if="safePhone"
-          :href="`tel:${safePhone}`"
+          v-if="composedPhone"
+          :href="`tel:${composedPhone}`"
           class="text-muted small text-decoration-none"
           :aria-label="`Llamar a ${petshop.name}`"
           @click.stop
@@ -203,6 +184,18 @@ const hiddenCategoryCount = computed(() =>
         >
           <span aria-hidden="true">🌐</span>
           <span class="visually-hidden">Sitio web</span>
+        </a>
+        <a
+          v-if="safeWhatsappUrl"
+          :href="safeWhatsappUrl"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="text-muted small text-decoration-none"
+          :aria-label="`WhatsApp de ${petshop.name}`"
+          @click.stop
+        >
+          <span aria-hidden="true">💬</span>
+          <span class="visually-hidden">WhatsApp</span>
         </a>
       </div>
     </div>
@@ -282,15 +275,7 @@ const hiddenCategoryCount = computed(() =>
   }
 
   &__location {
-    // 1-line truncation for address
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  &__category {
-    // Ensure category badges wrap gracefully
-    max-width: 8rem;
+    // 1-line truncation for location
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;

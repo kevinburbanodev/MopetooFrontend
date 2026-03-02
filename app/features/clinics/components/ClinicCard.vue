@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // ClinicCard — compact card for a single clinic in the directory.
-// Shows: photo (with fallback 🏥), name, city/address, specialty chips,
-// contact icons, and verified/featured badges.
+// Shows: cover image (with fallback 🏥), name, city/country, specialty chips,
+// contact icons (phone, email, social), and verified/plan badges.
 // "Ver clínica" navigates to /clinics/:id via a stretched-link.
 
 import type { Clinic } from '../types'
@@ -25,19 +25,30 @@ function isSafeImageUrl(url: string | undefined): boolean {
   }
 }
 
-const safePhotoUrl = computed(() =>
-  isSafeImageUrl(props.clinic.photo_url) ? props.clinic.photo_url : null,
+function isSafeUrl(url: string | undefined): boolean {
+  if (!url) return false
+  try {
+    const parsed = new URL(url)
+    return parsed.protocol === 'https:' || parsed.protocol === 'http:'
+  }
+  catch {
+    return false
+  }
+}
+
+const safeCoverUrl = computed(() =>
+  isSafeImageUrl(props.clinic.cover_image_url) ? props.clinic.cover_image_url : null,
 )
 
 // Reset img error when the clinic prop changes (e.g. list refresh)
 const imgError = ref(false)
-const showPhoto = computed(() => !!safePhotoUrl.value && !imgError.value)
+const showPhoto = computed(() => !!safeCoverUrl.value && !imgError.value)
 
 function onImgError(): void {
   imgError.value = true
 }
 
-watch(() => props.clinic.photo_url, () => {
+watch(() => props.clinic.cover_image_url, () => {
   imgError.value = false
 })
 
@@ -63,21 +74,24 @@ const safeEmail = computed<string | null>(() => {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : null
 })
 
-/**
- * Restricts website URL to http/https only.
- * Prevents javascript: URI injection.
- */
-const safeWebsiteUrl = computed<string | null>(() => {
-  const url = props.clinic.website
-  if (!url) return null
-  try {
-    const parsed = new URL(url)
-    return (parsed.protocol === 'https:' || parsed.protocol === 'http:') ? url : null
-  }
-  catch {
-    return null
-  }
-})
+// ── Social media safety guards ────────────────────────────
+
+const safeFacebookUrl = computed(() =>
+  isSafeUrl(props.clinic.facebook_url) ? props.clinic.facebook_url : null,
+)
+
+const safeInstagramUrl = computed(() =>
+  isSafeUrl(props.clinic.instagram_url) ? props.clinic.instagram_url : null,
+)
+
+const safeTwitterUrl = computed(() =>
+  isSafeUrl(props.clinic.twitter_url) ? props.clinic.twitter_url : null,
+)
+
+// ── Plan-based featured check ─────────────────────────────
+const isFeatured = computed(() =>
+  props.clinic.plan !== '' && props.clinic.plan !== 'free',
+)
 
 // ── Specialty display — max 3 visible, overflow as "+N" ────
 const MAX_VISIBLE_SPECIALTIES = 3
@@ -100,7 +114,7 @@ const hiddenSpecialtyCount = computed(() =>
     <div class="clinic-card__photo-wrap">
       <img
         v-if="showPhoto"
-        :src="safePhotoUrl!"
+        :src="safeCoverUrl!"
         :alt="`Foto de la clínica ${clinic.name}`"
         class="clinic-card__photo"
         width="400"
@@ -118,18 +132,18 @@ const hiddenSpecialtyCount = computed(() =>
       <!-- Badges overlaid on photo -->
       <div class="clinic-card__badges">
         <span
-          v-if="clinic.is_featured"
+          v-if="isFeatured"
           class="badge bg-warning text-dark clinic-card__badge"
           aria-label="Clínica destacada"
         >
-          ⭐ Destacado
+          Destacado
         </span>
         <span
-          v-if="clinic.is_verified"
+          v-if="clinic.verified"
           class="badge bg-success clinic-card__badge"
           aria-label="Clínica verificada"
         >
-          Verificado ✓
+          Verificado
         </span>
       </div>
     </div>
@@ -138,10 +152,10 @@ const hiddenSpecialtyCount = computed(() =>
       <!-- Name -->
       <h3 class="h6 fw-bold mb-0 clinic-card__name">{{ clinic.name }}</h3>
 
-      <!-- City + address -->
+      <!-- City + country -->
       <p class="text-muted small mb-0 clinic-card__location">
         <span aria-hidden="true">📍</span>
-        {{ clinic.address ? `${clinic.address}, ${clinic.city}` : clinic.city }}
+        {{ clinic.city }}, {{ clinic.country }}
       </p>
 
       <!-- Specialty chips — max 3 + overflow badge -->
@@ -166,9 +180,9 @@ const hiddenSpecialtyCount = computed(() =>
         </span>
       </div>
 
-      <!-- Contact row: phone, email, website icons -->
+      <!-- Contact row: phone, email, social icons -->
       <div
-        v-if="safePhone || safeEmail || safeWebsiteUrl"
+        v-if="safePhone || safeEmail || safeFacebookUrl || safeInstagramUrl || safeTwitterUrl"
         class="d-flex flex-wrap gap-3 mt-auto"
         aria-label="Información de contacto"
       >
@@ -193,16 +207,40 @@ const hiddenSpecialtyCount = computed(() =>
           <span class="visually-hidden">Correo</span>
         </a>
         <a
-          v-if="safeWebsiteUrl"
-          :href="safeWebsiteUrl"
+          v-if="safeFacebookUrl"
+          :href="safeFacebookUrl"
           target="_blank"
           rel="noopener noreferrer"
           class="text-muted small text-decoration-none"
-          :aria-label="`Visitar sitio web de ${clinic.name}`"
+          :aria-label="`Facebook de ${clinic.name}`"
           @click.stop
         >
-          <span aria-hidden="true">🌐</span>
-          <span class="visually-hidden">Sitio web</span>
+          <span aria-hidden="true">📘</span>
+          <span class="visually-hidden">Facebook</span>
+        </a>
+        <a
+          v-if="safeInstagramUrl"
+          :href="safeInstagramUrl"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="text-muted small text-decoration-none"
+          :aria-label="`Instagram de ${clinic.name}`"
+          @click.stop
+        >
+          <span aria-hidden="true">📷</span>
+          <span class="visually-hidden">Instagram</span>
+        </a>
+        <a
+          v-if="safeTwitterUrl"
+          :href="safeTwitterUrl"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="text-muted small text-decoration-none"
+          :aria-label="`Twitter de ${clinic.name}`"
+          @click.stop
+        >
+          <span aria-hidden="true">🐦</span>
+          <span class="visually-hidden">Twitter</span>
         </a>
       </div>
     </div>

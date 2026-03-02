@@ -3,6 +3,12 @@
 // In edit mode the `pet` prop is passed and all fields are pre-filled.
 // Photo upload follows the same object-URL lifecycle pattern as UserProfilePicture.
 // Bootstrap validation uses the `was-validated` class on the form element.
+//
+// Backend contract:
+//   - Create: multipart/form-data with photo REQUIRED (binding:"required")
+//   - Update: multipart/form-data with photo OPTIONAL
+//   - Fields: name, species, breed, age (int, years), weight, gender, notes
+//
 // Emits `submit` with { data: CreatePetDTO, photo?: File } and `cancel`.
 
 import type { Pet, CreatePetDTO, PetFormSubmitPayload } from '../types'
@@ -27,13 +33,10 @@ const submitLabel = computed(() => isEditMode.value ? 'Guardar cambios' : 'Agreg
 const name = ref(props.pet?.name ?? '')
 const species = ref(props.pet?.species ?? '')
 const breed = ref(props.pet?.breed ?? '')
-const birth_date = ref(props.pet?.birth_date ?? '')
+const age = ref<number | ''>(props.pet?.age ?? '')
 const gender = ref(props.pet?.gender ?? '')
 const weight = ref<number | ''>(props.pet?.weight ?? '')
-const color = ref(props.pet?.color ?? '')
-const microchip = ref(props.pet?.microchip ?? '')
 const notes = ref(props.pet?.notes ?? '')
-const veterinarian_id = ref(props.pet?.veterinarian_id ?? '')
 
 // ── Photo upload (same pattern as UserProfilePicture.vue) ─────
 const photoFile = ref<File | null>(null)
@@ -117,10 +120,13 @@ const submitted = ref(false)
 const nameInvalid = computed(() => submitted.value && !name.value.trim())
 const speciesInvalid = computed(() => submitted.value && !species.value)
 const breedInvalid = computed(() => submitted.value && !breed.value.trim())
-const birthDateInvalid = computed(() => submitted.value && !birth_date.value)
 const genderInvalid = computed(() => submitted.value && !gender.value)
 const weightInvalid = computed(
   () => submitted.value && weight.value !== '' && Number(weight.value) <= 0,
+)
+// Photo is required in create mode (backend binding:"required")
+const photoInvalid = computed(
+  () => submitted.value && !isEditMode.value && !photoFile.value && !displayPhotoSrc.value,
 )
 
 const isFormValid = computed(
@@ -128,9 +134,10 @@ const isFormValid = computed(
     name.value.trim() &&
     species.value &&
     breed.value.trim() &&
-    birth_date.value &&
     gender.value &&
-    (weight.value === '' || Number(weight.value) > 0),
+    (weight.value === '' || Number(weight.value) > 0) &&
+    // Photo required in create mode only
+    (isEditMode.value || photoFile.value),
 )
 
 // ── Submit ───────────────────────────────────────────────────
@@ -142,14 +149,11 @@ function handleSubmit(): void {
     name: name.value.trim(),
     species: species.value,
     breed: breed.value.trim(),
-    birth_date: birth_date.value,
     gender: gender.value,
   }
+  if (age.value !== '') data.age = Number(age.value)
   if (weight.value !== '') data.weight = Number(weight.value)
-  if (color.value.trim()) data.color = color.value.trim()
-  if (microchip.value.trim()) data.microchip = microchip.value.trim()
   if (notes.value.trim()) data.notes = notes.value.trim()
-  if (veterinarian_id.value.trim()) data.veterinarian_id = veterinarian_id.value.trim()
 
   emit('submit', {
     data,
@@ -165,13 +169,10 @@ watch(
     name.value = pet.name
     species.value = pet.species
     breed.value = pet.breed
-    birth_date.value = pet.birth_date
+    age.value = pet.age ?? ''
     gender.value = pet.gender
     weight.value = pet.weight ?? ''
-    color.value = pet.color ?? ''
-    microchip.value = pet.microchip ?? ''
     notes.value = pet.notes ?? ''
-    veterinarian_id.value = pet.veterinarian_id ?? ''
   },
 )
 </script>
@@ -217,8 +218,12 @@ watch(
         tabindex="-1"
         @change="onPhotoChange"
       />
-      <p class="small text-muted mt-1 mb-0">JPG, PNG o WebP. Máx. 5 MB.</p>
+      <p class="small text-muted mt-1 mb-0">
+        JPG, PNG o WebP. Máx. 5 MB.
+        <template v-if="!isEditMode"> (obligatoria)</template>
+      </p>
       <p v-if="photoError" class="small text-danger mt-1 mb-0" role="alert">{{ photoError }}</p>
+      <p v-if="photoInvalid" class="small text-danger mt-1 mb-0" role="alert">La foto es obligatoria.</p>
     </div>
 
     <!-- ── Required fields ───────────────────────────────── -->
@@ -281,21 +286,20 @@ watch(
         <div class="invalid-feedback">La raza es obligatoria.</div>
       </div>
 
-      <!-- Birth date -->
+      <!-- Age -->
       <div class="col-12 col-sm-6">
-        <label for="pet-birth-date" class="form-label fw-semibold">
-          Fecha de nacimiento <span class="text-danger" aria-hidden="true">*</span>
+        <label for="pet-age" class="form-label fw-semibold">
+          Edad (años)
         </label>
         <input
-          id="pet-birth-date"
-          v-model="birth_date"
-          type="date"
+          id="pet-age"
+          v-model.number="age"
+          type="number"
           class="form-control"
-          :class="{ 'is-invalid': birthDateInvalid }"
-          :max="new Date().toISOString().split('T')[0]"
-          required
+          placeholder="Ej. 3"
+          min="0"
+          step="1"
         />
-        <div class="invalid-feedback">La fecha de nacimiento es obligatoria.</div>
       </div>
 
       <!-- Gender -->
@@ -345,7 +349,7 @@ watch(
 
     <div class="row g-3">
       <!-- Weight -->
-      <div class="col-12 col-sm-6 col-md-4">
+      <div class="col-12 col-sm-6">
         <label for="pet-weight" class="form-label">Peso (kg)</label>
         <input
           id="pet-weight"
@@ -358,32 +362,6 @@ watch(
           step="0.1"
         />
         <div class="invalid-feedback">El peso debe ser mayor a 0.</div>
-      </div>
-
-      <!-- Color -->
-      <div class="col-12 col-sm-6 col-md-4">
-        <label for="pet-color" class="form-label">Color / pelaje</label>
-        <input
-          id="pet-color"
-          v-model="color"
-          type="text"
-          class="form-control"
-          placeholder="Ej. Negro, Tricolor…"
-          autocomplete="off"
-        />
-      </div>
-
-      <!-- Microchip -->
-      <div class="col-12 col-sm-6 col-md-4">
-        <label for="pet-microchip" class="form-label">Número de microchip</label>
-        <input
-          id="pet-microchip"
-          v-model="microchip"
-          type="text"
-          class="form-control"
-          placeholder="15 dígitos"
-          autocomplete="off"
-        />
       </div>
 
       <!-- Notes -->

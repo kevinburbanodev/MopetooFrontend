@@ -1,16 +1,29 @@
 // ============================================================
 // useAuth — Auth feature composable
-// Central API surface for all user-account operations.
+// Central API surface for all entity-account operations.
+// Supports 4 entity types: user, shelter, store, clinic.
 // Multipart uploads (photo) bypass useApi() and use $fetch
 // directly with FormData, as useApi injects Content-Type: JSON.
 // ============================================================
 
 import type {
+  EntityType,
   RegisterPayload,
+  RegisterShelterPayload,
+  RegisterStorePayload,
+  RegisterClinicPayload,
   UpdateProfileDTO,
   LoginResponse,
+  ShelterLoginResponse,
+  StoreLoginResponse,
+  ClinicLoginResponse,
   User,
+  AuthEntity,
+  AuthShelter,
+  AuthStore as AuthStoreType,
+  AuthClinic,
 } from '../types'
+import { extractErrorMessage } from '../../shared/utils/extractErrorMessage'
 
 export function useAuth() {
   const { post, get, patch, del } = useApi()
@@ -24,12 +37,19 @@ export function useAuth() {
 
   // ── Public API ──────────────────────────────────────────────
 
-  async function login(email: string, password: string): Promise<void> {
+  async function login(
+    email: string,
+    password: string,
+    entityType: EntityType = 'user',
+  ): Promise<void> {
     pending.value = true
     error.value = null
     try {
-      const response = await post<LoginResponse>('/login', { email, password })
-      authStore.setSession(response)
+      const endpoint = getLoginEndpoint(entityType)
+      const response = await post<
+        LoginResponse | ShelterLoginResponse | StoreLoginResponse | ClinicLoginResponse
+      >(endpoint, { email, password })
+      authStore.setSession(response, entityType)
       await router.push('/dashboard')
     }
     catch (err: unknown) {
@@ -56,10 +76,57 @@ export function useAuth() {
         await post<void>('/users', data)
       }
       // After registration log the user in automatically
-      await login(data.email, data.password)
+      await login(data.email, data.password, 'user')
     }
     catch (err: unknown) {
       error.value = extractErrorMessage(err)
+    }
+    finally {
+      pending.value = false
+    }
+  }
+
+  async function registerShelter(data: RegisterShelterPayload): Promise<void> {
+    pending.value = true
+    error.value = null
+    try {
+      await post<void>('/shelters/register', data)
+      await login(data.email, data.password, 'shelter')
+    }
+    catch (err: unknown) {
+      error.value = extractErrorMessage(err)
+    }
+    finally {
+      pending.value = false
+    }
+  }
+
+  async function registerStore(data: RegisterStorePayload): Promise<void> {
+    pending.value = true
+    error.value = null
+    try {
+      await post<void>('/stores/register', data)
+      await login(data.email, data.password, 'store')
+    }
+    catch (err: unknown) {
+      error.value = extractErrorMessage(err)
+    }
+    finally {
+      pending.value = false
+    }
+  }
+
+  async function registerClinic(data: RegisterClinicPayload): Promise<void> {
+    pending.value = true
+    error.value = null
+    try {
+      await post<void>('/clinics/register', data)
+      await login(data.email, data.password, 'clinic')
+    }
+    catch (err: unknown) {
+      error.value = extractErrorMessage(err)
+    }
+    finally {
       pending.value = false
     }
   }
@@ -102,8 +169,9 @@ export function useAuth() {
     pending.value = true
     error.value = null
     try {
-      const user = await get<User>('/api/me')
-      authStore.setUser(user)
+      const type = authStore.entityType ?? 'user'
+      const entity = await fetchEntityProfile(type)
+      authStore.setEntity(entity, type)
     }
     catch (err: unknown) {
       // A 401 here means the stored token is expired — clear the session
@@ -125,11 +193,18 @@ export function useAuth() {
     pending.value = true
     error.value = null
     try {
-      let user: User
+      const type = authStore.entityType ?? 'user'
+      const entityId = decodeEntityIdFromToken()
+      if (!entityId) {
+        error.value = 'No se pudo identificar la sesión'
+        return
+      }
+      const endpoint = getProfileEndpoint(type, entityId)
+      let entity: AuthEntity
       if (photo) {
         const formData = buildProfileFormData(data, photo)
         const storedToken = authStore.token
-        user = await $fetch<User>(`${baseURL}/api/me`, {
+        entity = await $fetch<AuthEntity>(`${baseURL}${endpoint}`, {
           method: 'PATCH',
           headers: storedToken
             ? { Authorization: `Bearer ${storedToken}` }
@@ -138,10 +213,9 @@ export function useAuth() {
         })
       }
       else {
-        // PATCH /api/me — JSON path via the shared useApi wrapper
-        user = await patch<User>('/api/me', data)
+        entity = await patch<AuthEntity>(endpoint, data)
       }
-      authStore.setUser(user)
+      authStore.setEntity(entity, type)
     }
     catch (err: unknown) {
       error.value = extractErrorMessage(err)
@@ -155,7 +229,13 @@ export function useAuth() {
     pending.value = true
     error.value = null
     try {
-      await del<void>('/api/me')
+      const type = authStore.entityType ?? 'user'
+      const entityId = decodeEntityIdFromToken()
+      if (!entityId) {
+        error.value = 'No se pudo identificar la sesión'
+        return
+      }
+      await del<void>(getProfileEndpoint(type, entityId))
       authStore.clearSession()
       await router.push('/')
     }
@@ -172,6 +252,9 @@ export function useAuth() {
     error,
     login,
     register,
+    registerShelter,
+    registerStore,
+    registerClinic,
     logout,
     forgotPassword,
     resetPassword,
@@ -182,6 +265,51 @@ export function useAuth() {
 }
 
 // ── Helpers ─────────────────────────────────────────────────
+
+function getLoginEndpoint(entityType: EntityType): string {
+  switch (entityType) {
+    case 'shelter': return '/shelters/login'
+    case 'store': return '/stores/login'
+    case 'clinic': return '/clinics/login'
+    default: return '/login'
+  }
+}
+
+function getProfileEndpoint(entityType: EntityType, entityId: string): string {
+  switch (entityType) {
+    case 'shelter': return `/api/shelters/${entityId}`
+    case 'store': return `/api/stores/${entityId}`
+    case 'clinic': return `/api/clinics/${entityId}`
+    default: return `/api/users/${entityId}`
+  }
+}
+
+async function fetchEntityProfile(type: EntityType): Promise<AuthEntity> {
+  const { get } = useApi()
+  const entityId = decodeEntityIdFromToken()
+  if (!entityId) throw new Error('No se pudo obtener el ID de la sesión')
+
+  const endpoint = getProfileEndpoint(type, entityId)
+
+  switch (type) {
+    case 'shelter': return await get<AuthShelter>(endpoint)
+    case 'store': return await get<AuthStoreType>(endpoint)
+    case 'clinic': return await get<AuthClinic>(endpoint)
+    default: return await get<User>(endpoint)
+  }
+}
+
+function decodeEntityIdFromToken(): string | null {
+  const authStore = useAuthStore()
+  if (!authStore.token) return null
+  try {
+    const payload = JSON.parse(atob(authStore.token.split('.')[1]))
+    return payload.user_id != null ? String(payload.user_id) : null
+  }
+  catch {
+    return null
+  }
+}
 
 function buildRegisterFormData(data: RegisterPayload, photo: File): FormData {
   const fd = new FormData()
@@ -224,22 +352,3 @@ function extractStatus(err: unknown): number | null {
   return null
 }
 
-function extractErrorMessage(err: unknown): string {
-  if (typeof err === 'object' && err !== null) {
-    // ofetch / $fetch wraps the response body in .data
-    if ('data' in err) {
-      const data = (err as { data: unknown }).data
-      if (typeof data === 'object' && data !== null && 'error' in data) {
-        return String((data as { error: unknown }).error)
-      }
-      if (typeof data === 'string' && data.length > 0) {
-        return data
-      }
-    }
-    // Plain Error object
-    if ('message' in err && typeof (err as { message: unknown }).message === 'string') {
-      return (err as { message: string }).message
-    }
-  }
-  return 'Ocurrió un error inesperado. Intenta de nuevo.'
-}

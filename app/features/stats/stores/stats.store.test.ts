@@ -10,43 +10,44 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 import { useStatsStore } from './stats.store'
-import type { StatsOverview, RevenueDataPoint, ActivityEntry } from '../types'
+import type { StatsOverview, RevenueSeriesPoint, RevenueStats } from '../types'
 
 // ── Fixtures ─────────────────────────────────────────────────
 
 function makeOverview(overrides: Partial<StatsOverview> = {}): StatsOverview {
   return {
-    total_users: 100,
-    total_pets: 250,
-    total_shelters: 15,
-    total_clinics: 20,
-    total_stores: 30,
-    total_adoptions: 45,
-    total_pro_subscriptions: 60,
-    total_donations: 80,
-    revenue_total: 5_000_000,
-    revenue_month: 300_000,
+    generated_at: '2025-01-15T10:00:00Z',
+    period: { from: '2025-01-01', to: '2025-01-31' },
+    users: { total: 100, active: 90, suspended: 10, new_in_period: 5, pro_active: 20, free: 80, conversion_rate_pct: 20 },
+    shelters: { total: 15, active: 12, suspended: 3, verified: 10 },
+    stores: { total: 30, active: 28, suspended: 2, featured: 5 },
+    clinics: { total: 20, active: 18, suspended: 2, pro: 8 },
+    revenue_cop: { total_accumulated: 5_000_000, in_period: 300_000, monthly_subscriptions: 200_000, annual_subscriptions: 100_000, arpu: 15_000 },
+    donations_cop: { total_amount: 1_000_000, in_period: 80_000, platform_fees_accumulated: 50_000, net_to_shelters: 950_000, total_count: 80, unique_donors: 40, avg_donation: 12_500 },
+    content: { total_pets: 250, total_reminders: 500, total_medical_records: 300, active_adoption_listings: 45, adopted_in_period: 10, blog_posts_published: 25 },
     ...overrides,
   }
 }
 
-function makeRevenuePoint(overrides: Partial<RevenueDataPoint> = {}): RevenueDataPoint {
+function makeSeriesPoint(overrides: Partial<RevenueSeriesPoint> = {}): RevenueSeriesPoint {
   return {
-    month: '2025-01',
-    subscriptions: 1_000_000,
-    donations: 200_000,
-    total: 1_200_000,
+    date: '2025-01-01',
+    revenue: 1_200_000,
+    count: 15,
     ...overrides,
   }
 }
 
-function makeActivityEntry(overrides: Partial<ActivityEntry> = {}): ActivityEntry {
+function makeRevenueStats(overrides: Partial<RevenueStats> = {}): RevenueStats {
   return {
-    id: 'act-1',
-    type: 'user_registered',
-    description: 'Usuario registrado: test@example.com',
-    user_email: 'test@example.com',
-    created_at: '2025-01-15T10:30:00Z',
+    generated_at: '2025-01-15T10:00:00Z',
+    period: { from: '2025-01-01', to: '2025-01-31' },
+    total_accumulated_cop: 5_000_000,
+    in_period_cop: 300_000,
+    by_plan: { pro_monthly: { revenue: 200_000, count: 10 } },
+    approved_transactions: 25,
+    arpu: 15_000,
+    series: [makeSeriesPoint()],
     ...overrides,
   }
 }
@@ -71,14 +72,9 @@ describe('useStatsStore', () => {
       expect(store.revenueData).toEqual([])
     })
 
-    it('activityEntries is an empty array', () => {
+    it('revenueStats is null', () => {
       const store = useStatsStore()
-      expect(store.activityEntries).toEqual([])
-    })
-
-    it('totalActivity is 0', () => {
-      const store = useStatsStore()
-      expect(store.totalActivity).toBe(0)
+      expect(store.revenueStats).toBeNull()
     })
 
     it('isLoading is false', () => {
@@ -96,9 +92,9 @@ describe('useStatsStore', () => {
       expect(store.hasRevenueData).toBe(false)
     })
 
-    it('hasActivity is false', () => {
+    it('hasRevenueStats is false', () => {
       const store = useStatsStore()
-      expect(store.hasActivity).toBe(false)
+      expect(store.hasRevenueStats).toBe(false)
     })
   })
 
@@ -107,7 +103,7 @@ describe('useStatsStore', () => {
   describe('setOverview', () => {
     it('stores the overview object', () => {
       const store = useStatsStore()
-      const data = makeOverview({ total_users: 42 })
+      const data = makeOverview()
       store.setOverview(data)
       expect(store.overview).toEqual(data)
     })
@@ -120,104 +116,84 @@ describe('useStatsStore', () => {
 
     it('replaces previous overview on second call', () => {
       const store = useStatsStore()
-      store.setOverview(makeOverview({ total_users: 10 }))
-      store.setOverview(makeOverview({ total_users: 99 }))
-      expect(store.overview!.total_users).toBe(99)
+      store.setOverview(makeOverview({ users: { total: 10, active: 9, suspended: 1, new_in_period: 1, pro_active: 2, free: 8, conversion_rate_pct: 20 } }))
+      store.setOverview(makeOverview({ users: { total: 99, active: 90, suspended: 9, new_in_period: 5, pro_active: 20, free: 79, conversion_rate_pct: 20 } }))
+      expect(store.overview!.users.total).toBe(99)
     })
 
-    it('does not affect revenueData or activityEntries', () => {
+    it('does not affect revenueData or revenueStats', () => {
       const store = useStatsStore()
       store.setOverview(makeOverview())
       expect(store.revenueData).toEqual([])
-      expect(store.activityEntries).toEqual([])
+      expect(store.revenueStats).toBeNull()
     })
   })
 
   // ── setRevenueData ───────────────────────────────────────────
 
   describe('setRevenueData', () => {
-    it('stores the revenue array', () => {
+    it('stores the revenue series array', () => {
       const store = useStatsStore()
-      const data = [makeRevenuePoint({ month: '2025-01' }), makeRevenuePoint({ month: '2025-02' })]
+      const data = [makeSeriesPoint({ date: '2025-01-01' }), makeSeriesPoint({ date: '2025-02-01' })]
       store.setRevenueData(data)
       expect(store.revenueData).toEqual(data)
     })
 
     it('hasRevenueData becomes true when array is non-empty', () => {
       const store = useStatsStore()
-      store.setRevenueData([makeRevenuePoint()])
+      store.setRevenueData([makeSeriesPoint()])
       expect(store.hasRevenueData).toBe(true)
     })
 
     it('hasRevenueData is false when array is empty', () => {
       const store = useStatsStore()
-      store.setRevenueData([makeRevenuePoint()])
+      store.setRevenueData([makeSeriesPoint()])
       store.setRevenueData([])
       expect(store.hasRevenueData).toBe(false)
     })
 
     it('replaces previous data on second call', () => {
       const store = useStatsStore()
-      store.setRevenueData([makeRevenuePoint({ month: '2025-01' })])
-      store.setRevenueData([makeRevenuePoint({ month: '2025-06' })])
-      expect(store.revenueData[0].month).toBe('2025-06')
+      store.setRevenueData([makeSeriesPoint({ date: '2025-01-01' })])
+      store.setRevenueData([makeSeriesPoint({ date: '2025-06-01' })])
+      expect(store.revenueData[0].date).toBe('2025-06-01')
       expect(store.revenueData).toHaveLength(1)
     })
 
-    it('does not affect overview or activityEntries', () => {
+    it('does not affect overview or revenueStats', () => {
       const store = useStatsStore()
-      store.setRevenueData([makeRevenuePoint()])
+      store.setRevenueData([makeSeriesPoint()])
       expect(store.overview).toBeNull()
-      expect(store.activityEntries).toEqual([])
+      expect(store.revenueStats).toBeNull()
     })
   })
 
-  // ── setActivityEntries ───────────────────────────────────────
+  // ── setRevenueStats ───────────────────────────────────────────
 
-  describe('setActivityEntries', () => {
-    it('stores the activity array', () => {
+  describe('setRevenueStats', () => {
+    it('stores the revenue stats object', () => {
       const store = useStatsStore()
-      const entries = [makeActivityEntry({ id: 'a1' }), makeActivityEntry({ id: 'a2' })]
-      store.setActivityEntries(entries, 2)
-      expect(store.activityEntries).toEqual(entries)
+      const data = makeRevenueStats()
+      store.setRevenueStats(data)
+      expect(store.revenueStats).toEqual(data)
     })
 
-    it('stores the total count', () => {
+    it('hasRevenueStats becomes true', () => {
       const store = useStatsStore()
-      store.setActivityEntries([makeActivityEntry()], 150)
-      expect(store.totalActivity).toBe(150)
+      store.setRevenueStats(makeRevenueStats())
+      expect(store.hasRevenueStats).toBe(true)
     })
 
-    it('hasActivity becomes true when array is non-empty', () => {
+    it('replaces previous stats on second call', () => {
       const store = useStatsStore()
-      store.setActivityEntries([makeActivityEntry()], 1)
-      expect(store.hasActivity).toBe(true)
-    })
-
-    it('hasActivity is false when array is empty', () => {
-      const store = useStatsStore()
-      store.setActivityEntries([makeActivityEntry()], 1)
-      store.setActivityEntries([], 0)
-      expect(store.hasActivity).toBe(false)
-    })
-
-    it('totalActivity updates to 0 on empty call', () => {
-      const store = useStatsStore()
-      store.setActivityEntries([makeActivityEntry()], 42)
-      store.setActivityEntries([], 0)
-      expect(store.totalActivity).toBe(0)
-    })
-
-    it('replaces previous entries on second call', () => {
-      const store = useStatsStore()
-      store.setActivityEntries([makeActivityEntry({ id: 'old' })], 1)
-      store.setActivityEntries([makeActivityEntry({ id: 'new' })], 1)
-      expect(store.activityEntries[0].id).toBe('new')
+      store.setRevenueStats(makeRevenueStats({ total_accumulated_cop: 100 }))
+      store.setRevenueStats(makeRevenueStats({ total_accumulated_cop: 999 }))
+      expect(store.revenueStats!.total_accumulated_cop).toBe(999)
     })
 
     it('does not affect overview or revenueData', () => {
       const store = useStatsStore()
-      store.setActivityEntries([makeActivityEntry()], 1)
+      store.setRevenueStats(makeRevenueStats())
       expect(store.overview).toBeNull()
       expect(store.revenueData).toEqual([])
     })
@@ -252,23 +228,16 @@ describe('useStatsStore', () => {
 
     it('resets revenueData to empty array', () => {
       const store = useStatsStore()
-      store.setRevenueData([makeRevenuePoint()])
+      store.setRevenueData([makeSeriesPoint()])
       store.clearStats()
       expect(store.revenueData).toEqual([])
     })
 
-    it('resets activityEntries to empty array', () => {
+    it('resets revenueStats to null', () => {
       const store = useStatsStore()
-      store.setActivityEntries([makeActivityEntry()], 1)
+      store.setRevenueStats(makeRevenueStats())
       store.clearStats()
-      expect(store.activityEntries).toEqual([])
-    })
-
-    it('resets totalActivity to 0', () => {
-      const store = useStatsStore()
-      store.setActivityEntries([makeActivityEntry()], 99)
-      store.clearStats()
-      expect(store.totalActivity).toBe(0)
+      expect(store.revenueStats).toBeNull()
     })
 
     it('resets isLoading to false', () => {
@@ -287,16 +256,16 @@ describe('useStatsStore', () => {
 
     it('hasRevenueData is false after clear', () => {
       const store = useStatsStore()
-      store.setRevenueData([makeRevenuePoint()])
+      store.setRevenueData([makeSeriesPoint()])
       store.clearStats()
       expect(store.hasRevenueData).toBe(false)
     })
 
-    it('hasActivity is false after clear', () => {
+    it('hasRevenueStats is false after clear', () => {
       const store = useStatsStore()
-      store.setActivityEntries([makeActivityEntry()], 1)
+      store.setRevenueStats(makeRevenueStats())
       store.clearStats()
-      expect(store.hasActivity).toBe(false)
+      expect(store.hasRevenueStats).toBe(false)
     })
   })
 
@@ -307,16 +276,16 @@ describe('useStatsStore', () => {
       const store = useStatsStore()
       store.setLoading(true)
       store.setOverview(makeOverview())
-      store.setRevenueData([makeRevenuePoint()])
-      store.setActivityEntries([makeActivityEntry()], 1)
+      store.setRevenueData([makeSeriesPoint()])
+      store.setRevenueStats(makeRevenueStats())
       store.setLoading(false)
       expect(store.hasOverview).toBe(true)
       expect(store.hasRevenueData).toBe(true)
-      expect(store.hasActivity).toBe(true)
+      expect(store.hasRevenueStats).toBe(true)
       store.clearStats()
       expect(store.hasOverview).toBe(false)
       expect(store.hasRevenueData).toBe(false)
-      expect(store.hasActivity).toBe(false)
+      expect(store.hasRevenueStats).toBe(false)
       expect(store.isLoading).toBe(false)
     })
 

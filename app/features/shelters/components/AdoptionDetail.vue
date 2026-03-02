@@ -1,26 +1,23 @@
 <script setup lang="ts">
-// AdoptionDetail — full adoption pet profile with adoption request form.
-// Fetches the pet on mount using the petId from the route.
-// The shelter_id is retrieved from the fetched pet data so we can:
-//  - provide a back link to the correct shelter
-//  - submit the adoption request to the correct endpoint
+// AdoptionDetail — full adoption listing profile with adoption request form.
+// Fetches the listing on mount using the listingId from the route.
 //
 // Adoption request form is shown only when:
 //  - Rendered on the client (import.meta.client)
 //  - User is authenticated
-//  - Pet status is 'available'
+//  - Listing status is 'available'
 
 const props = defineProps<{
-  petId: string
+  listingId: string
 }>()
 
-const { fetchAdoptionPetById, submitAdoptionRequest, error, sheltersStore } = useShelters()
+const { fetchAdoptionListingById, submitAdoptionRequest, error, sheltersStore } = useShelters()
 const authStore = useAuthStore()
 
-// ── Pet data ─────────────────────────────────────────────
-const pet = computed(() => sheltersStore.selectedAdoptionPet)
+// ── Listing data ──────────────────────────────────────────
+const listing = computed(() => sheltersStore.selectedListing)
 
-// ── Display maps ─────────────────────────────────────────
+// ── Display maps ──────────────────────────────────────────
 const SPECIES_EMOJI: Record<string, string> = {
   dog: '🐕',
   cat: '🐱',
@@ -43,32 +40,20 @@ const GENDER_LABEL: Record<string, string> = {
   unknown: 'Desconocido',
 }
 
-const SIZE_LABEL: Record<string, string> = {
-  small: 'Pequeño',
-  medium: 'Mediano',
-  large: 'Grande',
-}
-
 const STATUS_CONFIG = {
   available: { label: 'Disponible', badgeClass: 'bg-success' },
   pending: { label: 'En proceso de adopción', badgeClass: 'bg-warning text-dark' },
   adopted: { label: 'Ya adoptado', badgeClass: 'bg-secondary' },
 } as const
 
-// ── Age from age_months ───────────────────────────────────
-function formatAgeFromMonths(m: number | undefined): string {
-  if (m === undefined || m === null) return 'Desconocida'
-  if (m === 0) return 'Recién nacido'
-  const years = Math.floor(m / 12)
-  const months = m % 12
-  if (years === 0) return months === 1 ? '1 mes' : `${months} meses`
-  if (months === 0) return years === 1 ? '1 año' : `${years} años`
-  const yearLabel = years === 1 ? '1 año' : `${years} años`
-  const monthLabel = months === 1 ? '1 mes' : `${months} meses`
-  return `${yearLabel} y ${monthLabel}`
+// ── Age display ───────────────────────────────────────────
+function formatAge(age: number | undefined): string {
+  if (age === undefined || age === null) return 'Desconocida'
+  if (age === 0) return 'Cachorro'
+  return age === 1 ? '1 año' : `${age} años`
 }
 
-// ── URL safety guard ─────────────────────────────────────
+// ── URL safety guard ──────────────────────────────────────
 function isSafeImageUrl(url: string | undefined): boolean {
   if (!url) return false
   if (url.startsWith('blob:')) return true
@@ -83,7 +68,7 @@ function isSafeImageUrl(url: string | undefined): boolean {
 }
 
 const safePhotoUrl = computed(() =>
-  isSafeImageUrl(pet.value?.photo_url) ? pet.value?.photo_url : null,
+  isSafeImageUrl(listing.value?.photo_url) ? listing.value?.photo_url : null,
 )
 
 const imgError = ref(false)
@@ -94,8 +79,6 @@ function onImgError(): void {
 }
 
 // ── Adoption request form ─────────────────────────────────
-// The form is only rendered client-side so authStore.isAuthenticated
-// is read after hydration — no SSR mismatch risk.
 const MESSAGE_MIN = 20
 const MESSAGE_MAX = 500
 
@@ -120,11 +103,10 @@ async function handleAdoptionSubmit(): Promise<void> {
 
   const trimmed = adoptionMessage.value.trim()
   if (trimmed.length < MESSAGE_MIN || trimmed.length > MESSAGE_MAX) return
-  if (!pet.value) return
+  if (!listing.value) return
 
   const result = await submitAdoptionRequest(
-    pet.value.shelter_id,
-    pet.value.id,
+    listing.value.id,
     trimmed,
   )
 
@@ -140,35 +122,15 @@ async function handleAdoptionSubmit(): Promise<void> {
 
 // ── Lifecycle ─────────────────────────────────────────────
 onMounted(async () => {
-  // If we navigated from ShelterDetail, the pet may already be in the
-  // adoption pets list — look it up in the store first to avoid a
-  // redundant network request.
-  const cached = sheltersStore.adoptionPets.find(p => p.id === props.petId) ?? null
+  // Check if the listing is already cached in the store
+  const id = Number(props.listingId)
+  const cached = sheltersStore.adoptionListings.find(l => l.id === id) ?? null
   if (cached) {
-    sheltersStore.setSelectedAdoptionPet(cached)
+    sheltersStore.setSelectedListing(cached)
     return
   }
 
-  // Pet not in store — we need to fetch it. The backend endpoint
-  // requires /api/shelters/:shelterId/pets/:petId. Because this page
-  // only has the petId, we need the shelterId from the URL if available.
-  // We use the route's `shelterId` query param as a fallback (set by
-  // AdoptionPetCard when navigating), or fall back to a shelter-agnostic
-  // path if the backend supports it.
-  const route = useRoute()
-  // Validate shelterId from query to prevent path traversal — only allow
-  // alphanumeric chars, hyphens and underscores (LOW security fix)
-  const rawShelterId = route.query.shelterId as string | undefined
-  const shelterId = (rawShelterId && /^[\w-]{1,64}$/.test(rawShelterId))
-    ? rawShelterId
-    : '_'
-
-  await fetchAdoptionPetById(shelterId, props.petId)
-})
-
-const backLink = computed(() => {
-  if (pet.value?.shelter_id) return `/shelter/${pet.value.shelter_id}`
-  return '/shelter'
+  await fetchAdoptionListingById(id)
 })
 </script>
 
@@ -177,16 +139,16 @@ const backLink = computed(() => {
     <!-- Back navigation -->
     <div class="mb-4">
       <NuxtLink
-        :to="backLink"
+        to="/shelter"
         class="btn btn-sm btn-link p-0 text-muted text-decoration-none"
       >
-        &larr; Volver al refugio
+        &larr; Volver a adopciones
       </NuxtLink>
     </div>
 
     <!-- Error alert (fetch errors) -->
     <div
-      v-if="error && !pet"
+      v-if="error && !listing"
       class="alert alert-danger d-flex align-items-center gap-2 mb-4"
       role="alert"
     >
@@ -195,7 +157,7 @@ const backLink = computed(() => {
     </div>
 
     <!-- Loading state -->
-    <div v-if="sheltersStore.isLoading && !pet" aria-busy="true" aria-label="Cargando mascota">
+    <div v-if="sheltersStore.isLoading && !listing" aria-busy="true" aria-label="Cargando mascota">
       <div class="row g-4">
         <div class="col-12 col-md-6">
           <div class="adoption-detail-skeleton__photo skeleton-pulse rounded-3" aria-hidden="true" />
@@ -212,8 +174,8 @@ const backLink = computed(() => {
       </div>
     </div>
 
-    <!-- Pet detail -->
-    <template v-else-if="pet">
+    <!-- Listing detail -->
+    <template v-else-if="listing">
       <div class="row g-4 mb-4">
         <!-- Photo column -->
         <div class="col-12 col-md-6">
@@ -221,7 +183,7 @@ const backLink = computed(() => {
             <img
               v-if="showPhoto"
               :src="safePhotoUrl!"
-              :alt="`Foto de ${pet.name}`"
+              :alt="`Foto de ${listing.name}`"
               class="adoption-detail__photo"
               width="600"
               height="500"
@@ -233,7 +195,7 @@ const backLink = computed(() => {
               aria-hidden="true"
             >
               <span class="adoption-detail__fallback-icon">
-                {{ SPECIES_EMOJI[pet.species] ?? '🐾' }}
+                {{ SPECIES_EMOJI[listing.species] ?? '🐾' }}
               </span>
             </div>
           </div>
@@ -246,18 +208,18 @@ const backLink = computed(() => {
               <!-- Name + status -->
               <div>
                 <div class="d-flex flex-wrap align-items-start gap-2 mb-1">
-                  <h1 class="h3 fw-bold mb-0">{{ pet.name }}</h1>
+                  <h1 class="h3 fw-bold mb-0">{{ listing.name }}</h1>
                   <span
-                    :class="['badge align-self-center', STATUS_CONFIG[pet.status].badgeClass]"
-                    :aria-label="`Estado: ${STATUS_CONFIG[pet.status].label}`"
+                    :class="['badge align-self-center', STATUS_CONFIG[listing.status].badgeClass]"
+                    :aria-label="`Estado: ${STATUS_CONFIG[listing.status].label}`"
                   >
-                    {{ STATUS_CONFIG[pet.status].label }}
+                    {{ STATUS_CONFIG[listing.status].label }}
                   </span>
                 </div>
                 <p class="text-muted mb-0">
-                  <span aria-hidden="true">{{ SPECIES_EMOJI[pet.species] ?? '🐾' }}</span>
-                  {{ SPECIES_LABEL[pet.species] ?? pet.species }}
-                  <template v-if="pet.breed"> · {{ pet.breed }}</template>
+                  <span aria-hidden="true">{{ SPECIES_EMOJI[listing.species] ?? '🐾' }}</span>
+                  {{ SPECIES_LABEL[listing.species] ?? listing.species }}
+                  <template v-if="listing.breed"> · {{ listing.breed }}</template>
                 </p>
               </div>
 
@@ -266,56 +228,35 @@ const backLink = computed(() => {
                 <div class="adoption-detail__row">
                   <dt class="adoption-detail__label text-muted small">Edad</dt>
                   <dd class="adoption-detail__value fw-semibold mb-0">
-                    {{ formatAgeFromMonths(pet.age_months) }}
+                    {{ formatAge(listing.age) }}
                   </dd>
                 </div>
                 <div class="adoption-detail__row border-top pt-2">
                   <dt class="adoption-detail__label text-muted small">Sexo</dt>
                   <dd class="adoption-detail__value fw-semibold mb-0">
-                    {{ GENDER_LABEL[pet.gender] ?? pet.gender }}
+                    {{ GENDER_LABEL[listing.gender] ?? listing.gender }}
+                  </dd>
+                </div>
+                <div v-if="listing.weight" class="adoption-detail__row border-top pt-2">
+                  <dt class="adoption-detail__label text-muted small">Peso</dt>
+                  <dd class="adoption-detail__value fw-semibold mb-0">
+                    {{ listing.weight }} kg
                   </dd>
                 </div>
                 <div class="adoption-detail__row border-top pt-2">
-                  <dt class="adoption-detail__label text-muted small">Tamaño</dt>
+                  <dt class="adoption-detail__label text-muted small">Ubicación</dt>
                   <dd class="adoption-detail__value fw-semibold mb-0">
-                    {{ SIZE_LABEL[pet.size] ?? pet.size }}
+                    {{ listing.city }}<template v-if="listing.country">, {{ listing.country }}</template>
                   </dd>
                 </div>
               </dl>
 
-              <!-- Health chips -->
-              <div>
+              <!-- Story -->
+              <div v-if="listing.story">
                 <p class="text-muted small text-uppercase fw-semibold mb-2" style="letter-spacing: 0.04em;">
-                  Salud
+                  Historia
                 </p>
-                <div class="d-flex gap-2 flex-wrap">
-                  <span
-                    :class="[
-                      'badge fs-6 fw-normal px-3 py-2',
-                      pet.vaccinated ? 'bg-success-subtle text-success-emphasis' : 'bg-danger-subtle text-danger-emphasis',
-                    ]"
-                  >
-                    <span aria-hidden="true">{{ pet.vaccinated ? '✅' : '❌' }}</span>
-                    {{ pet.vaccinated ? 'Vacunado' : 'Sin vacuna' }}
-                  </span>
-                  <span
-                    :class="[
-                      'badge fs-6 fw-normal px-3 py-2',
-                      pet.neutered ? 'bg-success-subtle text-success-emphasis' : 'bg-secondary-subtle text-secondary-emphasis',
-                    ]"
-                  >
-                    <span aria-hidden="true">{{ pet.neutered ? '✅' : '❌' }}</span>
-                    {{ pet.neutered ? 'Esterilizado' : 'Sin esterilizar' }}
-                  </span>
-                </div>
-              </div>
-
-              <!-- Description -->
-              <div v-if="pet.description">
-                <p class="text-muted small text-uppercase fw-semibold mb-2" style="letter-spacing: 0.04em;">
-                  Descripción
-                </p>
-                <p class="mb-0" style="white-space: pre-line;">{{ pet.description }}</p>
+                <p class="mb-0" style="white-space: pre-line;">{{ listing.story }}</p>
               </div>
             </div>
           </div>
@@ -327,7 +268,7 @@ const backLink = computed(() => {
         <div class="card border-0 shadow-sm mb-4">
           <div class="card-body p-4">
             <!-- Already adopted -->
-            <template v-if="pet.status === 'adopted'">
+            <template v-if="listing.status === 'adopted'">
               <div class="text-center py-3">
                 <span class="fs-2" aria-hidden="true">🏡</span>
                 <h2 class="h5 fw-bold mt-3 mb-2">Esta mascota ya tiene un hogar</h2>
@@ -338,7 +279,7 @@ const backLink = computed(() => {
             </template>
 
             <!-- In process (pending) -->
-            <template v-else-if="pet.status === 'pending'">
+            <template v-else-if="listing.status === 'pending'">
               <div class="text-center py-3">
                 <span class="fs-2" aria-hidden="true">⏳</span>
                 <h2 class="h5 fw-bold mt-3 mb-2">Solicitud en proceso</h2>
@@ -350,10 +291,10 @@ const backLink = computed(() => {
             </template>
 
             <!-- Available — show form or login CTA -->
-            <template v-else-if="pet.status === 'available'">
+            <template v-else-if="listing.status === 'available'">
               <h2 class="h5 fw-bold mb-1">Solicitar adopción</h2>
               <p class="text-muted small mb-4">
-                Cuéntanos por qué quieres adoptar a {{ pet.name }} y cómo sería su nuevo hogar.
+                Cuéntanos por qué quieres adoptar a {{ listing.name }} y cómo sería su nuevo hogar.
               </p>
 
               <!-- Success state -->
@@ -471,7 +412,7 @@ const backLink = computed(() => {
       </ClientOnly>
     </template>
 
-    <!-- Pet not found -->
+    <!-- Listing not found -->
     <div
       v-else-if="!sheltersStore.isLoading"
       class="text-center py-5"
@@ -482,7 +423,7 @@ const backLink = computed(() => {
         Esta mascota ya no está disponible o el enlace es incorrecto.
       </p>
       <NuxtLink to="/shelter" class="btn btn-primary">
-        Explorar refugios
+        Explorar adopciones
       </NuxtLink>
     </div>
   </section>

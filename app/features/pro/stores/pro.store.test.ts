@@ -6,6 +6,12 @@
 // implementations are exercised, not mocked away. Each test gets
 // a fresh pinia via setActivePinia(createPinia()) in beforeEach.
 //
+// Key design changes from Stripe version:
+//   - Plans removed from store — now hardcoded in PRO_PLANS constant.
+//   - Subscription type: SubscriptionStatus (is_pro, is_active, etc.)
+//   - isSubscribed: is_pro && is_active (not status === 'active').
+//   - No setPlans, hasPlans, getMonthlyPlan, getAnnualPlan.
+//
 // What this suite does NOT cover intentionally:
 //   - HTTP / API calls — those are composable concerns (usePro.test.ts)
 //   - Component rendering — covered in component test files
@@ -14,39 +20,16 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 import { useProStore } from './pro.store'
-import type { ProPlan, ProSubscription } from '../types'
+import type { SubscriptionStatus } from '../types'
 
 // ── Fixtures ─────────────────────────────────────────────────
 
-const mockMonthlyPlan: ProPlan = {
-  id: 'plan-monthly',
-  name: 'PRO Mensual',
-  interval: 'monthly',
-  price: 29900,
-  currency: 'COP',
-  features: ['Mascotas ilimitadas', 'Exportar PDF', 'Soporte prioritario'],
-  is_popular: false,
-}
-
-const mockAnnualPlan: ProPlan = {
-  id: 'plan-annual',
-  name: 'PRO Anual',
-  interval: 'annual',
-  price: 299000,
-  currency: 'COP',
-  features: ['Mascotas ilimitadas', 'Exportar PDF', 'Soporte prioritario', '2 meses gratis'],
-  is_popular: true,
-}
-
-const mockSubscription: ProSubscription = {
-  id: 'sub-1',
-  user_id: 'user-1',
-  plan_id: 'plan-monthly',
-  status: 'active',
-  current_period_start: '2026-01-01T00:00:00Z',
-  current_period_end: '2026-02-01T00:00:00Z',
-  cancel_at_period_end: false,
-  created_at: '2026-01-01T00:00:00Z',
+const mockSubscription: SubscriptionStatus = {
+  is_pro: true,
+  is_active: true,
+  subscription_plan: 'pro_monthly',
+  subscription_expires_at: '2026-02-01T00:00:00Z',
+  days_remaining: 30,
 }
 
 // ── Suite ─────────────────────────────────────────────────────
@@ -65,11 +48,6 @@ describe('useProStore', () => {
       expect(store.subscription).toBeNull()
     })
 
-    it('has an empty plans array', () => {
-      const store = useProStore()
-      expect(store.plans).toEqual([])
-    })
-
     it('has isLoading as false', () => {
       const store = useProStore()
       expect(store.isLoading).toBe(false)
@@ -78,11 +56,6 @@ describe('useProStore', () => {
     it('isSubscribed is false with no subscription', () => {
       const store = useProStore()
       expect(store.isSubscribed).toBe(false)
-    })
-
-    it('hasPlans is false with an empty plans array', () => {
-      const store = useProStore()
-      expect(store.hasPlans).toBe(false)
     })
   })
 
@@ -98,9 +71,9 @@ describe('useProStore', () => {
     it('replaces a previously set subscription', () => {
       const store = useProStore()
       store.setSubscription(mockSubscription)
-      const updated = { ...mockSubscription, plan_id: 'plan-annual' }
+      const updated = { ...mockSubscription, subscription_plan: 'pro_annual' }
       store.setSubscription(updated)
-      expect(store.subscription?.plan_id).toBe('plan-annual')
+      expect(store.subscription?.subscription_plan).toBe('pro_annual')
     })
 
     it('sets subscription to null when called with null', () => {
@@ -113,9 +86,10 @@ describe('useProStore', () => {
     it('stores all subscription fields intact', () => {
       const store = useProStore()
       store.setSubscription(mockSubscription)
-      expect(store.subscription?.id).toBe('sub-1')
-      expect(store.subscription?.status).toBe('active')
-      expect(store.subscription?.cancel_at_period_end).toBe(false)
+      expect(store.subscription?.is_pro).toBe(true)
+      expect(store.subscription?.is_active).toBe(true)
+      expect(store.subscription?.subscription_plan).toBe('pro_monthly')
+      expect(store.subscription?.days_remaining).toBe(30)
     })
   })
 
@@ -135,42 +109,12 @@ describe('useProStore', () => {
       expect(store.subscription).toBeNull()
     })
 
-    it('does not affect the plans array', () => {
+    it('does not affect isLoading', () => {
       const store = useProStore()
-      store.setPlans([mockMonthlyPlan])
+      store.setLoading(true)
       store.setSubscription(mockSubscription)
       store.clearSubscription()
-      expect(store.plans).toHaveLength(1)
-    })
-  })
-
-  // ── setPlans ───────────────────────────────────────────────
-
-  describe('setPlans()', () => {
-    it('replaces the plans array with the provided list', () => {
-      const store = useProStore()
-      store.setPlans([mockMonthlyPlan, mockAnnualPlan])
-      expect(store.plans).toEqual([mockMonthlyPlan, mockAnnualPlan])
-    })
-
-    it('overwrites any previously stored plans', () => {
-      const store = useProStore()
-      store.setPlans([mockMonthlyPlan])
-      store.setPlans([mockAnnualPlan])
-      expect(store.plans).toEqual([mockAnnualPlan])
-    })
-
-    it('accepts an empty array, clearing all plans', () => {
-      const store = useProStore()
-      store.setPlans([mockMonthlyPlan])
-      store.setPlans([])
-      expect(store.plans).toEqual([])
-    })
-
-    it('makes hasPlans true after setting a non-empty array', () => {
-      const store = useProStore()
-      store.setPlans([mockMonthlyPlan])
-      expect(store.hasPlans).toBe(true)
+      expect(store.isLoading).toBe(true)
     })
   })
 
@@ -197,13 +141,11 @@ describe('useProStore', () => {
       expect(store.isLoading).toBe(false)
     })
 
-    it('does not affect subscription or plans', () => {
+    it('does not affect subscription', () => {
       const store = useProStore()
       store.setSubscription(mockSubscription)
-      store.setPlans([mockMonthlyPlan])
       store.setLoading(true)
       expect(store.subscription).toEqual(mockSubscription)
-      expect(store.plans).toHaveLength(1)
     })
   })
 
@@ -217,25 +159,11 @@ describe('useProStore', () => {
       expect(store.subscription).toBeNull()
     })
 
-    it('resets plans to an empty array', () => {
-      const store = useProStore()
-      store.setPlans([mockMonthlyPlan, mockAnnualPlan])
-      store.clearPro()
-      expect(store.plans).toEqual([])
-    })
-
     it('resets isLoading to false', () => {
       const store = useProStore()
       store.setLoading(true)
       store.clearPro()
       expect(store.isLoading).toBe(false)
-    })
-
-    it('makes hasPlans false after clearing', () => {
-      const store = useProStore()
-      store.setPlans([mockMonthlyPlan])
-      store.clearPro()
-      expect(store.hasPlans).toBe(false)
     })
 
     it('makes isSubscribed false after clearing', () => {
@@ -249,7 +177,6 @@ describe('useProStore', () => {
       const store = useProStore()
       expect(() => store.clearPro()).not.toThrow()
       expect(store.subscription).toBeNull()
-      expect(store.plans).toEqual([])
       expect(store.isLoading).toBe(false)
     })
   })
@@ -257,33 +184,32 @@ describe('useProStore', () => {
   // ── isSubscribed getter ────────────────────────────────────
 
   describe('isSubscribed getter', () => {
-    it('is true when subscription status is "active"', () => {
+    it('is true when is_pro=true and is_active=true', () => {
       const store = useProStore()
-      store.setSubscription({ ...mockSubscription, status: 'active' })
+      store.setSubscription({ ...mockSubscription, is_pro: true, is_active: true })
       expect(store.isSubscribed).toBe(true)
     })
 
-    it('is false when subscription status is "canceled"', () => {
+    it('is false when is_pro=true but is_active=false', () => {
       const store = useProStore()
-      store.setSubscription({ ...mockSubscription, status: 'canceled' })
+      store.setSubscription({ ...mockSubscription, is_pro: true, is_active: false })
       expect(store.isSubscribed).toBe(false)
     })
 
-    it('is false when subscription status is "past_due"', () => {
+    it('is false when is_pro=false and is_active=true', () => {
       const store = useProStore()
-      store.setSubscription({ ...mockSubscription, status: 'past_due' })
+      store.setSubscription({ ...mockSubscription, is_pro: false, is_active: true })
       expect(store.isSubscribed).toBe(false)
     })
 
-    it('is false when subscription status is "inactive"', () => {
+    it('is false when is_pro=false and is_active=false', () => {
       const store = useProStore()
-      store.setSubscription({ ...mockSubscription, status: 'inactive' })
+      store.setSubscription({ ...mockSubscription, is_pro: false, is_active: false })
       expect(store.isSubscribed).toBe(false)
     })
 
     it('is false when subscription is null', () => {
       const store = useProStore()
-      // subscription starts as null
       expect(store.isSubscribed).toBe(false)
     })
 
@@ -292,95 +218,6 @@ describe('useProStore', () => {
       expect(store.isSubscribed).toBe(false)
       store.setSubscription(mockSubscription)
       expect(store.isSubscribed).toBe(true)
-    })
-  })
-
-  // ── hasPlans getter ────────────────────────────────────────
-
-  describe('hasPlans getter', () => {
-    it('is false when plans array is empty', () => {
-      const store = useProStore()
-      expect(store.hasPlans).toBe(false)
-    })
-
-    it('is true when at least one plan exists', () => {
-      const store = useProStore()
-      store.setPlans([mockMonthlyPlan])
-      expect(store.hasPlans).toBe(true)
-    })
-
-    it('becomes false again after clearPro', () => {
-      const store = useProStore()
-      store.setPlans([mockMonthlyPlan])
-      store.clearPro()
-      expect(store.hasPlans).toBe(false)
-    })
-
-    it('stays true when multiple plans are loaded', () => {
-      const store = useProStore()
-      store.setPlans([mockMonthlyPlan, mockAnnualPlan])
-      expect(store.hasPlans).toBe(true)
-    })
-  })
-
-  // ── getMonthlyPlan getter ──────────────────────────────────
-
-  describe('getMonthlyPlan getter', () => {
-    it('returns undefined when plans array is empty', () => {
-      const store = useProStore()
-      expect(store.getMonthlyPlan).toBeUndefined()
-    })
-
-    it('returns the plan with interval === "monthly"', () => {
-      const store = useProStore()
-      store.setPlans([mockMonthlyPlan, mockAnnualPlan])
-      expect(store.getMonthlyPlan).toEqual(mockMonthlyPlan)
-    })
-
-    it('returns undefined when only an annual plan is loaded', () => {
-      const store = useProStore()
-      store.setPlans([mockAnnualPlan])
-      expect(store.getMonthlyPlan).toBeUndefined()
-    })
-
-    it('returns the correct plan when plans are in reverse order', () => {
-      const store = useProStore()
-      store.setPlans([mockAnnualPlan, mockMonthlyPlan])
-      expect(store.getMonthlyPlan?.id).toBe('plan-monthly')
-    })
-  })
-
-  // ── getAnnualPlan getter ───────────────────────────────────
-
-  describe('getAnnualPlan getter', () => {
-    it('returns undefined when plans array is empty', () => {
-      const store = useProStore()
-      expect(store.getAnnualPlan).toBeUndefined()
-    })
-
-    it('returns the plan with interval === "annual"', () => {
-      const store = useProStore()
-      store.setPlans([mockMonthlyPlan, mockAnnualPlan])
-      expect(store.getAnnualPlan).toEqual(mockAnnualPlan)
-    })
-
-    it('returns undefined when only a monthly plan is loaded', () => {
-      const store = useProStore()
-      store.setPlans([mockMonthlyPlan])
-      expect(store.getAnnualPlan).toBeUndefined()
-    })
-
-    it('returns the correct plan when plans are in reverse order', () => {
-      const store = useProStore()
-      store.setPlans([mockAnnualPlan, mockMonthlyPlan])
-      expect(store.getAnnualPlan?.id).toBe('plan-annual')
-    })
-
-    it('is_popular field is preserved correctly', () => {
-      const store = useProStore()
-      store.setPlans([mockMonthlyPlan, mockAnnualPlan])
-      expect(store.getAnnualPlan?.is_popular).toBe(true)
-      expect(store.getMonthlyPlan?.is_popular).toBe(false)
     })
   })
 })

@@ -1,7 +1,6 @@
 <script setup lang="ts">
 // MedicalRecordCard — compact card for a single medical record.
-// Shows: date, veterinarian, diagnosis, treatment, optional notes (truncated),
-// optional weight, and optional next_visit (with overdue badge).
+// Shows: date, symptoms (optional), diagnosis, treatment, optional notes (truncated).
 // Two-step inline delete confirmation — no modal needed.
 // Edit action emits up to the parent; parent owns navigation.
 
@@ -30,20 +29,6 @@ function formatDate(iso: string | undefined): string {
 }
 
 const formattedDate = computed(() => formatDate(props.record.date))
-const formattedNextVisit = computed(() => formatDate(props.record.next_visit))
-
-/**
- * A next_visit is overdue when it is in the past and has not been cleared.
- * We compare ISO date strings at day-level precision to avoid timezone issues.
- */
-const isNextVisitOverdue = computed(() => {
-  if (!props.record.next_visit) return false
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  const visitDate = new Date(props.record.next_visit)
-  visitDate.setHours(0, 0, 0, 0)
-  return visitDate < today
-})
 
 // ── Two-step delete confirmation ───────────────────────────────
 const confirmingDelete = ref(false)
@@ -67,7 +52,7 @@ function confirmDelete(): void {
     class="card h-100 border-0 shadow-sm medical-record-card"
     :aria-label="`Registro médico del ${formattedDate}`"
   >
-    <!-- Card header: date + veterinarian badge -->
+    <!-- Card header: date -->
     <div class="card-header border-0 bg-transparent pt-3 pb-0 d-flex align-items-start gap-2 flex-wrap">
       <div class="d-flex flex-column gap-1 flex-grow-1">
         <time
@@ -76,23 +61,19 @@ function confirmDelete(): void {
         >
           {{ formattedDate }}
         </time>
-        <span class="badge bg-info text-dark fw-normal text-truncate" style="max-width: 100%;">
-          {{ record.veterinarian }}
-        </span>
       </div>
-
-      <!-- Weight badge -->
-      <span
-        v-if="record.weight !== undefined"
-        class="badge bg-secondary-subtle text-secondary-emphasis fw-normal"
-        :title="`Peso en la visita: ${record.weight} kg`"
-      >
-        {{ record.weight }} kg
-      </span>
     </div>
 
-    <!-- Card body: diagnosis, treatment, notes -->
+    <!-- Card body: symptoms, diagnosis, treatment, notes -->
     <div class="card-body pt-2 pb-1">
+      <!-- Symptoms — only shown if present -->
+      <div v-if="record.symptoms" class="mb-2">
+        <p class="text-muted small mb-0 text-uppercase fw-semibold" style="letter-spacing: 0.04em;">
+          Síntomas
+        </p>
+        <p class="mb-0 medical-record-card__clamp">{{ record.symptoms }}</p>
+      </div>
+
       <!-- Diagnosis -->
       <div class="mb-2">
         <p class="text-muted small mb-0 text-uppercase fw-semibold" style="letter-spacing: 0.04em;">
@@ -115,21 +96,6 @@ function confirmDelete(): void {
           Notas
         </p>
         <p class="mb-0 text-muted small medical-record-card__clamp">{{ record.notes }}</p>
-      </div>
-
-      <!-- Next visit badge -->
-      <div v-if="record.next_visit" class="mt-2">
-        <span
-          :class="[
-            'badge fw-normal',
-            isNextVisitOverdue ? 'bg-danger' : 'bg-warning text-dark',
-          ]"
-          :aria-label="isNextVisitOverdue ? `Próxima visita vencida: ${formattedNextVisit}` : `Próxima visita: ${formattedNextVisit}`"
-        >
-          <span aria-hidden="true">{{ isNextVisitOverdue ? '⚠' : '📅' }}</span>
-          Próxima visita: {{ formattedNextVisit }}
-          <span v-if="isNextVisitOverdue" class="ms-1">(Vencida)</span>
-        </span>
       </div>
     </div>
 

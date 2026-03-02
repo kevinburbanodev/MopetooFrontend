@@ -14,7 +14,7 @@ export const useRemindersStore = defineStore('reminders', () => {
   // ── Getters ────────────────────────────────────────────────
   const hasReminders = computed(() => reminders.value.length > 0)
 
-  function getReminderById(id: number): Reminder | undefined {
+  function getReminderById(id: string): Reminder | undefined {
     return reminders.value.find(r => r.id === id)
   }
 
@@ -40,7 +40,7 @@ export const useRemindersStore = defineStore('reminders', () => {
     }
   }
 
-  function removeReminder(id: number): void {
+  function removeReminder(id: string): void {
     reminders.value = reminders.value.filter(r => r.id !== id)
     if (selectedReminder.value?.id === id) {
       selectedReminder.value = null

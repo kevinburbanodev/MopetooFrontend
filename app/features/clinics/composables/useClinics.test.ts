@@ -10,11 +10,10 @@
 //   - Pinia is isolated per test via createTestingPinia (stubActions: false)
 //     so real store action logic runs and we can spy on it.
 //
-// What this suite does NOT cover intentionally:
-//   - Network retry logic — no retry exists; nothing to test.
-//   - Browser navigation or redirect behaviour — page/middleware tests.
-//   - ID format validation in fetchClinicById — enforced in ClinicDetail
-//     component lifecycle, not the composable itself.
+// Endpoint notes:
+//   - GET /clinics (public, no /api prefix) returns plain Clinic[] array.
+//   - GET /clinics/:id returns single Clinic object.
+//   - Backend supports ?city= and ?specialty= query params (no search).
 // ============================================================
 
 import { describe, it, expect, beforeEach, vi } from 'vitest'
@@ -23,7 +22,6 @@ import { createTestingPinia } from '@pinia/testing'
 import type { Clinic } from '../types'
 
 // ── useApi mock ──────────────────────────────────────────────
-// useApi is a project composable — vi.mock intercepts the module.
 
 const mockGet = vi.fn()
 
@@ -35,28 +33,29 @@ vi.mock('../../shared/composables/useApi', () => ({
 
 function makeClinic(overrides: Partial<Clinic> = {}): Clinic {
   return {
-    id: '1',
+    id: 1,
     name: 'Clínica Veterinaria Los Andes',
-    description: 'Atención veterinaria integral para toda tu familia',
+    email: 'info@clinicaandes.com',
+    phone: '+57 300 987 6543',
     address: 'Calle 72 #15-30',
     city: 'Bogotá',
-    phone: '+57 300 987 6543',
-    email: 'info@clinicaandes.com',
-    website: 'https://clinicaandes.com',
-    photo_url: 'https://example.com/clinica.jpg',
+    country: 'Colombia',
+    description: 'Atención veterinaria integral para toda tu familia',
     specialties: ['Cirugía', 'Dermatología'],
-    is_verified: true,
-    is_featured: false,
-    latitude: 4.7109886,
-    longitude: -74.072092,
+    services: ['Consulta general', 'Vacunación'],
+    schedules: 'Lunes a Viernes: 8:00 AM - 6:00 PM',
+    cover_image_url: 'https://example.com/clinica.jpg',
+    plan: 'free',
+    verified: true,
+    is_active: true,
     created_at: '2024-01-01T00:00:00Z',
     updated_at: '2024-01-01T00:00:00Z',
     ...overrides,
   }
 }
 
-const clinicA = makeClinic({ id: '1', name: 'Los Andes Vet' })
-const clinicB = makeClinic({ id: '2', name: 'Clínica Animal Sur', city: 'Medellín', is_featured: true })
+const clinicA = makeClinic({ id: 1, name: 'Los Andes Vet' })
+const clinicB = makeClinic({ id: 2, name: 'Clínica Animal Sur', city: 'Medellín', plan: 'pro' })
 
 // ── Suite ─────────────────────────────────────────────────────
 
@@ -64,8 +63,6 @@ describe('useClinics', () => {
   let clinicsStore: ReturnType<typeof import('../stores/clinics.store').useClinicsStore>
 
   beforeEach(async () => {
-    // Isolate Pinia per test.
-    // stubActions: false so real store action logic runs.
     setActivePinia(
       createTestingPinia({ stubActions: false, createSpy: vi.fn }),
     )
@@ -79,14 +76,14 @@ describe('useClinics', () => {
   // ── fetchClinics ───────────────────────────────────────────
 
   describe('fetchClinics()', () => {
-    it('calls GET /api/clinics when no filters are provided', async () => {
+    it('calls GET /clinics when no filters are provided', async () => {
       mockGet.mockResolvedValueOnce([clinicA])
       const { useClinics } = await import('./useClinics')
       const { fetchClinics } = useClinics()
 
       await fetchClinics()
 
-      expect(mockGet).toHaveBeenCalledWith('/api/clinics')
+      expect(mockGet).toHaveBeenCalledWith('/clinics')
     })
 
     it('hydrates the store when the response is a bare Clinic array', async () => {
@@ -101,7 +98,7 @@ describe('useClinics', () => {
     })
 
     it('hydrates the store when the response is shaped as { clinics: Clinic[] }', async () => {
-      mockGet.mockResolvedValueOnce({ clinics: [clinicA, clinicB], total: 2, page: 1, per_page: 20 })
+      mockGet.mockResolvedValueOnce({ clinics: [clinicA, clinicB] })
       const setClinicsSpy = vi.spyOn(clinicsStore, 'setClinics')
       const { useClinics } = await import('./useClinics')
       const { fetchClinics } = useClinics()
@@ -203,16 +200,6 @@ describe('useClinics', () => {
   // ── fetchClinics with filters ──────────────────────────────
 
   describe('fetchClinics(filters)', () => {
-    it('appends search filter as a query string parameter', async () => {
-      mockGet.mockResolvedValueOnce([])
-      const { useClinics } = await import('./useClinics')
-      const { fetchClinics } = useClinics()
-
-      await fetchClinics({ search: 'veterinaria' })
-
-      expect(mockGet).toHaveBeenCalledWith('/api/clinics?search=veterinaria')
-    })
-
     it('appends city filter as a query string parameter', async () => {
       mockGet.mockResolvedValueOnce([])
       const { useClinics } = await import('./useClinics')
@@ -220,7 +207,7 @@ describe('useClinics', () => {
 
       await fetchClinics({ city: 'Bogotá' })
 
-      expect(mockGet).toHaveBeenCalledWith('/api/clinics?city=Bogot%C3%A1')
+      expect(mockGet).toHaveBeenCalledWith('/clinics?city=Bogot%C3%A1')
     })
 
     it('appends specialty filter as a query string parameter', async () => {
@@ -230,7 +217,7 @@ describe('useClinics', () => {
 
       await fetchClinics({ specialty: 'Cirugía' })
 
-      expect(mockGet).toHaveBeenCalledWith('/api/clinics?specialty=Cirug%C3%ADa')
+      expect(mockGet).toHaveBeenCalledWith('/clinics?specialty=Cirug%C3%ADa')
     })
 
     it('omits empty filter values from the query string', async () => {
@@ -238,9 +225,9 @@ describe('useClinics', () => {
       const { useClinics } = await import('./useClinics')
       const { fetchClinics } = useClinics()
 
-      await fetchClinics({ search: '', city: '', specialty: '' })
+      await fetchClinics({ city: '', specialty: '' })
 
-      expect(mockGet).toHaveBeenCalledWith('/api/clinics')
+      expect(mockGet).toHaveBeenCalledWith('/clinics')
     })
 
     it('combines multiple filter parameters correctly', async () => {
@@ -248,57 +235,55 @@ describe('useClinics', () => {
       const { useClinics } = await import('./useClinics')
       const { fetchClinics } = useClinics()
 
-      await fetchClinics({ search: 'vet', specialty: 'Cirugía' })
+      await fetchClinics({ city: 'Bogotá', specialty: 'Cirugía' })
 
       const calledPath: string = mockGet.mock.calls[0][0]
-      expect(calledPath).toContain('/api/clinics?')
-      expect(calledPath).toContain('search=vet')
+      expect(calledPath).toContain('/clinics?')
+      expect(calledPath).toContain('city=')
       expect(calledPath).toContain('specialty=')
     })
 
-    it('calls GET /api/clinics (no query string) when filters object is empty', async () => {
+    it('calls GET /clinics (no query string) when filters object is empty', async () => {
       mockGet.mockResolvedValueOnce([])
       const { useClinics } = await import('./useClinics')
       const { fetchClinics } = useClinics()
 
       await fetchClinics({})
 
-      expect(mockGet).toHaveBeenCalledWith('/api/clinics')
+      expect(mockGet).toHaveBeenCalledWith('/clinics')
     })
 
-    it('calls GET /api/clinics (no query string) when filters is undefined', async () => {
+    it('calls GET /clinics (no query string) when filters is undefined', async () => {
       mockGet.mockResolvedValueOnce([])
       const { useClinics } = await import('./useClinics')
       const { fetchClinics } = useClinics()
 
       await fetchClinics(undefined)
 
-      expect(mockGet).toHaveBeenCalledWith('/api/clinics')
+      expect(mockGet).toHaveBeenCalledWith('/clinics')
     })
   })
 
   // ── fetchClinicById ────────────────────────────────────────
 
   describe('fetchClinicById()', () => {
-    it('calls GET /api/clinics/{id} when id is not in the store cache', async () => {
+    it('calls GET /clinics/{id} when id is not in the store cache', async () => {
       mockGet.mockResolvedValueOnce(clinicA)
       const { useClinics } = await import('./useClinics')
       const { fetchClinicById } = useClinics()
 
-      await fetchClinicById('1')
+      await fetchClinicById(1)
 
-      expect(mockGet).toHaveBeenCalledWith('/api/clinics/1')
+      expect(mockGet).toHaveBeenCalledWith('/clinics/1')
     })
 
     it('returns the clinic from the store cache without calling the API (store-first lookup)', async () => {
-      // Pre-populate the store with clinicA
       clinicsStore.setClinics([clinicA])
       const { useClinics } = await import('./useClinics')
       const { fetchClinicById } = useClinics()
 
-      const result = await fetchClinicById('1')
+      const result = await fetchClinicById(1)
 
-      // Should NOT have called the network at all
       expect(mockGet).not.toHaveBeenCalled()
       expect(result).toEqual(clinicA)
     })
@@ -309,21 +294,20 @@ describe('useClinics', () => {
       const { useClinics } = await import('./useClinics')
       const { fetchClinicById } = useClinics()
 
-      await fetchClinicById('1')
+      await fetchClinicById(1)
 
       expect(setSelectedSpy).toHaveBeenCalledWith(clinicA)
     })
 
     it('falls back to API call when id is not in the store cache', async () => {
-      // Store has clinicA (id=1); requesting clinicB (id=2) forces network call
       clinicsStore.setClinics([clinicA])
       mockGet.mockResolvedValueOnce(clinicB)
       const { useClinics } = await import('./useClinics')
       const { fetchClinicById } = useClinics()
 
-      await fetchClinicById('2')
+      await fetchClinicById(2)
 
-      expect(mockGet).toHaveBeenCalledWith('/api/clinics/2')
+      expect(mockGet).toHaveBeenCalledWith('/clinics/2')
     })
 
     it('calls setSelectedClinic on the store with the returned clinic', async () => {
@@ -332,7 +316,7 @@ describe('useClinics', () => {
       const { useClinics } = await import('./useClinics')
       const { fetchClinicById } = useClinics()
 
-      await fetchClinicById('1')
+      await fetchClinicById(1)
 
       expect(setSelectedSpy).toHaveBeenCalledWith(clinicA)
     })
@@ -342,7 +326,7 @@ describe('useClinics', () => {
       const { useClinics } = await import('./useClinics')
       const { fetchClinicById } = useClinics()
 
-      const result = await fetchClinicById('1')
+      const result = await fetchClinicById(1)
 
       expect(result).toEqual(clinicA)
     })
@@ -352,7 +336,7 @@ describe('useClinics', () => {
       const { useClinics } = await import('./useClinics')
       const { fetchClinicById } = useClinics()
 
-      const result = await fetchClinicById('999')
+      const result = await fetchClinicById(999)
 
       expect(result).toBeNull()
     })
@@ -362,7 +346,7 @@ describe('useClinics', () => {
       const { useClinics } = await import('./useClinics')
       const { fetchClinicById, error } = useClinics()
 
-      await fetchClinicById('999')
+      await fetchClinicById(999)
 
       expect(error.value).toBe('No encontrado')
     })
@@ -373,7 +357,7 @@ describe('useClinics', () => {
       const { useClinics } = await import('./useClinics')
       const { fetchClinicById } = useClinics()
 
-      await fetchClinicById('999')
+      await fetchClinicById(999)
 
       expect(setSelectedSpy).not.toHaveBeenCalled()
     })
@@ -387,7 +371,7 @@ describe('useClinics', () => {
       const { useClinics } = await import('./useClinics')
       const { fetchClinicById } = useClinics()
 
-      await fetchClinicById('1')
+      await fetchClinicById(1)
 
       expect(loadingDuringCall).toBe(true)
       expect(clinicsStore.isLoading).toBe(false)
@@ -398,19 +382,18 @@ describe('useClinics', () => {
       const { useClinics } = await import('./useClinics')
       const { fetchClinicById } = useClinics()
 
-      await fetchClinicById('1')
+      await fetchClinicById(1)
 
       expect(clinicsStore.isLoading).toBe(false)
     })
 
     it('does NOT set isLoading when returning from store cache (no network round-trip)', async () => {
-      // Cache hit path skips setLoading(true)/setLoading(false)
       clinicsStore.setClinics([clinicA])
       const setLoadingSpy = vi.spyOn(clinicsStore, 'setLoading')
       const { useClinics } = await import('./useClinics')
       const { fetchClinicById } = useClinics()
 
-      await fetchClinicById('1')
+      await fetchClinicById(1)
 
       expect(setLoadingSpy).not.toHaveBeenCalled()
     })
@@ -420,9 +403,9 @@ describe('useClinics', () => {
       const { useClinics } = await import('./useClinics')
       const { fetchClinicById } = useClinics()
 
-      await fetchClinicById('42')
+      await fetchClinicById(42)
 
-      expect(mockGet).toHaveBeenCalledWith('/api/clinics/42')
+      expect(mockGet).toHaveBeenCalledWith('/clinics/42')
     })
 
     it('clears any previous error before the network request', async () => {
@@ -431,7 +414,7 @@ describe('useClinics', () => {
       const { fetchClinicById, error } = useClinics()
 
       error.value = 'error previo'
-      await fetchClinicById('1')
+      await fetchClinicById(1)
 
       expect(error.value).toBeNull()
     })

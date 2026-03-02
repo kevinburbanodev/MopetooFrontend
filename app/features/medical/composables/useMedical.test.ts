@@ -5,6 +5,7 @@
 // Mocking strategy:
 //   - useApi() is mocked via vi.mock — it is a project composable,
 //     not a Nuxt built-in, so mockNuxtImport is NOT the right tool.
+//   - useExportPDF() is mocked via vi.mock — project composable.
 //   - useRuntimeConfig is NOT mocked here. NUXT_PUBLIC_API_BASE is
 //     provided via vitest.config.ts env options.
 //   - Pinia is isolated per test via createTestingPinia (stubActions: false)
@@ -36,14 +37,22 @@ vi.mock('../../shared/composables/useApi', () => ({
   useApi: () => ({ get: mockGet, post: mockPost, put: mockPut, del: mockDel }),
 }))
 
+// ── useExportPDF mock ────────────────────────────────────────
+vi.mock('../../shared/composables/useExportPDF', () => ({
+  useExportPDF: () => ({
+    downloadPDF: vi.fn(),
+    slugify: (name: string) => name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, ''),
+  }),
+}))
+
 // ── Fixtures ─────────────────────────────────────────────────
 
 function makeRecord(overrides: Partial<MedicalRecord> = {}): MedicalRecord {
   return {
     id: '1',
     pet_id: '42',
-    date: '2024-06-15',
-    veterinarian: 'Dr. García',
+    date: '2024-06-15T00:00:00Z',
+    symptoms: 'Tos leve',
     diagnosis: 'Control rutinario',
     treatment: 'Vitaminas y desparasitante',
     created_at: '2026-01-01T00:00:00Z',
@@ -52,8 +61,8 @@ function makeRecord(overrides: Partial<MedicalRecord> = {}): MedicalRecord {
   }
 }
 
-const recordA = makeRecord({ id: '1', date: '2024-06-15', veterinarian: 'Dr. García' })
-const recordB = makeRecord({ id: '2', date: '2024-07-20', veterinarian: 'Dra. López', diagnosis: 'Vacunación' })
+const recordA = makeRecord({ id: '1', date: '2024-06-15T00:00:00Z', symptoms: 'Tos leve' })
+const recordB = makeRecord({ id: '2', date: '2024-07-20T00:00:00Z', symptoms: 'Fiebre', diagnosis: 'Vacunación' })
 
 // ── Suite ─────────────────────────────────────────────────────
 
@@ -208,19 +217,32 @@ describe('useMedical', () => {
 
       expect(mockGet).toHaveBeenCalledWith('/api/pets/99/medical-records')
     })
+
+    it('normalizes numeric IDs to strings in the response', async () => {
+      mockGet.mockResolvedValueOnce([{ ...recordA, id: 1, pet_id: 42 }])
+      const setRecordsSpy = vi.spyOn(medicalStore, 'setRecords')
+      const { useMedical } = await import('./useMedical')
+      const { fetchMedicalHistory } = useMedical()
+
+      await fetchMedicalHistory('42')
+
+      const storedRecords = setRecordsSpy.mock.calls[0][0]
+      expect(storedRecords[0].id).toBe('1')
+      expect(storedRecords[0].pet_id).toBe('42')
+    })
   })
 
   // ── fetchMedicalRecord ─────────────────────────────────────
 
   describe('fetchMedicalRecord()', () => {
-    it('calls GET /api/pets/{petId}/medical-records/{recordId} with the correct ids', async () => {
+    it('calls GET /api/medical-records/{recordId} with the correct id', async () => {
       mockGet.mockResolvedValueOnce(recordA)
       const { useMedical } = await import('./useMedical')
       const { fetchMedicalRecord } = useMedical()
 
-      await fetchMedicalRecord('42', '1')
+      await fetchMedicalRecord('1')
 
-      expect(mockGet).toHaveBeenCalledWith('/api/pets/42/medical-records/1')
+      expect(mockGet).toHaveBeenCalledWith('/api/medical-records/1')
     })
 
     it('calls setSelectedRecord on the store with the returned record', async () => {
@@ -229,7 +251,7 @@ describe('useMedical', () => {
       const { useMedical } = await import('./useMedical')
       const { fetchMedicalRecord } = useMedical()
 
-      await fetchMedicalRecord('42', '1')
+      await fetchMedicalRecord('1')
 
       expect(setSelectedRecordSpy).toHaveBeenCalledWith(recordA)
     })
@@ -239,7 +261,7 @@ describe('useMedical', () => {
       const { useMedical } = await import('./useMedical')
       const { fetchMedicalRecord } = useMedical()
 
-      const result = await fetchMedicalRecord('42', '1')
+      const result = await fetchMedicalRecord('1')
 
       expect(result).toEqual(recordA)
     })
@@ -249,7 +271,7 @@ describe('useMedical', () => {
       const { useMedical } = await import('./useMedical')
       const { fetchMedicalRecord } = useMedical()
 
-      const result = await fetchMedicalRecord('42', '999')
+      const result = await fetchMedicalRecord('999')
 
       expect(result).toBeNull()
     })
@@ -259,7 +281,7 @@ describe('useMedical', () => {
       const { useMedical } = await import('./useMedical')
       const { fetchMedicalRecord, error } = useMedical()
 
-      await fetchMedicalRecord('42', '999')
+      await fetchMedicalRecord('999')
 
       expect(error.value).toBe('No encontrado')
     })
@@ -270,7 +292,7 @@ describe('useMedical', () => {
       const { useMedical } = await import('./useMedical')
       const { fetchMedicalRecord } = useMedical()
 
-      await fetchMedicalRecord('42', '999')
+      await fetchMedicalRecord('999')
 
       expect(setSelectedRecordSpy).not.toHaveBeenCalled()
     })
@@ -280,7 +302,7 @@ describe('useMedical', () => {
       const { useMedical } = await import('./useMedical')
       const { fetchMedicalRecord } = useMedical()
 
-      await fetchMedicalRecord('42', '1')
+      await fetchMedicalRecord('1')
 
       expect(medicalStore.isLoading).toBe(false)
     })
@@ -290,7 +312,7 @@ describe('useMedical', () => {
       const { useMedical } = await import('./useMedical')
       const { fetchMedicalRecord } = useMedical()
 
-      await fetchMedicalRecord('42', '1')
+      await fetchMedicalRecord('1')
 
       expect(medicalStore.isLoading).toBe(false)
     })
@@ -301,9 +323,20 @@ describe('useMedical', () => {
       const { fetchMedicalRecord, error } = useMedical()
 
       error.value = 'error previo'
-      await fetchMedicalRecord('42', '1')
+      await fetchMedicalRecord('1')
 
       expect(error.value).toBeNull()
+    })
+
+    it('normalizes numeric IDs to strings', async () => {
+      mockGet.mockResolvedValueOnce({ ...recordA, id: 1, pet_id: 42 })
+      const { useMedical } = await import('./useMedical')
+      const { fetchMedicalRecord } = useMedical()
+
+      const result = await fetchMedicalRecord('1')
+
+      expect(result!.id).toBe('1')
+      expect(result!.pet_id).toBe('42')
     })
   })
 
@@ -311,20 +344,21 @@ describe('useMedical', () => {
 
   describe('createMedicalRecord()', () => {
     const payload = {
-      date: '2024-06-15',
-      veterinarian: 'Dr. García',
+      pet_id: 42,
+      date: '2024-06-15T00:00:00Z',
+      symptoms: 'Tos leve',
       diagnosis: 'Control rutinario',
       treatment: 'Vitaminas y desparasitante',
     }
 
-    it('calls POST /api/pets/{petId}/medical-records with the payload', async () => {
+    it('calls POST /api/medical-records with pet_id in the payload', async () => {
       mockPost.mockResolvedValueOnce(recordA)
       const { useMedical } = await import('./useMedical')
       const { createMedicalRecord } = useMedical()
 
       await createMedicalRecord('42', payload)
 
-      expect(mockPost).toHaveBeenCalledWith('/api/pets/42/medical-records', payload)
+      expect(mockPost).toHaveBeenCalledWith('/api/medical-records', expect.objectContaining({ pet_id: 42 }))
     })
 
     it('calls addRecord on the store with the returned record (prepend)', async () => {
@@ -431,14 +465,14 @@ describe('useMedical', () => {
     const patchPayload = { diagnosis: 'Diagnóstico actualizado', treatment: 'Tratamiento nuevo' }
     const updatedRecord = { ...recordA, ...patchPayload }
 
-    it('calls PUT /api/pets/{petId}/medical-records/{recordId} with the correct ids and payload', async () => {
+    it('calls PUT /api/medical-records/{recordId} with the correct id and payload', async () => {
       mockPut.mockResolvedValueOnce(updatedRecord)
       const { useMedical } = await import('./useMedical')
       const { updateMedicalRecord } = useMedical()
 
-      await updateMedicalRecord('42', '1', patchPayload)
+      await updateMedicalRecord('1', patchPayload)
 
-      expect(mockPut).toHaveBeenCalledWith('/api/pets/42/medical-records/1', patchPayload)
+      expect(mockPut).toHaveBeenCalledWith('/api/medical-records/1', patchPayload)
     })
 
     it('calls updateRecord on the store with the returned record', async () => {
@@ -447,7 +481,7 @@ describe('useMedical', () => {
       const { useMedical } = await import('./useMedical')
       const { updateMedicalRecord } = useMedical()
 
-      await updateMedicalRecord('42', '1', patchPayload)
+      await updateMedicalRecord('1', patchPayload)
 
       expect(updateStoreSpy).toHaveBeenCalledWith(updatedRecord)
     })
@@ -457,7 +491,7 @@ describe('useMedical', () => {
       const { useMedical } = await import('./useMedical')
       const { updateMedicalRecord } = useMedical()
 
-      const result = await updateMedicalRecord('42', '1', patchPayload)
+      const result = await updateMedicalRecord('1', patchPayload)
 
       expect(result).toEqual(updatedRecord)
     })
@@ -467,7 +501,7 @@ describe('useMedical', () => {
       const { useMedical } = await import('./useMedical')
       const { updateMedicalRecord } = useMedical()
 
-      const result = await updateMedicalRecord('42', '999', patchPayload)
+      const result = await updateMedicalRecord('999', patchPayload)
 
       expect(result).toBeNull()
     })
@@ -477,7 +511,7 @@ describe('useMedical', () => {
       const { useMedical } = await import('./useMedical')
       const { updateMedicalRecord, error } = useMedical()
 
-      await updateMedicalRecord('42', '999', patchPayload)
+      await updateMedicalRecord('999', patchPayload)
 
       expect(error.value).toBe('Not found')
     })
@@ -488,7 +522,7 @@ describe('useMedical', () => {
       const { useMedical } = await import('./useMedical')
       const { updateMedicalRecord } = useMedical()
 
-      await updateMedicalRecord('42', '1', patchPayload)
+      await updateMedicalRecord('1', patchPayload)
 
       expect(updateStoreSpy).not.toHaveBeenCalled()
     })
@@ -498,7 +532,7 @@ describe('useMedical', () => {
       const { useMedical } = await import('./useMedical')
       const { updateMedicalRecord } = useMedical()
 
-      await updateMedicalRecord('42', '1', patchPayload)
+      await updateMedicalRecord('1', patchPayload)
 
       expect(medicalStore.isLoading).toBe(false)
     })
@@ -508,7 +542,7 @@ describe('useMedical', () => {
       const { useMedical } = await import('./useMedical')
       const { updateMedicalRecord } = useMedical()
 
-      await updateMedicalRecord('42', '1', patchPayload)
+      await updateMedicalRecord('1', patchPayload)
 
       expect(medicalStore.isLoading).toBe(false)
     })
@@ -519,33 +553,47 @@ describe('useMedical', () => {
       const { updateMedicalRecord, error } = useMedical()
 
       error.value = 'error previo'
-      await updateMedicalRecord('42', '1', patchPayload)
+      await updateMedicalRecord('1', patchPayload)
 
       expect(error.value).toBeNull()
     })
 
-    it('passes different petId and recordId to URL correctly', async () => {
+    it('passes different recordId to URL correctly', async () => {
       mockPut.mockResolvedValueOnce(makeRecord({ id: '5', pet_id: '99' }))
       const { useMedical } = await import('./useMedical')
       const { updateMedicalRecord } = useMedical()
 
-      await updateMedicalRecord('99', '5', patchPayload)
+      await updateMedicalRecord('5', patchPayload)
 
-      expect(mockPut).toHaveBeenCalledWith('/api/pets/99/medical-records/5', patchPayload)
+      expect(mockPut).toHaveBeenCalledWith('/api/medical-records/5', patchPayload)
+    })
+
+    it('preserves created_at from existing store record when backend omits it', async () => {
+      // Pre-populate the store with a record that has created_at
+      medicalStore.setRecords([recordA])
+      // Backend response without created_at
+      const responseWithoutCreatedAt = { ...updatedRecord, created_at: '' }
+      mockPut.mockResolvedValueOnce(responseWithoutCreatedAt)
+      const { useMedical } = await import('./useMedical')
+      const { updateMedicalRecord } = useMedical()
+
+      const result = await updateMedicalRecord('1', patchPayload)
+
+      expect(result!.created_at).toBe(recordA.created_at)
     })
   })
 
   // ── deleteMedicalRecord ────────────────────────────────────
 
   describe('deleteMedicalRecord()', () => {
-    it('calls DELETE /api/pets/{petId}/medical-records/{recordId} with the correct ids', async () => {
+    it('calls DELETE /api/medical-records/{recordId} with the correct id', async () => {
       mockDel.mockResolvedValueOnce(undefined)
       const { useMedical } = await import('./useMedical')
       const { deleteMedicalRecord } = useMedical()
 
-      await deleteMedicalRecord('42', '1')
+      await deleteMedicalRecord('1')
 
-      expect(mockDel).toHaveBeenCalledWith('/api/pets/42/medical-records/1')
+      expect(mockDel).toHaveBeenCalledWith('/api/medical-records/1')
     })
 
     it('calls removeRecord on the store with the correct id on success', async () => {
@@ -554,7 +602,7 @@ describe('useMedical', () => {
       const { useMedical } = await import('./useMedical')
       const { deleteMedicalRecord } = useMedical()
 
-      await deleteMedicalRecord('42', '1')
+      await deleteMedicalRecord('1')
 
       expect(removeRecordSpy).toHaveBeenCalledWith('1')
     })
@@ -564,7 +612,7 @@ describe('useMedical', () => {
       const { useMedical } = await import('./useMedical')
       const { deleteMedicalRecord } = useMedical()
 
-      const result = await deleteMedicalRecord('42', '1')
+      const result = await deleteMedicalRecord('1')
 
       expect(result).toBe(true)
     })
@@ -574,7 +622,7 @@ describe('useMedical', () => {
       const { useMedical } = await import('./useMedical')
       const { deleteMedicalRecord } = useMedical()
 
-      const result = await deleteMedicalRecord('42', '1')
+      const result = await deleteMedicalRecord('1')
 
       expect(result).toBe(false)
     })
@@ -585,7 +633,7 @@ describe('useMedical', () => {
       const { useMedical } = await import('./useMedical')
       const { deleteMedicalRecord } = useMedical()
 
-      await deleteMedicalRecord('42', '1')
+      await deleteMedicalRecord('1')
 
       expect(removeRecordSpy).not.toHaveBeenCalled()
     })
@@ -595,7 +643,7 @@ describe('useMedical', () => {
       const { useMedical } = await import('./useMedical')
       const { deleteMedicalRecord, error } = useMedical()
 
-      await deleteMedicalRecord('42', '1')
+      await deleteMedicalRecord('1')
 
       expect(error.value).toBe('Forbidden')
     })
@@ -608,7 +656,7 @@ describe('useMedical', () => {
       const { useMedical } = await import('./useMedical')
       const { deleteMedicalRecord } = useMedical()
 
-      await deleteMedicalRecord('42', '1')
+      await deleteMedicalRecord('1')
 
       expect(loadingDuringCall).toBe(true)
     })
@@ -618,7 +666,7 @@ describe('useMedical', () => {
       const { useMedical } = await import('./useMedical')
       const { deleteMedicalRecord } = useMedical()
 
-      await deleteMedicalRecord('42', '1')
+      await deleteMedicalRecord('1')
 
       expect(medicalStore.isLoading).toBe(false)
     })
@@ -628,7 +676,7 @@ describe('useMedical', () => {
       const { useMedical } = await import('./useMedical')
       const { deleteMedicalRecord } = useMedical()
 
-      await deleteMedicalRecord('42', '1')
+      await deleteMedicalRecord('1')
 
       expect(medicalStore.isLoading).toBe(false)
     })
@@ -639,7 +687,7 @@ describe('useMedical', () => {
       const { deleteMedicalRecord, error } = useMedical()
 
       error.value = 'error previo'
-      await deleteMedicalRecord('42', '1')
+      await deleteMedicalRecord('1')
 
       expect(error.value).toBeNull()
     })
@@ -649,19 +697,19 @@ describe('useMedical', () => {
       const { useMedical } = await import('./useMedical')
       const { deleteMedicalRecord, error } = useMedical()
 
-      await deleteMedicalRecord('42', '1')
+      await deleteMedicalRecord('1')
 
       expect(error.value).toBe('Ocurrió un error inesperado. Intenta de nuevo.')
     })
 
-    it('passes different petId and recordId to URL correctly', async () => {
+    it('passes different recordId to URL correctly', async () => {
       mockDel.mockResolvedValueOnce(undefined)
       const { useMedical } = await import('./useMedical')
       const { deleteMedicalRecord } = useMedical()
 
-      await deleteMedicalRecord('99', '5')
+      await deleteMedicalRecord('5')
 
-      expect(mockDel).toHaveBeenCalledWith('/api/pets/99/medical-records/5')
+      expect(mockDel).toHaveBeenCalledWith('/api/medical-records/5')
     })
   })
 

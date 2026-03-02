@@ -1,32 +1,16 @@
 <script setup lang="ts">
 // AdminShelterManager — paginated shelter management table.
-// Each row supports toggling is_verified and is_featured,
-// plus 2-step inline delete confirmation.
+// Each row supports verify, activate/deactivate actions via
+// specific PATCH endpoints. No delete or featured toggles.
 
 import type { AdminFilters } from '../types'
 
-const { fetchShelters, updateShelter, deleteShelter, error, adminStore } = useAdmin()
+const { fetchShelters, verifyShelter, activateShelter, deactivateShelter, error, adminStore } = useAdmin()
 
 // ── Filters ────────────────────────────────────────────────
 const searchQuery = ref('')
 const currentPage = ref(1)
 const PER_PAGE = 20
-
-// ── Delete confirmation (2-step inline) ─────────────────────
-const confirmingDeleteId = ref<string | null>(null)
-
-function requestDelete(shelterId: string): void {
-  confirmingDeleteId.value = shelterId
-}
-
-function cancelDelete(): void {
-  confirmingDeleteId.value = null
-}
-
-async function confirmDelete(shelterId: string): Promise<void> {
-  confirmingDeleteId.value = null
-  await deleteShelter(shelterId)
-}
 
 // ── Debounced fetch ─────────────────────────────────────────
 let debounceTimer: ReturnType<typeof setTimeout> | null = null
@@ -42,7 +26,7 @@ function scheduleRefetch(): void {
 async function loadShelters(): Promise<void> {
   const filters: AdminFilters = {
     page: currentPage.value,
-    per_page: PER_PAGE,
+    limit: PER_PAGE,
   }
   const q = searchQuery.value.trim()
   if (q) filters.search = q
@@ -134,7 +118,7 @@ onMounted(async () => {
               <th scope="col">Ciudad</th>
               <th scope="col">Contacto</th>
               <th scope="col" class="text-center">Verificado</th>
-              <th scope="col" class="text-center">Destacado</th>
+              <th scope="col" class="text-center">Activo</th>
               <th scope="col" class="text-center">Mascotas</th>
               <th scope="col">Registro</th>
               <th scope="col" class="text-end">Acciones</th>
@@ -183,72 +167,44 @@ onMounted(async () => {
                 </td>
                 <td class="text-center">
                   <span
-                    v-if="shelter.is_featured"
-                    class="badge bg-warning text-dark"
-                    aria-label="Refugio destacado"
+                    v-if="shelter.is_active"
+                    class="badge bg-success"
+                    aria-label="Refugio activo"
                   >
-                    Destacado
+                    Activo
                   </span>
                   <span
                     v-else
-                    class="text-muted small"
-                    aria-label="Refugio no destacado"
+                    class="badge bg-secondary"
+                    aria-label="Refugio inactivo"
                   >
-                    No
+                    Inactivo
                   </span>
                 </td>
                 <td class="text-center">{{ shelter.pets_count }}</td>
                 <td class="text-muted small">{{ formatDate(shelter.created_at) }}</td>
                 <td class="text-end">
                   <div class="d-flex justify-content-end gap-1 flex-wrap">
-                    <!-- 2-step delete confirmation -->
-                    <template v-if="confirmingDeleteId === shelter.id">
-                      <button
-                        type="button"
-                        class="btn btn-sm btn-danger"
-                        :aria-label="`Confirmar eliminación de ${shelter.name}`"
-                        @click="confirmDelete(shelter.id)"
-                      >
-                        ¿Confirmar?
-                      </button>
-                      <button
-                        type="button"
-                        class="btn btn-sm btn-outline-secondary"
-                        aria-label="Cancelar eliminación"
-                        @click="cancelDelete"
-                      >
-                        Cancelar
-                      </button>
-                    </template>
-                    <template v-else>
-                      <!-- Toggle Verificado -->
-                      <button
-                        type="button"
-                        class="btn btn-sm btn-outline-success"
-                        :aria-label="shelter.is_verified ? `Quitar verificación a ${shelter.name}` : `Verificar ${shelter.name}`"
-                        @click="updateShelter(shelter.id, { is_verified: !shelter.is_verified })"
-                      >
-                        {{ shelter.is_verified ? 'Desverificar' : 'Verificar' }}
-                      </button>
-                      <!-- Toggle Destacado -->
-                      <button
-                        type="button"
-                        class="btn btn-sm btn-outline-warning"
-                        :aria-label="shelter.is_featured ? `Quitar destacado a ${shelter.name}` : `Destacar ${shelter.name}`"
-                        @click="updateShelter(shelter.id, { is_featured: !shelter.is_featured })"
-                      >
-                        {{ shelter.is_featured ? 'Quitar dest.' : 'Destacar' }}
-                      </button>
-                      <!-- Delete -->
-                      <button
-                        type="button"
-                        class="btn btn-sm btn-outline-danger"
-                        :aria-label="`Eliminar refugio ${shelter.name}`"
-                        @click="requestDelete(shelter.id)"
-                      >
-                        Eliminar
-                      </button>
-                    </template>
+                    <!-- Verificar (only shown when not verified) -->
+                    <button
+                      v-if="!shelter.is_verified"
+                      type="button"
+                      class="btn btn-sm btn-outline-success"
+                      :aria-label="`Verificar ${shelter.name}`"
+                      @click="verifyShelter(shelter.id)"
+                    >
+                      Verificar
+                    </button>
+                    <!-- Activar / Desactivar -->
+                    <button
+                      type="button"
+                      class="btn btn-sm"
+                      :class="shelter.is_active ? 'btn-outline-secondary' : 'btn-outline-success'"
+                      :aria-label="shelter.is_active ? `Desactivar ${shelter.name}` : `Activar ${shelter.name}`"
+                      @click="shelter.is_active ? deactivateShelter(shelter.id) : activateShelter(shelter.id)"
+                    >
+                      {{ shelter.is_active ? 'Desactivar' : 'Activar' }}
+                    </button>
                   </div>
                 </td>
               </tr>
@@ -325,6 +281,6 @@ onMounted(async () => {
   &__badge { height: 1.25rem; width: 4rem; border-radius: var(--bs-border-radius-pill) !important; }
   &__count { height: 0.875rem; width: 2rem; }
   &__date { height: 0.875rem; width: 70px; }
-  &__actions { height: 2rem; width: 200px; }
+  &__actions { height: 2rem; width: 160px; }
 }
 </style>

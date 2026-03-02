@@ -30,11 +30,9 @@ function makePet(overrides: Partial<Pet> = {}): Pet {
     name: 'Max',
     species: 'dog',
     breed: 'Labrador',
-    birth_date: '2020-06-15',
+    age: 3,
     gender: 'male',
     weight: 28,
-    color: 'Dorado',
-    microchip: '123456789012345',
     notes: 'Alergias: ninguna.',
     created_at: '2024-01-01T00:00:00Z',
     updated_at: '2024-06-01T00:00:00Z',
@@ -76,16 +74,11 @@ describe('PetDetail', () => {
       expect(wrapper.text()).toContain('Hembra')
     })
 
-    it('renders the age string from usePetAge', async () => {
+    it('renders the age string from formatAge', async () => {
       const wrapper = await mountSuspended(PetDetail, { props: { pet: defaultPet } })
-      // Age is always rendered as a detail row with label "Edad"
+      // Age is rendered as a detail row with label "Edad" and formatted value "3 años"
       expect(wrapper.text()).toContain('Edad')
-    })
-
-    it('renders the formatted birth date', async () => {
-      const wrapper = await mountSuspended(PetDetail, { props: { pet: defaultPet } })
-      // The formatDate helper produces a Spanish long-form date
-      expect(wrapper.text()).toContain('Fecha de nacimiento')
+      expect(wrapper.text()).toContain('3 años')
     })
 
     it('renders the weight row when weight is present', async () => {
@@ -97,28 +90,6 @@ describe('PetDetail', () => {
       const pet = makePet({ weight: undefined })
       const wrapper = await mountSuspended(PetDetail, { props: { pet } })
       expect(wrapper.text()).not.toContain(' kg')
-    })
-
-    it('renders the color row when color is present', async () => {
-      const wrapper = await mountSuspended(PetDetail, { props: { pet: defaultPet } })
-      expect(wrapper.text()).toContain('Dorado')
-    })
-
-    it('does not render the color row when color is absent', async () => {
-      const pet = makePet({ color: undefined })
-      const wrapper = await mountSuspended(PetDetail, { props: { pet } })
-      expect(wrapper.text()).not.toContain('Dorado')
-    })
-
-    it('renders the microchip row when microchip is present', async () => {
-      const wrapper = await mountSuspended(PetDetail, { props: { pet: defaultPet } })
-      expect(wrapper.text()).toContain('123456789012345')
-    })
-
-    it('does not render the microchip row when microchip is absent', async () => {
-      const pet = makePet({ microchip: undefined })
-      const wrapper = await mountSuspended(PetDetail, { props: { pet } })
-      expect(wrapper.text()).not.toContain('123456789012345')
     })
 
     it('renders the notes card when notes are present', async () => {

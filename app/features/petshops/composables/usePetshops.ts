@@ -5,7 +5,8 @@
 // API layer that keeps the store in sync.
 // ============================================================
 
-import type { Petshop, PetshopListFilters, PetshopListResponse } from '../types'
+import type { Petshop, PetshopListFilters, PetshopListResponse, StoreProduct, StoreProductListResponse } from '../types'
+import { extractErrorMessage } from '../../shared/utils/extractErrorMessage'
 
 export function usePetshops() {
   const { get } = useApi()
@@ -16,16 +17,14 @@ export function usePetshops() {
   // ── Public API ──────────────────────────────────────────────
 
   /**
-   * Fetch all petshops, optionally filtered.
+   * Fetch all petshops, optionally filtered by city and category.
    * Handles both `{ stores: Petshop[] }` envelope and plain `Petshop[]` shapes.
    */
   async function fetchPetshops(filters?: PetshopListFilters): Promise<void> {
     petshopsStore.setLoading(true)
     error.value = null
     try {
-      // Build query string from non-empty filter values
       const params = new URLSearchParams()
-      if (filters?.search) params.set('search', filters.search)
       if (filters?.city) params.set('city', filters.city)
       if (filters?.category) params.set('category', filters.category)
       const qs = params.toString()
@@ -54,7 +53,7 @@ export function usePetshops() {
    * Calls setSelectedPetshop() on success.
    * Returns the petshop or null on failure.
    */
-  async function fetchPetshopById(id: string): Promise<Petshop | null> {
+  async function fetchPetshopById(id: number): Promise<Petshop | null> {
     // Store-first: if we already loaded this petshop in the list, reuse it.
     const cached = petshopsStore.petshops.find(p => p.id === id)
     if (cached) {
@@ -78,28 +77,38 @@ export function usePetshops() {
     }
   }
 
+  /**
+   * Fetch products for a given store.
+   * Handles both `{ products: StoreProduct[] }` envelope and plain array shapes.
+   */
+  async function fetchStoreProducts(storeId: number): Promise<void> {
+    petshopsStore.setLoading(true)
+    error.value = null
+    try {
+      const response = await get<StoreProductListResponse | StoreProduct[]>(
+        `/api/stores/${storeId}/products`,
+      )
+      if (Array.isArray(response)) {
+        petshopsStore.setStoreProducts(response)
+      }
+      else {
+        petshopsStore.setStoreProducts(response.products ?? [])
+      }
+    }
+    catch (err: unknown) {
+      error.value = extractErrorMessage(err)
+    }
+    finally {
+      petshopsStore.setLoading(false)
+    }
+  }
+
   return {
     error,
     petshopsStore,
     fetchPetshops,
     fetchPetshopById,
+    fetchStoreProducts,
   }
 }
 
-// ── Helpers ─────────────────────────────────────────────────
-
-function extractErrorMessage(err: unknown): string {
-  if (typeof err === 'object' && err !== null) {
-    if ('data' in err) {
-      const data = (err as { data: unknown }).data
-      if (typeof data === 'object' && data !== null && 'error' in data) {
-        return String((data as { error: unknown }).error)
-      }
-      if (typeof data === 'string' && data.length > 0) return data
-    }
-    if ('message' in err && typeof (err as { message: unknown }).message === 'string') {
-      return (err as { message: string }).message
-    }
-  }
-  return 'Ocurrió un error inesperado. Intenta de nuevo.'
-}

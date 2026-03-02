@@ -103,7 +103,8 @@ describe('ProBanner', () => {
               initialState: {
                 auth: {
                   token: 'test-jwt',
-                  currentUser: { id: '1', is_pro: true },
+                  currentEntity: { id: '1', is_pro: true },
+                  entityType: 'user',
                 },
               },
             }),

@@ -15,31 +15,15 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 import { useAdminStore } from './admin.store'
 import type {
-  AdminStats,
   AdminUser,
   AdminShelter,
   AdminPetshop,
   AdminClinic,
   AdminTransaction,
+  AdminDonation,
 } from '../types'
 
 // ── Fixtures ─────────────────────────────────────────────────
-
-function makeStats(overrides: Partial<AdminStats> = {}): AdminStats {
-  return {
-    total_users: 100,
-    total_pets: 250,
-    total_shelters: 15,
-    total_clinics: 20,
-    total_stores: 30,
-    total_adoptions: 45,
-    total_pro_subscriptions: 60,
-    total_donations: 80,
-    revenue_total: 5000000,
-    revenue_month: 300000,
-    ...overrides,
-  }
-}
 
 function makeUser(overrides: Partial<AdminUser> = {}): AdminUser {
   return {
@@ -51,6 +35,7 @@ function makeUser(overrides: Partial<AdminUser> = {}): AdminUser {
     city: 'Bogotá',
     is_pro: false,
     is_admin: false,
+    is_active: true,
     pets_count: 2,
     created_at: '2024-01-01T00:00:00Z',
     updated_at: '2024-01-01T00:00:00Z',
@@ -60,12 +45,12 @@ function makeUser(overrides: Partial<AdminUser> = {}): AdminUser {
 
 function makeShelter(overrides: Partial<AdminShelter> = {}): AdminShelter {
   return {
-    id: 'shelter-1',
+    id: 1,
     name: 'Refugio Los Amigos',
     city: 'Bogotá',
     email: 'info@refugio.com',
     is_verified: true,
-    is_featured: false,
+    is_active: true,
     pets_count: 10,
     created_at: '2024-01-01T00:00:00Z',
     ...overrides,
@@ -74,12 +59,12 @@ function makeShelter(overrides: Partial<AdminShelter> = {}): AdminShelter {
 
 function makePetshop(overrides: Partial<AdminPetshop> = {}): AdminPetshop {
   return {
-    id: 'shop-1',
+    id: 1,
     name: 'Tienda Mascota Feliz',
     city: 'Medellín',
     email: 'info@tienda.com',
-    is_verified: false,
-    is_featured: false,
+    is_active: true,
+    plan: 'free',
     created_at: '2024-01-01T00:00:00Z',
     ...overrides,
   }
@@ -87,12 +72,13 @@ function makePetshop(overrides: Partial<AdminPetshop> = {}): AdminPetshop {
 
 function makeClinic(overrides: Partial<AdminClinic> = {}): AdminClinic {
   return {
-    id: 'clinic-1',
+    id: 1,
     name: 'Clínica Vet Norte',
     city: 'Cali',
     email: 'info@clinica.com',
     is_verified: true,
-    is_featured: false,
+    is_active: true,
+    plan: 'free',
     specialties: ['Cirugía', 'Dermatología'],
     created_at: '2024-01-01T00:00:00Z',
     ...overrides,
@@ -101,30 +87,42 @@ function makeClinic(overrides: Partial<AdminClinic> = {}): AdminClinic {
 
 function makeTransaction(overrides: Partial<AdminTransaction> = {}): AdminTransaction {
   return {
-    id: 'txn-abc123',
+    id: 1,
     user_id: 1,
-    user_name: 'Juan Pérez',
-    user_email: 'juan@example.com',
-    type: 'subscription',
-    amount: 49000,
-    currency: 'COP',
-    status: 'completed',
-    description: 'Suscripción PRO mensual',
+    plan: 'pro_monthly',
+    amount_cop: 49000,
+    status: 'approved',
+    reference: 'REF-001',
     created_at: '2024-01-15T10:00:00Z',
+    ...overrides,
+  }
+}
+
+function makeDonation(overrides: Partial<AdminDonation> = {}): AdminDonation {
+  return {
+    id: 1,
+    user_id: 1,
+    shelter_id: 1,
+    amount_cop: 25000,
+    status: 'approved',
+    reference: 'DON-001',
+    created_at: '2024-02-01T10:00:00Z',
     ...overrides,
   }
 }
 
 const userA = makeUser({ id: 1, name: 'Ana', is_pro: false })
 const userB = makeUser({ id: 2, name: 'Carlos', is_pro: true })
-const shelterA = makeShelter({ id: 'shelter-1', name: 'Refugio Norte', is_verified: false })
-const shelterB = makeShelter({ id: 'shelter-2', name: 'Refugio Sur', is_featured: true })
-const petshopA = makePetshop({ id: 'shop-1', name: 'TiendaPets A' })
-const petshopB = makePetshop({ id: 'shop-2', name: 'TiendaPets B', is_featured: true })
-const clinicA = makeClinic({ id: 'clinic-1', name: 'Clínica Norte' })
-const clinicB = makeClinic({ id: 'clinic-2', name: 'Clínica Sur', is_featured: true })
-const txA = makeTransaction({ id: 'txn-1', type: 'subscription' })
-const txB = makeTransaction({ id: 'txn-2', type: 'donation' })
+const shelterA = makeShelter({ id: 1, name: 'Refugio Norte', is_verified: false })
+const shelterB = makeShelter({ id: 2, name: 'Refugio Sur', is_active: false })
+const petshopA = makePetshop({ id: 1, name: 'TiendaPets A' })
+const petshopB = makePetshop({ id: 2, name: 'TiendaPets B', plan: 'featured' })
+const clinicA = makeClinic({ id: 1, name: 'Clínica Norte' })
+const clinicB = makeClinic({ id: 2, name: 'Clínica Sur', plan: 'pro' })
+const txA = makeTransaction({ id: 1, plan: 'pro_monthly' })
+const txB = makeTransaction({ id: 2, plan: 'pro_annual' })
+const donA = makeDonation({ id: 1 })
+const donB = makeDonation({ id: 2, shelter_id: 5 })
 
 // ── Suite ─────────────────────────────────────────────────────
 
@@ -136,11 +134,6 @@ describe('useAdminStore', () => {
   // ── Initial state ───────────────────────────────────────────
 
   describe('initial state', () => {
-    it('has null stats', () => {
-      const store = useAdminStore()
-      expect(store.stats).toBeNull()
-    })
-
     it('has an empty users array', () => {
       const store = useAdminStore()
       expect(store.users).toEqual([])
@@ -171,6 +164,11 @@ describe('useAdminStore', () => {
       expect(store.transactions).toEqual([])
     })
 
+    it('has an empty donations array', () => {
+      const store = useAdminStore()
+      expect(store.donations).toEqual([])
+    })
+
     it('has isLoading false', () => {
       const store = useAdminStore()
       expect(store.isLoading).toBe(false)
@@ -183,38 +181,12 @@ describe('useAdminStore', () => {
       expect(store.totalPetshops).toBe(0)
       expect(store.totalClinics).toBe(0)
       expect(store.totalTransactions).toBe(0)
-    })
-
-    it('hasStats is false initially', () => {
-      const store = useAdminStore()
-      expect(store.hasStats).toBe(false)
+      expect(store.totalDonations).toBe(0)
     })
 
     it('hasUsers is false initially', () => {
       const store = useAdminStore()
       expect(store.hasUsers).toBe(false)
-    })
-  })
-
-  // ── hasStats getter ─────────────────────────────────────────
-
-  describe('hasStats getter', () => {
-    it('returns false when stats is null', () => {
-      const store = useAdminStore()
-      expect(store.hasStats).toBe(false)
-    })
-
-    it('returns true after setStats is called', () => {
-      const store = useAdminStore()
-      store.setStats(makeStats())
-      expect(store.hasStats).toBe(true)
-    })
-
-    it('returns false again after clearAdmin is called', () => {
-      const store = useAdminStore()
-      store.setStats(makeStats())
-      store.clearAdmin()
-      expect(store.hasStats).toBe(false)
     })
   })
 
@@ -237,30 +209,6 @@ describe('useAdminStore', () => {
       store.setUsers([userA], 1)
       store.clearAdmin()
       expect(store.hasUsers).toBe(false)
-    })
-  })
-
-  // ── setStats ────────────────────────────────────────────────
-
-  describe('setStats()', () => {
-    it('stores the provided stats object', () => {
-      const store = useAdminStore()
-      const stats = makeStats({ total_users: 999 })
-      store.setStats(stats)
-      expect(store.stats).toEqual(stats)
-    })
-
-    it('replaces previously stored stats', () => {
-      const store = useAdminStore()
-      store.setStats(makeStats({ total_users: 10 }))
-      store.setStats(makeStats({ total_users: 99 }))
-      expect(store.stats?.total_users).toBe(99)
-    })
-
-    it('makes hasStats return true', () => {
-      const store = useAdminStore()
-      store.setStats(makeStats())
-      expect(store.hasStats).toBe(true)
     })
   })
 
@@ -333,37 +281,12 @@ describe('useAdminStore', () => {
       store.updateUser(999, { is_pro: true })
       expect(store.users[0]).toEqual(userA)
     })
-  })
 
-  // ── removeUser ──────────────────────────────────────────────
-
-  describe('removeUser()', () => {
-    it('removes the user with the given id', () => {
-      const store = useAdminStore()
-      store.setUsers([userA, userB], 2)
-      store.removeUser(1)
-      expect(store.users).toEqual([userB])
-    })
-
-    it('decrements totalUsers by 1', () => {
-      const store = useAdminStore()
-      store.setUsers([userA, userB], 2)
-      store.removeUser(1)
-      expect(store.totalUsers).toBe(1)
-    })
-
-    it('does not decrement totalUsers below 0', () => {
-      const store = useAdminStore()
-      store.setUsers([], 0)
-      store.removeUser(999)
-      expect(store.totalUsers).toBe(0)
-    })
-
-    it('does nothing when the id is not found', () => {
+    it('can toggle is_active', () => {
       const store = useAdminStore()
       store.setUsers([userA], 1)
-      store.removeUser(999)
-      expect(store.users).toHaveLength(1)
+      store.updateUser(1, { is_active: false })
+      expect(store.users[0].is_active).toBe(false)
     })
   })
 
@@ -413,40 +336,22 @@ describe('useAdminStore', () => {
     it('merges partial data into an existing shelter by id', () => {
       const store = useAdminStore()
       store.setShelters([shelterA], 1)
-      store.updateShelter('shelter-1', { is_verified: true })
+      store.updateShelter(1, { is_verified: true })
       expect(store.shelters[0].is_verified).toBe(true)
     })
 
     it('does nothing when shelter id is not found', () => {
       const store = useAdminStore()
       store.setShelters([shelterA], 1)
-      store.updateShelter('unknown-id', { is_verified: true })
+      store.updateShelter(999, { is_verified: true })
       expect(store.shelters[0]).toEqual(shelterA)
     })
-  })
 
-  // ── removeShelter ───────────────────────────────────────────
-
-  describe('removeShelter()', () => {
-    it('removes the shelter with the given id', () => {
+    it('can toggle is_active', () => {
       const store = useAdminStore()
-      store.setShelters([shelterA, shelterB], 2)
-      store.removeShelter('shelter-1')
-      expect(store.shelters).toEqual([shelterB])
-    })
-
-    it('decrements totalShelters by 1', () => {
-      const store = useAdminStore()
-      store.setShelters([shelterA, shelterB], 2)
-      store.removeShelter('shelter-1')
-      expect(store.totalShelters).toBe(1)
-    })
-
-    it('does not decrement totalShelters below 0', () => {
-      const store = useAdminStore()
-      store.setShelters([], 0)
-      store.removeShelter('nope')
-      expect(store.totalShelters).toBe(0)
+      store.setShelters([shelterA], 1)
+      store.updateShelter(1, { is_active: false })
+      expect(store.shelters[0].is_active).toBe(false)
     })
   })
 
@@ -467,40 +372,22 @@ describe('useAdminStore', () => {
     it('merges partial data into an existing petshop by id', () => {
       const store = useAdminStore()
       store.setPetshops([petshopA], 1)
-      store.updatePetshop('shop-1', { is_verified: true })
-      expect(store.petshops[0].is_verified).toBe(true)
+      store.updatePetshop(1, { is_active: false })
+      expect(store.petshops[0].is_active).toBe(false)
+    })
+
+    it('can update plan', () => {
+      const store = useAdminStore()
+      store.setPetshops([petshopA], 1)
+      store.updatePetshop(1, { plan: 'featured' })
+      expect(store.petshops[0].plan).toBe('featured')
     })
 
     it('does nothing when petshop id is not found', () => {
       const store = useAdminStore()
       store.setPetshops([petshopA], 1)
-      store.updatePetshop('nope', { is_featured: true })
+      store.updatePetshop(999, { is_active: false })
       expect(store.petshops[0]).toEqual(petshopA)
-    })
-  })
-
-  // ── removePetshop ───────────────────────────────────────────
-
-  describe('removePetshop()', () => {
-    it('removes the petshop with the given id', () => {
-      const store = useAdminStore()
-      store.setPetshops([petshopA, petshopB], 2)
-      store.removePetshop('shop-1')
-      expect(store.petshops).toEqual([petshopB])
-    })
-
-    it('decrements totalPetshops by 1', () => {
-      const store = useAdminStore()
-      store.setPetshops([petshopA, petshopB], 2)
-      store.removePetshop('shop-1')
-      expect(store.totalPetshops).toBe(1)
-    })
-
-    it('does not decrement totalPetshops below 0', () => {
-      const store = useAdminStore()
-      store.setPetshops([], 0)
-      store.removePetshop('nope')
-      expect(store.totalPetshops).toBe(0)
     })
   })
 
@@ -528,47 +415,29 @@ describe('useAdminStore', () => {
     it('merges partial data into an existing clinic by id', () => {
       const store = useAdminStore()
       store.setAdminClinics([clinicA], 1)
-      store.updateAdminClinic('clinic-1', { is_featured: true })
-      expect(store.clinics[0].is_featured).toBe(true)
+      store.updateAdminClinic(1, { is_active: false })
+      expect(store.clinics[0].is_active).toBe(false)
+    })
+
+    it('can update plan', () => {
+      const store = useAdminStore()
+      store.setAdminClinics([clinicA], 1)
+      store.updateAdminClinic(1, { plan: 'pro' })
+      expect(store.clinics[0].plan).toBe('pro')
     })
 
     it('preserves non-updated fields', () => {
       const store = useAdminStore()
       store.setAdminClinics([clinicA], 1)
-      store.updateAdminClinic('clinic-1', { is_verified: false })
+      store.updateAdminClinic(1, { is_verified: false })
       expect(store.clinics[0].name).toBe('Clínica Norte')
     })
 
     it('does nothing when clinic id is not found', () => {
       const store = useAdminStore()
       store.setAdminClinics([clinicA], 1)
-      store.updateAdminClinic('nope', { is_verified: false })
+      store.updateAdminClinic(999, { is_verified: false })
       expect(store.clinics[0]).toEqual(clinicA)
-    })
-  })
-
-  // ── removeAdminClinic ───────────────────────────────────────
-
-  describe('removeAdminClinic()', () => {
-    it('removes the clinic with the given id', () => {
-      const store = useAdminStore()
-      store.setAdminClinics([clinicA, clinicB], 2)
-      store.removeAdminClinic('clinic-1')
-      expect(store.clinics).toEqual([clinicB])
-    })
-
-    it('decrements totalClinics by 1', () => {
-      const store = useAdminStore()
-      store.setAdminClinics([clinicA, clinicB], 2)
-      store.removeAdminClinic('clinic-1')
-      expect(store.totalClinics).toBe(1)
-    })
-
-    it('does not decrement totalClinics below 0', () => {
-      const store = useAdminStore()
-      store.setAdminClinics([], 0)
-      store.removeAdminClinic('nope')
-      expect(store.totalClinics).toBe(0)
     })
   })
 
@@ -587,6 +456,24 @@ describe('useAdminStore', () => {
       store.setTransactions([txA], 1)
       store.setTransactions([txB], 1)
       expect(store.transactions).toEqual([txB])
+    })
+  })
+
+  // ── setDonations ──────────────────────────────────────────
+
+  describe('setDonations()', () => {
+    it('stores the provided donations and total', () => {
+      const store = useAdminStore()
+      store.setDonations([donA, donB], 2)
+      expect(store.donations).toEqual([donA, donB])
+      expect(store.totalDonations).toBe(2)
+    })
+
+    it('replaces previously stored donations', () => {
+      const store = useAdminStore()
+      store.setDonations([donA], 1)
+      store.setDonations([donB], 1)
+      expect(store.donations).toEqual([donB])
     })
   })
 
@@ -625,13 +512,6 @@ describe('useAdminStore', () => {
   // ── clearAdmin ──────────────────────────────────────────────
 
   describe('clearAdmin()', () => {
-    it('resets stats to null', () => {
-      const store = useAdminStore()
-      store.setStats(makeStats())
-      store.clearAdmin()
-      expect(store.stats).toBeNull()
-    })
-
     it('resets users to an empty array', () => {
       const store = useAdminStore()
       store.setUsers([userA, userB], 2)
@@ -674,6 +554,13 @@ describe('useAdminStore', () => {
       expect(store.transactions).toEqual([])
     })
 
+    it('resets donations to an empty array', () => {
+      const store = useAdminStore()
+      store.setDonations([donA], 1)
+      store.clearAdmin()
+      expect(store.donations).toEqual([])
+    })
+
     it('resets all totals to 0', () => {
       const store = useAdminStore()
       store.setUsers([userA], 10)
@@ -681,12 +568,14 @@ describe('useAdminStore', () => {
       store.setPetshops([petshopA], 3)
       store.setAdminClinics([clinicA], 7)
       store.setTransactions([txA], 4)
+      store.setDonations([donA], 2)
       store.clearAdmin()
       expect(store.totalUsers).toBe(0)
       expect(store.totalShelters).toBe(0)
       expect(store.totalPetshops).toBe(0)
       expect(store.totalClinics).toBe(0)
       expect(store.totalTransactions).toBe(0)
+      expect(store.totalDonations).toBe(0)
     })
 
     it('resets isLoading to false', () => {
@@ -694,13 +583,6 @@ describe('useAdminStore', () => {
       store.setLoading(true)
       store.clearAdmin()
       expect(store.isLoading).toBe(false)
-    })
-
-    it('makes hasStats return false', () => {
-      const store = useAdminStore()
-      store.setStats(makeStats())
-      store.clearAdmin()
-      expect(store.hasStats).toBe(false)
     })
 
     it('makes hasUsers return false', () => {

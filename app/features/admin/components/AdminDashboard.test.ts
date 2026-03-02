@@ -3,7 +3,7 @@
 // Tests for the AdminDashboard component.
 //
 // Strategy:
-//   - useAdmin is mocked at module level with reactive refs so
+//   - useStats is mocked at module level with reactive refs so
 //     component state is fully controlled without real HTTP calls.
 //   - createTestingPinia provides auth state with an admin token.
 //   - Tests verify: loading skeleton (8 cards), KPI card rendering,
@@ -11,51 +11,55 @@
 //
 // What this suite does NOT cover intentionally:
 //   - CSS animation or SCSS skeleton shimmer styles.
-//   - Actual API calls (useAdmin is fully mocked).
+//   - Actual API calls (useStats is fully mocked).
 // ============================================================
 
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { mountSuspended } from '@nuxt/test-utils/runtime'
 import { createTestingPinia } from '@pinia/testing'
-import { ref, nextTick } from 'vue'
+import { ref, reactive } from 'vue'
 import AdminDashboard from './AdminDashboard.vue'
-import type { AdminStats } from '../types'
+import type { StatsOverview } from '../../stats/types'
 
 // ── Fixtures ─────────────────────────────────────────────────
 
-function makeStats(overrides: Partial<AdminStats> = {}): AdminStats {
+function makeOverview(overrides: Partial<StatsOverview> = {}): StatsOverview {
   return {
-    total_users: 100,
-    total_pets: 250,
-    total_shelters: 15,
-    total_clinics: 20,
-    total_stores: 30,
-    total_adoptions: 45,
-    total_pro_subscriptions: 60,
-    total_donations: 80,
-    revenue_total: 5000000,
-    revenue_month: 300000,
+    generated_at: '2025-01-01T00:00:00Z',
+    period: { from: '2025-01-01', to: '2025-01-31' },
+    users: { total: 100, active: 90, suspended: 5, new_in_period: 10, pro_active: 60, free: 40, conversion_rate_pct: 60 },
+    shelters: { total: 15, active: 12, suspended: 1, verified: 10 },
+    stores: { total: 30, active: 25, suspended: 2, featured: 5 },
+    clinics: { total: 20, active: 18, suspended: 1, pro: 8 },
+    revenue_cop: { total_accumulated: 5000000, in_period: 300000, monthly_subscriptions: 200000, annual_subscriptions: 100000, arpu: 5000 },
+    donations_cop: { total_amount: 1000000, in_period: 80000, platform_fees_accumulated: 50000, net_to_shelters: 950000, total_count: 80, unique_donors: 40, avg_donation: 12500 },
+    content: { total_pets: 250, total_reminders: 500, total_medical_records: 300, active_adoption_listings: 45, adopted_in_period: 15, blog_posts_published: 25 },
     ...overrides,
   }
 }
 
-// ── useAdmin mock ─────────────────────────────────────────────
+// ── useStats mock ─────────────────────────────────────────────
 
-const mockFetchStats = vi.fn()
+const mockFetchOverview = vi.fn()
 const mockError = ref<string | null>(null)
-const mockStats = ref<AdminStats | null>(null)
-const mockIsLoading = ref(false)
+const mockStatsStore = reactive({
+  overview: null as StatsOverview | null,
+  isLoading: false,
+  get hasOverview() { return this.overview !== null },
+})
 
-vi.mock('../composables/useAdmin', () => ({
-  useAdmin: () => ({
-    fetchStats: mockFetchStats,
+vi.mock('../../stats/composables/useStats', () => ({
+  useStats: () => ({
+    fetchOverview: mockFetchOverview,
     error: mockError,
-    adminStore: {
-      get stats() { return mockStats.value },
-      get isLoading() { return mockIsLoading.value },
-      get hasStats() { return mockStats.value !== null },
-    },
+    statsStore: mockStatsStore,
   }),
+}))
+
+// ── Stub MaintenanceToggle ───────────────────────────────────
+
+vi.mock('../../maintenance/components/MaintenanceToggle.vue', () => ({
+  default: { template: '<div data-stub="MaintenanceToggle" />' },
 }))
 
 // ── Shared mount helper ───────────────────────────────────────
@@ -66,7 +70,7 @@ async function mountDashboard() {
       plugins: [
         createTestingPinia({
           initialState: {
-            auth: { token: 'admin.jwt', currentUser: { id: 1, is_admin: true } },
+            auth: { token: 'admin.jwt', currentEntity: { id: 1, is_admin: true }, entityType: 'user' },
           },
         }),
       ],
@@ -81,10 +85,10 @@ async function mountDashboard() {
 
 describe('AdminDashboard', () => {
   beforeEach(() => {
-    mockFetchStats.mockReset()
+    mockFetchOverview.mockReset()
     mockError.value = null
-    mockStats.value = null
-    mockIsLoading.value = false
+    mockStatsStore.overview = null
+    mockStatsStore.isLoading = false
   })
 
   // ── Section structure ───────────────────────────────────────
@@ -99,106 +103,104 @@ describe('AdminDashboard', () => {
   // ── Lifecycle ───────────────────────────────────────────────
 
   describe('lifecycle', () => {
-    it('calls fetchStats on mount', async () => {
-      mockFetchStats.mockResolvedValue(undefined)
+    it('calls fetchOverview on mount', async () => {
+      mockFetchOverview.mockResolvedValue(undefined)
       await mountDashboard()
-      expect(mockFetchStats).toHaveBeenCalledTimes(1)
+      expect(mockFetchOverview).toHaveBeenCalledTimes(1)
     })
   })
 
   // ── Loading skeleton ────────────────────────────────────────
 
   describe('loading skeleton', () => {
-    it('shows the skeleton container when isLoading is true and no stats', async () => {
-      mockIsLoading.value = true
+    it('shows the skeleton container when isLoading is true and no overview', async () => {
+      mockStatsStore.isLoading = true
       const wrapper = await mountDashboard()
       expect(wrapper.find('[aria-busy="true"]').exists()).toBe(true)
     })
 
     it('renders 8 skeleton cards', async () => {
-      mockIsLoading.value = true
+      mockStatsStore.isLoading = true
       const wrapper = await mountDashboard()
       const skeletonCards = wrapper.findAll('.admin-skeleton')
       expect(skeletonCards).toHaveLength(8)
     })
 
     it('has aria-label "Cargando estadísticas" on skeleton container', async () => {
-      mockIsLoading.value = true
+      mockStatsStore.isLoading = true
       const wrapper = await mountDashboard()
       expect(wrapper.find('[aria-label="Cargando estadísticas"]').exists()).toBe(true)
     })
 
-    it('does not show KPI cards while loading and no stats', async () => {
-      mockIsLoading.value = true
+    it('does not show KPI cards while loading and no overview', async () => {
+      mockStatsStore.isLoading = true
       const wrapper = await mountDashboard()
-      expect(wrapper.text()).not.toContain('Usuarios')
+      expect(wrapper.text()).not.toContain('Usuarios registrados')
     })
   })
 
-  // ── KPI cards (stats loaded) ────────────────────────────────
+  // ── KPI cards (overview loaded) ─────────────────────────────
 
-  describe('KPI cards when stats are loaded', () => {
+  describe('KPI cards when overview is loaded', () => {
     beforeEach(() => {
-      mockStats.value = makeStats({
-        total_users: 42,
-        total_pets: 120,
-        total_shelters: 7,
-        total_clinics: 9,
-        total_stores: 15,
-        total_adoptions: 30,
-        total_pro_subscriptions: 55,
-        total_donations: 70,
+      mockStatsStore.overview = makeOverview({
+        users: { total: 42, active: 40, suspended: 1, new_in_period: 5, pro_active: 55, free: 30, conversion_rate_pct: 65 },
+        content: { total_pets: 120, total_reminders: 200, total_medical_records: 100, active_adoption_listings: 30, adopted_in_period: 10, blog_posts_published: 15 },
+        shelters: { total: 7, active: 7, suspended: 0, verified: 5 },
+        clinics: { total: 9, active: 8, suspended: 0, pro: 3 },
+        stores: { total: 15, active: 14, suspended: 0, featured: 2 },
+        donations_cop: { total_amount: 500000, in_period: 50000, platform_fees_accumulated: 25000, net_to_shelters: 475000, total_count: 70, unique_donors: 30, avg_donation: 7000 },
       })
     })
 
-    it('does not show the loading skeleton when stats are present', async () => {
+    it('does not show the loading skeleton when overview is present', async () => {
       const wrapper = await mountDashboard()
       expect(wrapper.find('[aria-busy="true"]').exists()).toBe(false)
     })
 
-    it('shows the Usuarios KPI label', async () => {
+    it('shows the "Usuarios registrados" KPI label', async () => {
       const wrapper = await mountDashboard()
-      expect(wrapper.text()).toContain('Usuarios')
+      expect(wrapper.text()).toContain('Usuarios registrados')
     })
 
-    it('shows the Mascotas KPI label', async () => {
+    it('shows the "Mascotas registradas" KPI label', async () => {
       const wrapper = await mountDashboard()
-      expect(wrapper.text()).toContain('Mascotas')
+      expect(wrapper.text()).toContain('Mascotas registradas')
     })
 
-    it('shows the Refugios KPI label', async () => {
+    it('shows the "Refugios activos" KPI label', async () => {
       const wrapper = await mountDashboard()
-      expect(wrapper.text()).toContain('Refugios')
+      expect(wrapper.text()).toContain('Refugios activos')
     })
 
-    it('shows the Clínicas KPI label', async () => {
+    it('shows the "Clínicas registradas" KPI label', async () => {
       const wrapper = await mountDashboard()
-      expect(wrapper.text()).toContain('Clínicas')
+      expect(wrapper.text()).toContain('Clínicas registradas')
     })
 
-    it('shows the Tiendas KPI label', async () => {
+    it('shows the "Tiendas pet-friendly" KPI label', async () => {
       const wrapper = await mountDashboard()
-      expect(wrapper.text()).toContain('Tiendas')
+      expect(wrapper.text()).toContain('Tiendas pet-friendly')
     })
 
-    it('shows the Adopciones KPI label', async () => {
+    it('shows the "Adopciones procesadas" KPI label', async () => {
       const wrapper = await mountDashboard()
-      expect(wrapper.text()).toContain('Adopciones')
+      expect(wrapper.text()).toContain('Adopciones procesadas')
     })
 
-    it('shows the Suscripciones PRO KPI label', async () => {
+    it('shows the "Suscripciones PRO" KPI label', async () => {
       const wrapper = await mountDashboard()
       expect(wrapper.text()).toContain('Suscripciones PRO')
     })
 
-    it('shows the Donaciones KPI label', async () => {
+    it('shows the "Donaciones realizadas" KPI label', async () => {
       const wrapper = await mountDashboard()
-      expect(wrapper.text()).toContain('Donaciones')
+      expect(wrapper.text()).toContain('Donaciones realizadas')
     })
 
-    it('shows the revenue section with "Ingresos del mes" label', async () => {
+    it('shows the revenue section with "Ingresos del periodo" label', async () => {
       const wrapper = await mountDashboard()
-      expect(wrapper.text()).toContain('Ingresos del mes')
+      expect(wrapper.text()).toContain('Ingresos del periodo')
     })
 
     it('shows the revenue section with "Ingresos totales" label', async () => {
@@ -211,7 +213,7 @@ describe('AdminDashboard', () => {
 
   describe('quick navigation links', () => {
     beforeEach(() => {
-      mockStats.value = makeStats()
+      mockStatsStore.overview = makeOverview()
     })
 
     it('shows the "Gestión rápida" heading', async () => {
@@ -238,32 +240,37 @@ describe('AdminDashboard', () => {
       const wrapper = await mountDashboard()
       expect(wrapper.text()).toContain('Gestionar Clínicas')
     })
+
+    it('renders the "Estadísticas del Sistema" nav link', async () => {
+      const wrapper = await mountDashboard()
+      expect(wrapper.text()).toContain('Estadísticas del Sistema')
+    })
   })
 
   // ── Empty / error fallback state ────────────────────────────
 
-  describe('empty state when no stats and not loading', () => {
+  describe('empty state when no overview and not loading', () => {
     it('shows "No se pudieron cargar las estadísticas" heading', async () => {
-      mockIsLoading.value = false
-      mockStats.value = null
+      mockStatsStore.isLoading = false
+      mockStatsStore.overview = null
       const wrapper = await mountDashboard()
       expect(wrapper.text()).toContain('No se pudieron cargar las estadísticas')
     })
 
     it('shows a "Reintentar" button', async () => {
-      mockIsLoading.value = false
-      mockStats.value = null
+      mockStatsStore.isLoading = false
+      mockStatsStore.overview = null
       const wrapper = await mountDashboard()
       expect(wrapper.find('button').text()).toContain('Reintentar')
     })
 
-    it('clicking Reintentar calls fetchStats again', async () => {
-      mockIsLoading.value = false
-      mockStats.value = null
+    it('clicking Reintentar calls fetchOverview again', async () => {
+      mockStatsStore.isLoading = false
+      mockStatsStore.overview = null
       const wrapper = await mountDashboard()
       await wrapper.find('button').trigger('click')
-      // fetchStats was called once on mount, then once more on click
-      expect(mockFetchStats).toHaveBeenCalledTimes(2)
+      // fetchOverview was called once on mount, then once more on click
+      expect(mockFetchOverview).toHaveBeenCalledTimes(2)
     })
   })
 
@@ -278,7 +285,7 @@ describe('AdminDashboard', () => {
     })
 
     it('hides the alert when error is null', async () => {
-      mockStats.value = makeStats()
+      mockStatsStore.overview = makeOverview()
       mockError.value = null
       const wrapper = await mountDashboard()
       expect(wrapper.find('[role="alert"]').exists()).toBe(false)

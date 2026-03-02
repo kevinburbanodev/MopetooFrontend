@@ -1,16 +1,16 @@
 <script setup lang="ts">
 // PetshopDetail — full petshop profile page.
 // Fetches the petshop on mount via store-first lookup.
-// Shows: hero banner, name + badges, categories, address, contact,
-// business hours table, and a coordinates card when lat/lng are present.
+// Shows: hero banner, name + badges, location, contact, WhatsApp,
+// description, and a products section.
 
-import type { PetshopHours } from '../types'
+import type { StoreProduct } from '../types'
 
 const props = defineProps<{
   petshopId: string
 }>()
 
-const { fetchPetshopById, error, petshopsStore } = usePetshops()
+const { fetchPetshopById, fetchStoreProducts, error, petshopsStore } = usePetshops()
 
 // ── URL safety guards ──────────────────────────────────────
 
@@ -28,9 +28,10 @@ function isSafeImageUrl(url: string | undefined): boolean {
 }
 
 const petshop = computed(() => petshopsStore.selectedPetshop)
+const products = computed(() => petshopsStore.storeProducts)
 
-const safePhotoUrl = computed(() =>
-  isSafeImageUrl(petshop.value?.photo_url) ? petshop.value?.photo_url : null,
+const safeLogoUrl = computed(() =>
+  isSafeImageUrl(petshop.value?.logo_url) ? petshop.value?.logo_url : null,
 )
 
 /**
@@ -49,14 +50,13 @@ const safeWebsiteUrl = computed<string | null>(() => {
   }
 })
 
-/**
- * Sanitizes phone: only digits, +, -, spaces, parens, and dots.
- * Prevents tel: href injection. (MEDIUM — security)
- */
-const safePhone = computed<string | null>(() => {
+/** Composed phone: phone_country_code + phone */
+const composedPhone = computed<string | null>(() => {
   const phone = petshop.value?.phone
   if (!phone) return null
-  return /^[+\d\s\-().]{4,25}$/.test(phone) ? phone : null
+  const code = petshop.value?.phone_country_code || ''
+  const full = code ? `${code} ${phone}` : phone
+  return /^[+\d\s\-().]{4,30}$/.test(full) ? full : null
 })
 
 /**
@@ -69,63 +69,67 @@ const safeEmail = computed<string | null>(() => {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : null
 })
 
+/**
+ * Sanitizes WhatsApp link: must be http/https URL.
+ */
+const safeWhatsappUrl = computed<string | null>(() => {
+  const url = petshop.value?.whatsapp_link
+  if (!url) return null
+  try {
+    const parsed = new URL(url)
+    return (parsed.protocol === 'https:' || parsed.protocol === 'http:') ? url : null
+  }
+  catch {
+    return null
+  }
+})
+
 // ── Photo error handling ───────────────────────────────────
 const imgError = ref(false)
-const showPhoto = computed(() => !!safePhotoUrl.value && !imgError.value)
+const showPhoto = computed(() => !!safeLogoUrl.value && !imgError.value)
 
 function onImgError(): void {
   imgError.value = true
 }
 
-// ── Business hours table ───────────────────────────────────
-
-interface HoursRow {
-  day: string
-  key: keyof PetshopHours
+// ── Product image safety ───────────────────────────────────
+function safeProductImageUrl(url: string | undefined): string | null {
+  return isSafeImageUrl(url) ? url! : null
 }
 
-const HOURS_ROWS: HoursRow[] = [
-  { day: 'Lunes', key: 'monday' },
-  { day: 'Martes', key: 'tuesday' },
-  { day: 'Miércoles', key: 'wednesday' },
-  { day: 'Jueves', key: 'thursday' },
-  { day: 'Viernes', key: 'friday' },
-  { day: 'Sábado', key: 'saturday' },
-  { day: 'Domingo', key: 'sunday' },
-]
-
-function getHours(key: keyof PetshopHours): string {
-  return petshop.value?.hours?.[key] ?? 'Cerrado'
+// ── Category label for products ────────────────────────────
+const categoryLabels: Record<string, string> = {
+  alimento: 'Alimentos',
+  accesorios: 'Accesorios',
+  salud: 'Salud',
+  juguetes: 'Juguetes',
+  higiene: 'Higiene',
+  otros: 'Otros',
 }
 
-// Whether the hours object has any non-empty value
-const hasHoursData = computed(() => {
-  const hours = petshop.value?.hours
-  if (!hours) return false
-  return Object.values(hours).some(v => v && v.trim() !== '')
-})
-
-// ── Map availability ───────────────────────────────────────
-const hasCoordinates = computed(() =>
-  petshop.value?.latitude != null && petshop.value?.longitude != null,
-)
+function getCategoryLabel(category: string): string {
+  return categoryLabels[category] ?? category
+}
 
 // ── Lifecycle ─────────────────────────────────────────────
 
 onMounted(async () => {
-  // Guard: validate the route param before using it in an API path.
-  // Prevents path traversal via malformed IDs.
-  if (!/^[\w-]{1,64}$/.test(props.petshopId)) {
+  // Guard: validate the route param — must be a numeric ID.
+  const numericId = Number(props.petshopId)
+  if (Number.isNaN(numericId) || numericId <= 0) {
     return
   }
 
   // Clear stale selection from previous navigations
   petshopsStore.clearSelectedPetshop()
-  await fetchPetshopById(props.petshopId)
+  petshopsStore.clearStoreProducts()
+  await fetchPetshopById(numericId)
+  await fetchStoreProducts(numericId)
 })
 
 onUnmounted(() => {
   petshopsStore.clearSelectedPetshop()
+  petshopsStore.clearStoreProducts()
 })
 </script>
 
@@ -179,8 +183,8 @@ onUnmounted(() => {
       <div class="petshop-detail__banner mb-4">
         <img
           v-if="showPhoto"
-          :src="safePhotoUrl!"
-          :alt="`Foto de la tienda ${petshop.name}`"
+          :src="safeLogoUrl!"
+          :alt="`Logo de la tienda ${petshop.name}`"
           class="petshop-detail__banner-img"
           width="1200"
           height="675"
@@ -202,41 +206,26 @@ onUnmounted(() => {
           <div class="d-flex flex-wrap align-items-start gap-2 mb-2">
             <h1 class="h3 fw-bold mb-0">{{ petshop.name }}</h1>
             <span
-              v-if="petshop.is_featured"
+              v-if="petshop.plan !== ''"
               class="badge bg-warning text-dark align-self-center"
               aria-label="Tienda destacada"
             >
-              ⭐ Destacado
+              Destacado
             </span>
             <span
-              v-if="petshop.is_verified"
+              v-if="petshop.verified"
               class="badge bg-success align-self-center"
               aria-label="Tienda verificada por Mopetoo"
             >
-              Verificado ✓
+              Verificado
             </span>
           </div>
 
-          <!-- Address + city -->
+          <!-- City + country -->
           <p class="text-muted mb-3">
             <span aria-hidden="true">📍</span>
-            {{ petshop.address ? `${petshop.address}, ${petshop.city}` : petshop.city }}
+            {{ petshop.city }}, {{ petshop.country }}
           </p>
-
-          <!-- Category chips -->
-          <div
-            v-if="petshop.categories.length > 0"
-            class="d-flex flex-wrap gap-2 mb-4"
-            aria-label="Categorías"
-          >
-            <span
-              v-for="cat in petshop.categories"
-              :key="cat"
-              class="badge bg-primary-subtle text-primary-emphasis fs-6 fw-normal px-3 py-2"
-            >
-              {{ cat }}
-            </span>
-          </div>
 
           <!-- Description -->
           <div v-if="petshop.description" class="mb-4">
@@ -259,15 +248,31 @@ onUnmounted(() => {
           </h2>
           <div class="row g-3 mb-2">
             <!-- Phone -->
-            <div v-if="safePhone" class="col-12 col-sm-6">
+            <div v-if="composedPhone" class="col-12 col-sm-6">
               <p class="text-muted small mb-1 text-uppercase fw-semibold" style="letter-spacing: 0.04em;">
                 Teléfono
               </p>
               <a
-                :href="`tel:${safePhone}`"
+                :href="`tel:${composedPhone}`"
                 class="fw-semibold text-decoration-none text-body"
               >
-                <span aria-hidden="true">📞</span> {{ safePhone }}
+                <span aria-hidden="true">📞</span> {{ composedPhone }}
+              </a>
+            </div>
+
+            <!-- WhatsApp -->
+            <div v-if="safeWhatsappUrl" class="col-12 col-sm-6">
+              <p class="text-muted small mb-1 text-uppercase fw-semibold" style="letter-spacing: 0.04em;">
+                WhatsApp
+              </p>
+              <a
+                :href="safeWhatsappUrl"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="fw-semibold text-decoration-none text-body"
+                :aria-label="`WhatsApp de ${petshop.name}`"
+              >
+                <span aria-hidden="true">💬</span> Enviar mensaje
               </a>
             </div>
 
@@ -302,47 +307,49 @@ onUnmounted(() => {
         </div>
       </div>
 
-      <!-- Business hours card -->
-      <div v-if="hasHoursData" class="card border-0 shadow-sm mb-4">
+      <!-- Products section -->
+      <div v-if="products.length > 0" class="card border-0 shadow-sm mb-4">
         <div class="card-body p-4">
-          <h2 class="h5 fw-bold mb-3">
-            <span aria-hidden="true">🕐</span> Horarios de atención
+          <h2 class="h5 fw-bold mb-3" aria-label="Productos de la tienda">
+            <span aria-hidden="true">🛍️</span> Productos
           </h2>
-          <table class="table table-borderless table-sm mb-0 petshop-detail__hours-table">
-            <tbody>
-              <tr
-                v-for="row in HOURS_ROWS"
-                :key="row.key"
-                :class="{ 'petshop-detail__hours-row--closed': getHours(row.key) === 'Cerrado' }"
-              >
-                <th scope="row" class="fw-semibold ps-0" style="width: 35%;">
-                  {{ row.day }}
-                </th>
-                <td
-                  :class="getHours(row.key) === 'Cerrado' ? 'text-muted fst-italic' : 'fw-medium'"
-                >
-                  {{ getHours(row.key) }}
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <!-- Map placeholder — shown only when coordinates are present -->
-      <div v-if="hasCoordinates" class="card border-0 shadow-sm mb-4">
-        <div class="card-body p-4">
-          <h2 class="h5 fw-bold mb-3">
-            <span aria-hidden="true">🗺️</span> Ubicación
-          </h2>
-          <div class="petshop-detail__map-placeholder d-flex flex-column align-items-center justify-content-center gap-2 rounded">
-            <span class="fs-1" aria-hidden="true">📍</span>
-            <p class="text-muted small mb-1">
-              {{ petshop.latitude?.toFixed(6) }}, {{ petshop.longitude?.toFixed(6) }}
-            </p>
-            <p class="text-muted small mb-0 fst-italic">
-              Mapa disponible próximamente
-            </p>
+          <div class="row g-3">
+            <div
+              v-for="product in products"
+              :key="product.id"
+              class="col-12 col-sm-6 col-md-4"
+            >
+              <div class="card h-100 border petshop-detail__product-card">
+                <!-- Product photo -->
+                <div v-if="safeProductImageUrl(product.photo_url)" class="petshop-detail__product-img-wrap">
+                  <img
+                    :src="safeProductImageUrl(product.photo_url)!"
+                    :alt="product.name"
+                    class="petshop-detail__product-img"
+                    width="300"
+                    height="200"
+                  />
+                </div>
+                <div class="card-body p-3 d-flex flex-column gap-1">
+                  <h3 class="h6 fw-semibold mb-0">{{ product.name }}</h3>
+                  <span class="badge bg-primary-subtle text-primary-emphasis fw-normal align-self-start">
+                    {{ getCategoryLabel(product.category) }}
+                  </span>
+                  <p v-if="product.description" class="text-muted small mb-0 petshop-detail__product-desc">
+                    {{ product.description }}
+                  </p>
+                  <div class="d-flex align-items-center justify-content-between mt-auto pt-2">
+                    <span class="fw-bold">${{ product.price.toFixed(2) }}</span>
+                    <span
+                      :class="product.is_available ? 'text-success' : 'text-muted'"
+                      class="small fw-semibold"
+                    >
+                      {{ product.is_available ? 'Disponible' : 'No disponible' }}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -397,25 +404,35 @@ onUnmounted(() => {
     line-height: 1;
   }
 
-  // ── Hours table ───────────────────────────────────────────
-  &__hours-table {
-    th, td {
-      padding-top: 0.35rem;
-      padding-bottom: 0.35rem;
-      vertical-align: middle;
+  // ── Product cards ─────────────────────────────────────────
+  &__product-card {
+    border-radius: var(--bs-border-radius);
+    transition: box-shadow 0.15s ease;
+
+    &:hover {
+      box-shadow: 0 0.25rem 0.75rem rgba(0, 0, 0, 0.1);
     }
   }
 
-  &__hours-row--closed {
-    opacity: 0.6;
+  &__product-img-wrap {
+    height: 140px;
+    overflow: hidden;
+    border-radius: var(--bs-border-radius) var(--bs-border-radius) 0 0;
+    background-color: var(--bs-secondary-bg);
   }
 
-  // ── Map placeholder ───────────────────────────────────────
-  &__map-placeholder {
-    background-color: var(--bs-secondary-bg);
-    border: 2px dashed var(--bs-border-color);
-    min-height: 140px;
-    padding: 2rem;
+  &__product-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+
+  &__product-desc {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
   }
 }
 

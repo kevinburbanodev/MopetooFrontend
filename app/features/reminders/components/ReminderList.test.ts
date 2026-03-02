@@ -35,7 +35,7 @@ function makeReminder(overrides: Partial<Reminder> = {}): Reminder {
     pet_id: 42,
     type: 'vacuna',
     title: 'Vacuna antirrábica',
-    scheduled_date: '2027-06-15T10:00',
+    scheduled_date: '2027-06-15T10:00:00Z',
     created_at: '2026-01-01T00:00:00Z',
     updated_at: '2026-01-01T00:00:00Z',
     ...overrides,
@@ -49,7 +49,7 @@ function makePet(overrides: Partial<Pet> = {}): Pet {
     name: 'Luna',
     species: 'dog',
     breed: 'Labrador',
-    birth_date: '2020-01-01',
+    age: 3,
     gender: 'female',
     created_at: '2026-01-01T00:00:00Z',
     updated_at: '2026-01-01T00:00:00Z',
@@ -60,9 +60,9 @@ function makePet(overrides: Partial<Pet> = {}): Pet {
 const petLuna = makePet({ id: '42', name: 'Luna' })
 const petMax = makePet({ id: '99', name: 'Max', species: 'cat' })
 
-const reminderA = makeReminder({ id: 1, pet_id: 42, type: 'vacuna', title: 'Vacuna Luna', scheduled_date: '2027-03-01T10:00' })
-const reminderB = makeReminder({ id: 2, pet_id: 42, type: 'medicina', title: 'Medicina Luna', scheduled_date: '2027-05-01T10:00' })
-const reminderC = makeReminder({ id: 3, pet_id: 99, type: 'baño', title: 'Baño Max', scheduled_date: '2027-04-01T10:00' })
+const reminderA = makeReminder({ id: 1, pet_id: 42, type: 'vacuna', title: 'Vacuna Luna', scheduled_date: '2027-03-01T10:00:00Z' })
+const reminderB = makeReminder({ id: 2, pet_id: 42, type: 'medicina', title: 'Medicina Luna', scheduled_date: '2027-05-01T10:00:00Z' })
+const reminderC = makeReminder({ id: 3, pet_id: 99, type: 'baño', title: 'Baño Max', scheduled_date: '2027-04-01T10:00:00Z' })
 
 // Global stubs for NuxtLink — avoids real router dependency in component tests
 const globalStubs = { NuxtLink: true }
@@ -419,8 +419,8 @@ describe('ReminderList', () => {
 
   describe('sort order', () => {
     it('sorts reminders by scheduled_date ascending (soonest first)', async () => {
-      const early = makeReminder({ id: 10, title: 'Early reminder', scheduled_date: '2027-01-01T10:00' })
-      const later = makeReminder({ id: 11, title: 'Later reminder', scheduled_date: '2027-12-31T10:00' })
+      const early = makeReminder({ id: 10, title: 'Early reminder', scheduled_date: '2027-01-01T10:00:00Z' })
+      const later = makeReminder({ id: 11, title: 'Later reminder', scheduled_date: '2027-12-31T10:00:00Z' })
       // Pass in reverse order to verify sorting
       const wrapper = await mountSuspended(ReminderList, {
         props: { reminders: [later, early], isLoading: false, pets: [] },

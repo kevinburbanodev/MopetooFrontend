@@ -8,19 +8,19 @@
 //   - Empty state shown when no shelters.
 //   - Shelter rows with name, city, contact info.
 //   - Verified / unverified badge rendering.
-//   - Featured / unfeatured badge rendering.
-//   - Toggle Verificado calls updateShelter with toggled boolean.
-//   - Toggle Destacado calls updateShelter with toggled boolean.
-//   - 2-step delete: first click shows ¿Confirmar? / Cancelar;
-//     confirm calls deleteShelter; cancel resets confirmation.
+//   - Active / inactive status badge.
+//   - Verify button only appears when !is_verified.
+//   - verifyShelter called when "Verificar" is clicked.
+//   - activateShelter / deactivateShelter called on toggle.
 //   - Result count (singular / plural).
 //   - Error alert shown / hidden.
+//   - No delete or featured functionality.
 // ============================================================
 
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { mountSuspended } from '@nuxt/test-utils/runtime'
 import { createTestingPinia } from '@pinia/testing'
-import { ref } from 'vue'
+import { ref, reactive } from 'vue'
 import AdminShelterManager from './AdminShelterManager.vue'
 import type { AdminShelter } from '../types'
 
@@ -28,12 +28,12 @@ import type { AdminShelter } from '../types'
 
 function makeShelter(overrides: Partial<AdminShelter> = {}): AdminShelter {
   return {
-    id: 'shelter-1',
+    id: 1,
     name: 'Refugio Los Amigos',
     city: 'Bogotá',
     email: 'info@refugio.com',
     is_verified: false,
-    is_featured: false,
+    is_active: true,
     pets_count: 8,
     created_at: '2024-01-01T00:00:00Z',
     ...overrides,
@@ -43,24 +43,24 @@ function makeShelter(overrides: Partial<AdminShelter> = {}): AdminShelter {
 // ── useAdmin mock ─────────────────────────────────────────────
 
 const mockFetchShelters = vi.fn()
-const mockUpdateShelter = vi.fn()
-const mockDeleteShelter = vi.fn()
+const mockVerifyShelter = vi.fn()
+const mockActivateShelter = vi.fn()
+const mockDeactivateShelter = vi.fn()
 const mockError = ref<string | null>(null)
-const mockShelters = ref<AdminShelter[]>([])
-const mockIsLoading = ref(false)
-const mockTotalShelters = ref(0)
+const mockAdminStore = reactive({
+  shelters: [] as AdminShelter[],
+  isLoading: false,
+  totalShelters: 0,
+})
 
 vi.mock('../composables/useAdmin', () => ({
   useAdmin: () => ({
     fetchShelters: mockFetchShelters,
-    updateShelter: mockUpdateShelter,
-    deleteShelter: mockDeleteShelter,
+    verifyShelter: mockVerifyShelter,
+    activateShelter: mockActivateShelter,
+    deactivateShelter: mockDeactivateShelter,
     error: mockError,
-    adminStore: {
-      get shelters() { return mockShelters.value },
-      get isLoading() { return mockIsLoading.value },
-      get totalShelters() { return mockTotalShelters.value },
-    },
+    adminStore: mockAdminStore,
   }),
 }))
 
@@ -72,7 +72,7 @@ async function mountManager() {
       plugins: [
         createTestingPinia({
           initialState: {
-            auth: { token: 'admin.jwt', currentUser: { id: 99, is_admin: true } },
+            auth: { token: 'admin.jwt', currentEntity: { id: 99, is_admin: true }, entityType: 'user' },
           },
         }),
       ],
@@ -85,12 +85,13 @@ async function mountManager() {
 describe('AdminShelterManager', () => {
   beforeEach(() => {
     mockFetchShelters.mockReset()
-    mockUpdateShelter.mockReset()
-    mockDeleteShelter.mockReset()
+    mockVerifyShelter.mockReset()
+    mockActivateShelter.mockReset()
+    mockDeactivateShelter.mockReset()
     mockError.value = null
-    mockShelters.value = []
-    mockIsLoading.value = false
-    mockTotalShelters.value = 0
+    mockAdminStore.shelters = []
+    mockAdminStore.isLoading = false
+    mockAdminStore.totalShelters = 0
   })
 
   // ── Section structure ───────────────────────────────────────
@@ -111,14 +112,14 @@ describe('AdminShelterManager', () => {
 
   describe('loading skeleton', () => {
     it('renders skeleton rows while isLoading is true', async () => {
-      mockIsLoading.value = true
+      mockAdminStore.isLoading = true
       const wrapper = await mountManager()
       const skeletonRows = wrapper.findAll('[aria-hidden="true"]')
       expect(skeletonRows.length).toBeGreaterThanOrEqual(5)
     })
 
     it('does not show data rows while loading', async () => {
-      mockIsLoading.value = true
+      mockAdminStore.isLoading = true
       const wrapper = await mountManager()
       expect(wrapper.text()).not.toContain('info@refugio.com')
     })
@@ -135,10 +136,10 @@ describe('AdminShelterManager', () => {
 
   describe('shelter rows', () => {
     beforeEach(() => {
-      mockShelters.value = [
-        makeShelter({ id: 'shelter-1', name: 'Refugio Norte', city: 'Medellín', is_verified: true, is_featured: false }),
+      mockAdminStore.shelters = [
+        makeShelter({ id: 1, name: 'Refugio Norte', city: 'Medellín', is_verified: true, is_active: true }),
       ]
-      mockTotalShelters.value = 1
+      mockAdminStore.totalShelters = 1
     })
 
     it('renders shelter name', async () => {
@@ -157,16 +158,9 @@ describe('AdminShelterManager', () => {
     })
 
     it('shows "No" for unverified shelters', async () => {
-      mockShelters.value = [makeShelter({ id: 's2', is_verified: false })]
+      mockAdminStore.shelters = [makeShelter({ id: 2, is_verified: false })]
       const wrapper = await mountManager()
       expect(wrapper.find('[aria-label="Refugio no verificado"]').exists()).toBe(true)
-    })
-
-    it('shows Destacado badge for featured shelters', async () => {
-      mockShelters.value = [makeShelter({ id: 's3', is_featured: true })]
-      mockTotalShelters.value = 1
-      const wrapper = await mountManager()
-      expect(wrapper.find('[aria-label="Refugio destacado"]').exists()).toBe(true)
     })
 
     it('shows shelter email in contact column', async () => {
@@ -175,107 +169,109 @@ describe('AdminShelterManager', () => {
     })
   })
 
-  // ── Toggle Verificado ───────────────────────────────────────
+  // ── Active status badge ─────────────────────────────────────
 
-  describe('toggle Verificado', () => {
-    it('calls updateShelter with { is_verified: true } when "Verificar" is clicked', async () => {
-      mockUpdateShelter.mockResolvedValue(true)
-      mockShelters.value = [makeShelter({ id: 'shelter-1', is_verified: false })]
-      mockTotalShelters.value = 1
+  describe('active status badge', () => {
+    it('shows Activo badge for active shelters', async () => {
+      mockAdminStore.shelters = [makeShelter({ id: 1, is_active: true })]
+      mockAdminStore.totalShelters = 1
+      const wrapper = await mountManager()
+      expect(wrapper.find('[aria-label="Refugio activo"]').exists()).toBe(true)
+    })
+
+    it('shows Inactivo badge for inactive shelters', async () => {
+      mockAdminStore.shelters = [makeShelter({ id: 1, is_active: false })]
+      mockAdminStore.totalShelters = 1
+      const wrapper = await mountManager()
+      expect(wrapper.find('[aria-label="Refugio inactivo"]').exists()).toBe(true)
+    })
+  })
+
+  // ── Verify ───────────────────────────────────────────────────
+
+  describe('verify shelter', () => {
+    it('shows "Verificar" button only for unverified shelters', async () => {
+      mockAdminStore.shelters = [makeShelter({ id: 1, is_verified: false })]
+      mockAdminStore.totalShelters = 1
+      const wrapper = await mountManager()
+      const btn = wrapper.findAll('button').find(b => b.text() === 'Verificar')
+      expect(btn).toBeDefined()
+    })
+
+    it('does not show "Verificar" button for already verified shelters', async () => {
+      mockAdminStore.shelters = [makeShelter({ id: 1, is_verified: true })]
+      mockAdminStore.totalShelters = 1
+      const wrapper = await mountManager()
+      const btn = wrapper.findAll('button').find(b => b.text() === 'Verificar')
+      expect(btn).toBeUndefined()
+    })
+
+    it('calls verifyShelter with shelter id when "Verificar" is clicked', async () => {
+      mockVerifyShelter.mockResolvedValue(true)
+      mockAdminStore.shelters = [makeShelter({ id: 5, is_verified: false })]
+      mockAdminStore.totalShelters = 1
       const wrapper = await mountManager()
       const btn = wrapper.findAll('button').find(b => b.text() === 'Verificar')
       await btn!.trigger('click')
-      expect(mockUpdateShelter).toHaveBeenCalledWith('shelter-1', { is_verified: true })
-    })
-
-    it('calls updateShelter with { is_verified: false } when "Desverificar" is clicked', async () => {
-      mockUpdateShelter.mockResolvedValue(true)
-      mockShelters.value = [makeShelter({ id: 'shelter-1', is_verified: true })]
-      mockTotalShelters.value = 1
-      const wrapper = await mountManager()
-      const btn = wrapper.findAll('button').find(b => b.text() === 'Desverificar')
-      await btn!.trigger('click')
-      expect(mockUpdateShelter).toHaveBeenCalledWith('shelter-1', { is_verified: false })
+      expect(mockVerifyShelter).toHaveBeenCalledWith(5)
     })
   })
 
-  // ── Toggle Destacado ────────────────────────────────────────
+  // ── Activate / Deactivate ───────────────────────────────────
 
-  describe('toggle Destacado', () => {
-    it('calls updateShelter with { is_featured: true } when "Destacar" is clicked', async () => {
-      mockUpdateShelter.mockResolvedValue(true)
-      mockShelters.value = [makeShelter({ id: 'shelter-1', is_featured: false })]
-      mockTotalShelters.value = 1
+  describe('activate / deactivate', () => {
+    it('shows "Desactivar" button for active shelters', async () => {
+      mockAdminStore.shelters = [makeShelter({ id: 1, is_active: true })]
+      mockAdminStore.totalShelters = 1
       const wrapper = await mountManager()
-      const btn = wrapper.findAll('button').find(b => b.text() === 'Destacar')
-      await btn!.trigger('click')
-      expect(mockUpdateShelter).toHaveBeenCalledWith('shelter-1', { is_featured: true })
+      const btn = wrapper.findAll('button').find(b => b.text().includes('Desactivar'))
+      expect(btn).toBeDefined()
     })
 
-    it('calls updateShelter with { is_featured: false } when "Quitar dest." is clicked', async () => {
-      mockUpdateShelter.mockResolvedValue(true)
-      mockShelters.value = [makeShelter({ id: 'shelter-1', is_featured: true })]
-      mockTotalShelters.value = 1
+    it('calls deactivateShelter when "Desactivar" is clicked', async () => {
+      mockDeactivateShelter.mockResolvedValue(true)
+      mockAdminStore.shelters = [makeShelter({ id: 3, is_active: true })]
+      mockAdminStore.totalShelters = 1
       const wrapper = await mountManager()
-      const btn = wrapper.findAll('button').find(b => b.text() === 'Quitar dest.')
+      const btn = wrapper.findAll('button').find(b => b.text().includes('Desactivar'))
       await btn!.trigger('click')
-      expect(mockUpdateShelter).toHaveBeenCalledWith('shelter-1', { is_featured: false })
+      expect(mockDeactivateShelter).toHaveBeenCalledWith(3)
+    })
+
+    it('shows "Activar" button for inactive shelters', async () => {
+      mockAdminStore.shelters = [makeShelter({ id: 1, is_active: false })]
+      mockAdminStore.totalShelters = 1
+      const wrapper = await mountManager()
+      const btn = wrapper.findAll('button').find(b => b.text().includes('Activar'))
+      expect(btn).toBeDefined()
+    })
+
+    it('calls activateShelter when "Activar" is clicked', async () => {
+      mockActivateShelter.mockResolvedValue(true)
+      mockAdminStore.shelters = [makeShelter({ id: 4, is_active: false })]
+      mockAdminStore.totalShelters = 1
+      const wrapper = await mountManager()
+      const btn = wrapper.findAll('button').find(b => b.text().includes('Activar'))
+      await btn!.trigger('click')
+      expect(mockActivateShelter).toHaveBeenCalledWith(4)
     })
   })
 
-  // ── 2-step delete ───────────────────────────────────────────
+  // ── No delete or featured buttons ───────────────────────────
 
-  describe('2-step delete confirmation', () => {
-    beforeEach(() => {
-      mockShelters.value = [makeShelter({ id: 'shelter-1', name: 'Refugio Norte' })]
-      mockTotalShelters.value = 1
+  describe('no delete or featured functionality', () => {
+    it('does not render any "Eliminar" button', async () => {
+      mockAdminStore.shelters = [makeShelter()]
+      mockAdminStore.totalShelters = 1
+      const wrapper = await mountManager()
+      expect(wrapper.findAll('button').some(b => b.text() === 'Eliminar')).toBe(false)
     })
 
-    it('shows Eliminar button initially', async () => {
+    it('does not render any "Destacar" button', async () => {
+      mockAdminStore.shelters = [makeShelter()]
+      mockAdminStore.totalShelters = 1
       const wrapper = await mountManager()
-      expect(wrapper.findAll('button').some(b => b.text() === 'Eliminar')).toBe(true)
-    })
-
-    it('shows ¿Confirmar? after clicking Eliminar', async () => {
-      const wrapper = await mountManager()
-      const deleteBtn = wrapper.findAll('button').find(b => b.text() === 'Eliminar')
-      await deleteBtn!.trigger('click')
-      expect(wrapper.text()).toContain('¿Confirmar?')
-    })
-
-    it('does not call deleteShelter on first click', async () => {
-      const wrapper = await mountManager()
-      const deleteBtn = wrapper.findAll('button').find(b => b.text() === 'Eliminar')
-      await deleteBtn!.trigger('click')
-      expect(mockDeleteShelter).not.toHaveBeenCalled()
-    })
-
-    it('calls deleteShelter with shelterId when ¿Confirmar? is clicked', async () => {
-      mockDeleteShelter.mockResolvedValue(true)
-      const wrapper = await mountManager()
-      const deleteBtn = wrapper.findAll('button').find(b => b.text() === 'Eliminar')
-      await deleteBtn!.trigger('click')
-      const confirmBtn = wrapper.findAll('button').find(b => b.text() === '¿Confirmar?')
-      await confirmBtn!.trigger('click')
-      expect(mockDeleteShelter).toHaveBeenCalledWith('shelter-1')
-    })
-
-    it('hides ¿Confirmar? after clicking Cancelar', async () => {
-      const wrapper = await mountManager()
-      const deleteBtn = wrapper.findAll('button').find(b => b.text() === 'Eliminar')
-      await deleteBtn!.trigger('click')
-      const cancelBtn = wrapper.findAll('button').find(b => b.text() === 'Cancelar')
-      await cancelBtn!.trigger('click')
-      expect(wrapper.text()).not.toContain('¿Confirmar?')
-    })
-
-    it('does not call deleteShelter when Cancelar is clicked', async () => {
-      const wrapper = await mountManager()
-      const deleteBtn = wrapper.findAll('button').find(b => b.text() === 'Eliminar')
-      await deleteBtn!.trigger('click')
-      const cancelBtn = wrapper.findAll('button').find(b => b.text() === 'Cancelar')
-      await cancelBtn!.trigger('click')
-      expect(mockDeleteShelter).not.toHaveBeenCalled()
+      expect(wrapper.findAll('button').some(b => b.text() === 'Destacar')).toBe(false)
     })
   })
 
@@ -283,21 +279,21 @@ describe('AdminShelterManager', () => {
 
   describe('result count', () => {
     it('shows "0 refugios" when totalShelters is 0', async () => {
-      mockTotalShelters.value = 0
+      mockAdminStore.totalShelters = 0
       const wrapper = await mountManager()
       expect(wrapper.find('[role="status"]').text()).toContain('0 refugios')
     })
 
     it('shows "1 refugio" (singular) when totalShelters is 1', async () => {
-      mockTotalShelters.value = 1
-      mockShelters.value = [makeShelter()]
+      mockAdminStore.totalShelters = 1
+      mockAdminStore.shelters = [makeShelter()]
       const wrapper = await mountManager()
       expect(wrapper.find('[role="status"]').text()).toContain('1 refugio')
       expect(wrapper.find('[role="status"]').text()).not.toContain('1 refugios')
     })
 
     it('shows "3 refugios" (plural)', async () => {
-      mockTotalShelters.value = 3
+      mockAdminStore.totalShelters = 3
       const wrapper = await mountManager()
       expect(wrapper.find('[role="status"]').text()).toContain('3 refugios')
     })
@@ -321,7 +317,7 @@ describe('AdminShelterManager', () => {
   // ── Pagination footer ───────────────────────────────────────
 
   it('does not show pagination footer when totalShelters <= 20', async () => {
-    mockTotalShelters.value = 10
+    mockAdminStore.totalShelters = 10
     const wrapper = await mountManager()
     expect(wrapper.find('.card-footer').exists()).toBe(false)
   })

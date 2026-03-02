@@ -1,65 +1,47 @@
 // ============================================================
 // usePro — Pro / Monetización feature composable
-// Central API surface for PRO subscriptions, plan catalogue,
-// checkout sessions, and shelter donations.
+// Central API surface for PRO subscriptions and shelter donations.
+// Plans are hardcoded constants (PRO_PLANS) — no fetch needed.
 // State is owned by useProStore; this composable is the API
 // layer that keeps the store in sync.
+//
+// Payment flow: PayU Latam form-based redirect.
+// The backend returns checkout_url + form_params → we create a
+// hidden <form> and submit it to PayU.
 // ============================================================
 
 import type {
-  ProPlan,
-  CheckoutSession,
+  PlanValue,
+  SubscriptionStatus,
+  PayUCheckoutResponse,
+  DonationCheckoutResponse,
   DonationRequest,
-  DonationResponse,
 } from '../types'
+import { extractErrorMessage } from '../../shared/utils/extractErrorMessage'
 
 export function usePro() {
-  const { get, post, del } = useApi()
+  const { get, post } = useApi()
   const proStore = useProStore()
   const authStore = useAuthStore()
 
   const error = ref<string | null>(null)
 
-  // ── Plan catalogue ──────────────────────────────────────────
-
-  /**
-   * Fetch all available PRO plans from the catalogue.
-   * Handles both `{ plans: ProPlan[] }` envelope and plain `ProPlan[]` shapes.
-   * Sets the store plans array on success.
-   */
-  async function fetchPlans(): Promise<void> {
-    proStore.setLoading(true)
-    error.value = null
-    try {
-      const response = await get<{ plans: ProPlan[] } | ProPlan[]>('/api/pro/plans')
-      if (Array.isArray(response)) {
-        proStore.setPlans(response)
-      }
-      else {
-        proStore.setPlans(response.plans ?? [])
-      }
-    }
-    catch (err: unknown) {
-      error.value = extractErrorMessage(err)
-    }
-    finally {
-      proStore.setLoading(false)
-    }
-  }
-
   // ── Subscription ────────────────────────────────────────────
 
   /**
-   * Fetch the current user's PRO subscription.
-   * On 404 (no active subscription), sets subscription to null — this is
-   * a normal state for non-PRO users, not an error condition.
+   * Fetch the current user's PRO subscription status.
+   * Guard: requires userId from authStore.currentEntity.
+   * On 404 (no subscription), sets subscription to null — normal state.
    */
   async function fetchSubscription(): Promise<void> {
+    const userId = authStore.currentEntity?.id
+    if (!userId) return
+
     proStore.setLoading(true)
     error.value = null
     try {
-      const sub = await get('/api/pro/subscription')
-      proStore.setSubscription(sub as Parameters<typeof proStore.setSubscription>[0])
+      const sub = await get<SubscriptionStatus>(`/api/users/${userId}/subscription`)
+      proStore.setSubscription(sub)
     }
     catch (err: unknown) {
       // 404 = user has no subscription — not an error to surface to the UI
@@ -77,40 +59,38 @@ export function usePro() {
     }
   }
 
-  // ── Checkout ────────────────────────────────────────────────
+  // ── Subscribe (PayU checkout) ─────────────────────────────
 
   /**
-   * Create a Stripe Checkout session and redirect the user.
+   * Start a PRO subscription checkout via PayU.
    *
-   * SSR guard: this function accesses `window.location.origin` which is only
-   * available on the client. Call it from user interactions (click handlers),
-   * never on the server.
+   * SSR guard: this function creates a DOM form — must only run client-side.
    *
-   * Security: validates that the returned checkout_url uses HTTPS before
-   * calling navigateTo — prevents open redirect to non-HTTPS URLs.
+   * Security: validates that checkout_url uses HTTPS before redirect.
    *
-   * Returns the CheckoutSession on success, null on failure.
-   * Caller may inspect `error.value` for a user-facing message.
+   * Returns the PayUCheckoutResponse on success, null on failure.
    */
-  async function createCheckoutSession(planId: string): Promise<CheckoutSession | null> {
-    // This function requires browser APIs — must not run server-side.
+  async function subscribe(plan: PlanValue): Promise<PayUCheckoutResponse | null> {
     if (!import.meta.client) return null
+
+    const userId = authStore.currentEntity?.id
+    if (!userId) {
+      error.value = 'Debes iniciar sesión para suscribirte.'
+      return null
+    }
 
     proStore.setLoading(true)
     error.value = null
     try {
-      const origin = window.location.origin
-      const session = await post<CheckoutSession>('/api/pro/subscribe', {
-        plan_id: planId,
-        success_url: `${origin}/dashboard/subscription?checkout=success`,
-        cancel_url: `${origin}/pricing?checkout=canceled`,
-      })
+      const response = await post<PayUCheckoutResponse>(
+        `/api/users/${userId}/subscribe`,
+        { plan },
+      )
 
       // Security guard: only redirect to verified HTTPS URLs.
-      // Prevents open-redirect exploitation if the backend is compromised.
       let isHttps = false
       try {
-        isHttps = new URL(session.checkout_url).protocol === 'https:'
+        isHttps = new URL(response.checkout_url).protocol === 'https:'
       }
       catch {
         isHttps = false
@@ -121,8 +101,8 @@ export function usePro() {
         return null
       }
 
-      await navigateTo(session.checkout_url, { external: true })
-      return session
+      submitPayUForm(response.checkout_url, response.form_params)
+      return response
     }
     catch (err: unknown) {
       error.value = extractErrorMessage(err)
@@ -133,66 +113,43 @@ export function usePro() {
     }
   }
 
-  // ── Cancellation ────────────────────────────────────────────
+  // ── Donations (PayU checkout) ─────────────────────────────
 
   /**
-   * Cancel the active subscription at the end of the billing period.
-   * Updates the store subscription with cancel_at_period_end: true so the
-   * UI can show the "cancelación programada" notice without a re-fetch.
-   */
-  async function cancelSubscription(): Promise<boolean> {
-    proStore.setLoading(true)
-    error.value = null
-    try {
-      await del('/api/pro/subscription')
-      // Reflect cancellation in the store immediately
-      if (proStore.subscription) {
-        proStore.setSubscription({
-          ...proStore.subscription,
-          cancel_at_period_end: true,
-        })
-      }
-      return true
-    }
-    catch (err: unknown) {
-      error.value = extractErrorMessage(err)
-      return false
-    }
-    finally {
-      proStore.setLoading(false)
-    }
-  }
-
-  // ── Donations ───────────────────────────────────────────────
-
-  /**
-   * Submit a monetary donation to a shelter.
-   * Does not mutate the pro store — donation state is owned by the
-   * calling component.
-   * Returns DonationResponse on success, null on failure.
+   * Submit a monetary donation to a shelter via PayU.
    *
-   * Security: shelter_id is validated against a safe UUID/alphanumeric
-   * pattern before interpolation into the API path to prevent path
-   * traversal (e.g. shelter_id = "../admin" or "%2F..%2F").
+   * Security: shelter_id is validated against a safe pattern before
+   * interpolation into the API path to prevent path traversal.
+   *
+   * Returns DonationCheckoutResponse on success, null on failure.
    */
-  async function donate(data: DonationRequest): Promise<DonationResponse | null> {
+  async function donate(
+    shelterId: number,
+    data: DonationRequest,
+  ): Promise<DonationCheckoutResponse | null> {
     error.value = null
 
-    // Guard: shelter_id must be a UUID or alphanumeric slug — no path separators.
-    const SHELTER_ID_RE = /^[\w-]{1,64}$/
-    if (!SHELTER_ID_RE.test(data.shelter_id)) {
+    // Guard: shelterId must be a positive integer.
+    if (typeof shelterId !== 'number' || shelterId <= 0 || !Number.isInteger(shelterId)) {
       error.value = 'ID de refugio no válido.'
       return null
     }
 
     try {
-      const response = await post<DonationResponse>(
-        `/api/shelters/${data.shelter_id}/donations`,
+      const response = await post<DonationCheckoutResponse>(
+        `/api/shelters/${shelterId}/donate`,
         {
           amount: data.amount,
+          ...(data.currency ? { currency: data.currency } : {}),
           ...(data.message ? { message: data.message } : {}),
         },
       )
+
+      // Redirect to PayU checkout if running client-side
+      if (import.meta.client) {
+        submitPayUForm(response.checkout_url, response.form_params)
+      }
+
       return response
     }
     catch (err: unknown) {
@@ -205,28 +162,34 @@ export function usePro() {
     error,
     proStore,
     authStore,
-    fetchPlans,
     fetchSubscription,
-    createCheckoutSession,
-    cancelSubscription,
+    subscribe,
     donate,
   }
 }
 
 // ── Helpers ─────────────────────────────────────────────────
 
-function extractErrorMessage(err: unknown): string {
-  if (typeof err === 'object' && err !== null) {
-    if ('data' in err) {
-      const data = (err as { data: unknown }).data
-      if (typeof data === 'object' && data !== null && 'error' in data) {
-        return String((data as { error: unknown }).error)
-      }
-      if (typeof data === 'string' && data.length > 0) return data
-    }
-    if ('message' in err && typeof (err as { message: unknown }).message === 'string') {
-      return (err as { message: string }).message
-    }
+/**
+ * PayU form-based redirect.
+ * Creates a hidden <form> with method=POST action=checkoutUrl,
+ * adds <input type="hidden"> for each form_params entry,
+ * appends to body and submits. Standard PayU Latam integration pattern.
+ */
+function submitPayUForm(checkoutUrl: string, formParams: Record<string, string>): void {
+  const form = document.createElement('form')
+  form.method = 'POST'
+  form.action = checkoutUrl
+  form.style.display = 'none'
+
+  for (const [name, value] of Object.entries(formParams)) {
+    const input = document.createElement('input')
+    input.type = 'hidden'
+    input.name = name
+    input.value = value
+    form.appendChild(input)
   }
-  return 'Ocurrió un error inesperado. Intenta de nuevo.'
+
+  document.body.appendChild(form)
+  form.submit()
 }

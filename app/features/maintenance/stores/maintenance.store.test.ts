@@ -22,10 +22,11 @@ import type { MaintenanceStatus } from '../types'
 
 function makeStatus(overrides: Partial<MaintenanceStatus> = {}): MaintenanceStatus {
   return {
-    is_enabled: false,
+    is_active: false,
     message: undefined,
-    updated_at: undefined,
-    updated_by: undefined,
+    estimated_return: undefined,
+    activated_at: undefined,
+    activated_by_admin_id: undefined,
     ...overrides,
   }
 }
@@ -66,14 +67,14 @@ describe('useMaintenanceStore', () => {
   describe('setStatus', () => {
     it('stores the status object', () => {
       const store = useMaintenanceStore()
-      const status = makeStatus({ is_enabled: true })
+      const status = makeStatus({ is_active: true })
       store.setStatus(status)
       expect(store.status).toEqual(status)
     })
 
-    it('stores a status with is_enabled: false', () => {
+    it('stores a status with is_active: false', () => {
       const store = useMaintenanceStore()
-      const status = makeStatus({ is_enabled: false, message: 'All good' })
+      const status = makeStatus({ is_active: false, message: 'All good' })
       store.setStatus(status)
       expect(store.status).toEqual(status)
     })
@@ -81,33 +82,34 @@ describe('useMaintenanceStore', () => {
     it('stores a full status object with all optional fields', () => {
       const store = useMaintenanceStore()
       const status: MaintenanceStatus = {
-        is_enabled: true,
+        is_active: true,
         message: 'Site down for maintenance',
-        updated_at: '2025-01-15T10:00:00Z',
-        updated_by: 'admin@mopetoo.com',
+        estimated_return: '2025-01-15T12:00:00Z',
+        activated_at: '2025-01-15T10:00:00Z',
+        activated_by_admin_id: 1,
       }
       store.setStatus(status)
       expect(store.status).toEqual(status)
     })
 
-    it('stores a minimal status with only is_enabled', () => {
+    it('stores a minimal status with only is_active', () => {
       const store = useMaintenanceStore()
-      const status: MaintenanceStatus = { is_enabled: true }
+      const status: MaintenanceStatus = { is_active: true }
       store.setStatus(status)
-      expect(store.status).toMatchObject({ is_enabled: true })
+      expect(store.status).toMatchObject({ is_active: true })
     })
 
     it('replaces previous status on second call', () => {
       const store = useMaintenanceStore()
-      store.setStatus(makeStatus({ is_enabled: true, message: 'Old message' }))
-      store.setStatus(makeStatus({ is_enabled: false, message: 'New message' }))
-      expect(store.status!.is_enabled).toBe(false)
+      store.setStatus(makeStatus({ is_active: true, message: 'Old message' }))
+      store.setStatus(makeStatus({ is_active: false, message: 'New message' }))
+      expect(store.status!.is_active).toBe(false)
       expect(store.status!.message).toBe('New message')
     })
 
     it('does not affect isLoading', () => {
       const store = useMaintenanceStore()
-      store.setStatus(makeStatus({ is_enabled: true }))
+      store.setStatus(makeStatus({ is_active: true }))
       expect(store.isLoading).toBe(false)
     })
   })
@@ -149,31 +151,37 @@ describe('useMaintenanceStore', () => {
       expect(store.isEnabled).toBe(false)
     })
 
-    it('returns true when status.is_enabled is true', () => {
+    it('returns true when status.is_active is true', () => {
       const store = useMaintenanceStore()
-      store.setStatus(makeStatus({ is_enabled: true }))
+      store.setStatus(makeStatus({ is_active: true }))
       expect(store.isEnabled).toBe(true)
     })
 
-    it('returns false when status.is_enabled is false', () => {
+    it('returns false when status.is_active is false', () => {
       const store = useMaintenanceStore()
-      store.setStatus(makeStatus({ is_enabled: false }))
+      store.setStatus(makeStatus({ is_active: false }))
       expect(store.isEnabled).toBe(false)
+    })
+
+    it('returns true regardless of is_active naming (reads is_active, not is_enabled)', () => {
+      const store = useMaintenanceStore()
+      store.setStatus({ is_active: true })
+      expect(store.isEnabled).toBe(true)
     })
 
     it('updates reactively when status changes from disabled to enabled', () => {
       const store = useMaintenanceStore()
-      store.setStatus(makeStatus({ is_enabled: false }))
+      store.setStatus(makeStatus({ is_active: false }))
       expect(store.isEnabled).toBe(false)
-      store.setStatus(makeStatus({ is_enabled: true }))
+      store.setStatus(makeStatus({ is_active: true }))
       expect(store.isEnabled).toBe(true)
     })
 
     it('updates reactively when status changes from enabled to disabled', () => {
       const store = useMaintenanceStore()
-      store.setStatus(makeStatus({ is_enabled: true }))
+      store.setStatus(makeStatus({ is_active: true }))
       expect(store.isEnabled).toBe(true)
-      store.setStatus(makeStatus({ is_enabled: false }))
+      store.setStatus(makeStatus({ is_active: false }))
       expect(store.isEnabled).toBe(false)
     })
   })
@@ -192,15 +200,15 @@ describe('useMaintenanceStore', () => {
       expect(store.hasStatus).toBe(true)
     })
 
-    it('returns true regardless of is_enabled value', () => {
+    it('returns true regardless of is_active value', () => {
       const store = useMaintenanceStore()
-      store.setStatus(makeStatus({ is_enabled: false }))
+      store.setStatus(makeStatus({ is_active: false }))
       expect(store.hasStatus).toBe(true)
     })
 
     it('returns false again after clearMaintenance is called', () => {
       const store = useMaintenanceStore()
-      store.setStatus(makeStatus({ is_enabled: true }))
+      store.setStatus(makeStatus({ is_active: true }))
       store.clearMaintenance()
       expect(store.hasStatus).toBe(false)
     })
@@ -211,7 +219,7 @@ describe('useMaintenanceStore', () => {
   describe('clearMaintenance', () => {
     it('resets status to null', () => {
       const store = useMaintenanceStore()
-      store.setStatus(makeStatus({ is_enabled: true }))
+      store.setStatus(makeStatus({ is_active: true }))
       store.clearMaintenance()
       expect(store.status).toBeNull()
     })
@@ -225,7 +233,7 @@ describe('useMaintenanceStore', () => {
 
     it('resets isEnabled to false', () => {
       const store = useMaintenanceStore()
-      store.setStatus(makeStatus({ is_enabled: true }))
+      store.setStatus(makeStatus({ is_active: true }))
       store.clearMaintenance()
       expect(store.isEnabled).toBe(false)
     })
@@ -247,10 +255,11 @@ describe('useMaintenanceStore', () => {
     it('resets all fields from a fully populated status', () => {
       const store = useMaintenanceStore()
       store.setStatus({
-        is_enabled: true,
+        is_active: true,
         message: 'Down for maintenance',
-        updated_at: '2025-01-01T00:00:00Z',
-        updated_by: 'admin@mopetoo.com',
+        estimated_return: '2025-01-01T02:00:00Z',
+        activated_at: '2025-01-01T00:00:00Z',
+        activated_by_admin_id: 1,
       })
       store.setLoading(true)
       store.clearMaintenance()
@@ -270,7 +279,7 @@ describe('useMaintenanceStore', () => {
       expect(store.isLoading).toBe(true)
       expect(store.hasStatus).toBe(false)
 
-      store.setStatus(makeStatus({ is_enabled: true }))
+      store.setStatus(makeStatus({ is_active: true }))
       store.setLoading(false)
       expect(store.isLoading).toBe(false)
       expect(store.hasStatus).toBe(true)
@@ -285,19 +294,19 @@ describe('useMaintenanceStore', () => {
 
     it('supports toggling maintenance on and off via sequential setStatus calls', () => {
       const store = useMaintenanceStore()
-      store.setStatus(makeStatus({ is_enabled: false }))
+      store.setStatus(makeStatus({ is_active: false }))
       expect(store.isEnabled).toBe(false)
 
-      store.setStatus(makeStatus({ is_enabled: true }))
+      store.setStatus(makeStatus({ is_active: true }))
       expect(store.isEnabled).toBe(true)
 
-      store.setStatus(makeStatus({ is_enabled: false }))
+      store.setStatus(makeStatus({ is_active: false }))
       expect(store.isEnabled).toBe(false)
     })
 
     it('setLoading(false) does not discard an existing status', () => {
       const store = useMaintenanceStore()
-      store.setStatus(makeStatus({ is_enabled: true }))
+      store.setStatus(makeStatus({ is_active: true }))
       store.setLoading(false)
       expect(store.status).not.toBeNull()
       expect(store.hasStatus).toBe(true)

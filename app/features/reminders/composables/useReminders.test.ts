@@ -34,18 +34,14 @@ vi.mock('../../shared/composables/useApi', () => ({
   useApi: () => ({ get: mockGet, post: mockPost, put: mockPut, del: mockDel }),
 }))
 
-// ── useExportPDF mock ─────────────────────────────────────────
-// useExportPDF is a shared project composable — mock via vi.mock so
-// exportRemindersPDF tests assert the delegation contract, not the PDF
-// download mechanics (which are covered by useExportPDF.test.ts).
-// The spy handles are reset in beforeEach to prevent bleed between tests.
-const mockDownloadPDF = vi.fn()
-const mockSlugify = vi.fn()
+// ── usePetsStore mock ─────────────────────────────────────────
+// fetchReminders without petId now reads usePetsStore().pets to
+// iterate over all pets. We provide a controlled mock.
+const mockPets = vi.hoisted(() => ({ value: [] as Array<{ id: string; name: string }> }))
 
-vi.mock('../../shared/composables/useExportPDF', () => ({
-  useExportPDF: () => ({
-    downloadPDF: mockDownloadPDF,
-    slugify: mockSlugify,
+vi.mock('../../pets/stores/pets.store', () => ({
+  usePetsStore: () => ({
+    pets: mockPets.value,
   }),
 }))
 
@@ -53,19 +49,19 @@ vi.mock('../../shared/composables/useExportPDF', () => ({
 
 function makeReminder(overrides: Partial<Reminder> = {}): Reminder {
   return {
-    id: 1,
-    pet_id: 42,
+    id: '1',
+    pet_id: '42',
     type: 'vacuna',
     title: 'Vacuna antirrábica',
-    scheduled_date: '2027-06-15T10:00',
+    scheduled_date: '2027-06-15T10:00:00Z',
     created_at: '2026-01-01T00:00:00Z',
     updated_at: '2026-01-01T00:00:00Z',
     ...overrides,
   }
 }
 
-const reminderA = makeReminder({ id: 1, title: 'Vacuna antirrábica', pet_id: 42 })
-const reminderB = makeReminder({ id: 2, title: 'Desparasitación', type: 'medicina', pet_id: 42 })
+const reminderA = makeReminder({ id: '1', title: 'Vacuna antirrábica', pet_id: '42' })
+const reminderB = makeReminder({ id: '2', title: 'Desparasitación', type: 'medicina', pet_id: '42' })
 
 // ── Suite ─────────────────────────────────────────────────────
 
@@ -86,51 +82,58 @@ describe('useReminders', () => {
     mockPost.mockReset()
     mockPut.mockReset()
     mockDel.mockReset()
-    mockDownloadPDF.mockReset()
-    // mockSlugify defaults to a passthrough that lowercases and hyphenates,
-    // matching the real slugify for simple ASCII names. Tests that need
-    // specific slug output configure this mock themselves.
-    mockSlugify.mockReset()
-    mockSlugify.mockImplementation((name: string) => name.toLowerCase().replace(/\s+/g, '-'))
+    mockPets.value = []
   })
 
   // ── fetchReminders (no petId) ──────────────────────────────
+  // Without a petId, fetchReminders iterates over petsStore.pets
+  // and calls GET /api/pets/:id/reminders for each pet.
 
   describe('fetchReminders() without a petId', () => {
-    it('calls GET /api/reminders', async () => {
-      mockGet.mockResolvedValueOnce([reminderA])
+    it('calls GET /api/pets/:id/reminders for each pet in petsStore', async () => {
+      mockPets.value = [{ id: '42', name: 'Luna' }, { id: '99', name: 'Max' }]
+      mockGet
+        .mockResolvedValueOnce([reminderA])
+        .mockResolvedValueOnce([])
       const { useReminders } = await import('./useReminders')
       const { fetchReminders } = useReminders()
 
       await fetchReminders()
 
-      expect(mockGet).toHaveBeenCalledWith('/api/reminders')
+      expect(mockGet).toHaveBeenCalledWith('/api/pets/42/reminders')
+      expect(mockGet).toHaveBeenCalledWith('/api/pets/99/reminders')
+      expect(mockGet).toHaveBeenCalledTimes(2)
     })
 
-    it('hydrates the store when the response is a bare Reminder array', async () => {
-      mockGet.mockResolvedValueOnce([reminderA, reminderB])
+    it('merges reminders from all pets into the store', async () => {
+      const reminderC = makeReminder({ id: '3', title: 'Baño Max', pet_id: '99' })
+      mockPets.value = [{ id: '42', name: 'Luna' }, { id: '99', name: 'Max' }]
+      mockGet
+        .mockResolvedValueOnce([reminderA, reminderB])
+        .mockResolvedValueOnce([reminderC])
       const setRemindersSpy = vi.spyOn(remindersStore, 'setReminders')
       const { useReminders } = await import('./useReminders')
       const { fetchReminders } = useReminders()
 
       await fetchReminders()
 
-      expect(setRemindersSpy).toHaveBeenCalledWith([reminderA, reminderB])
+      expect(setRemindersSpy).toHaveBeenCalledWith([reminderA, reminderB, reminderC])
     })
 
-    it('hydrates the store when the response is shaped as { reminders: Reminder[] }', async () => {
-      mockGet.mockResolvedValueOnce({ reminders: [reminderA, reminderB] })
+    it('handles { reminders: Reminder[] } response shape from per-pet endpoint', async () => {
+      mockPets.value = [{ id: '42', name: 'Luna' }]
+      mockGet.mockResolvedValueOnce({ reminders: [reminderA] })
       const setRemindersSpy = vi.spyOn(remindersStore, 'setReminders')
       const { useReminders } = await import('./useReminders')
       const { fetchReminders } = useReminders()
 
       await fetchReminders()
 
-      expect(setRemindersSpy).toHaveBeenCalledWith([reminderA, reminderB])
+      expect(setRemindersSpy).toHaveBeenCalledWith([reminderA])
     })
 
-    it('calls setReminders with an empty array when { reminders } key is missing from the object response', async () => {
-      mockGet.mockResolvedValueOnce({})
+    it('calls setReminders with an empty array when petsStore.pets is empty', async () => {
+      mockPets.value = []
       const setRemindersSpy = vi.spyOn(remindersStore, 'setReminders')
       const { useReminders } = await import('./useReminders')
       const { fetchReminders } = useReminders()
@@ -138,9 +141,11 @@ describe('useReminders', () => {
       await fetchReminders()
 
       expect(setRemindersSpy).toHaveBeenCalledWith([])
+      expect(mockGet).not.toHaveBeenCalled()
     })
 
     it('sets isLoading to true during the request and false after success', async () => {
+      mockPets.value = [{ id: '42', name: 'Luna' }]
       let loadingDuringCall = false
       mockGet.mockImplementationOnce(async () => {
         loadingDuringCall = remindersStore.isLoading
@@ -156,6 +161,7 @@ describe('useReminders', () => {
     })
 
     it('sets isLoading to false even when the API call fails', async () => {
+      mockPets.value = [{ id: '42', name: 'Luna' }]
       mockGet.mockRejectedValueOnce({ message: 'Network error' })
       const { useReminders } = await import('./useReminders')
       const { fetchReminders } = useReminders()
@@ -166,6 +172,7 @@ describe('useReminders', () => {
     })
 
     it('sets error when the API call fails', async () => {
+      mockPets.value = [{ id: '42', name: 'Luna' }]
       mockGet.mockRejectedValueOnce({ data: { error: 'Sin autorización' } })
       const { useReminders } = await import('./useReminders')
       const { fetchReminders, error } = useReminders()
@@ -176,6 +183,7 @@ describe('useReminders', () => {
     })
 
     it('clears any previous error before the request', async () => {
+      mockPets.value = [{ id: '42', name: 'Luna' }]
       mockGet.mockResolvedValueOnce([reminderA])
       const { useReminders } = await import('./useReminders')
       const { fetchReminders, error } = useReminders()
@@ -187,7 +195,7 @@ describe('useReminders', () => {
     })
 
     it('sets error to null on successful fetch', async () => {
-      mockGet.mockResolvedValueOnce([reminderA])
+      mockPets.value = []
       const { useReminders } = await import('./useReminders')
       const { fetchReminders, error } = useReminders()
 
@@ -197,6 +205,7 @@ describe('useReminders', () => {
     })
 
     it('falls back to the generic error message for unexpected error shapes', async () => {
+      mockPets.value = [{ id: '42', name: 'Luna' }]
       mockGet.mockRejectedValueOnce('unexpected string error')
       const { useReminders } = await import('./useReminders')
       const { fetchReminders, error } = useReminders()
@@ -215,19 +224,9 @@ describe('useReminders', () => {
       const { useReminders } = await import('./useReminders')
       const { fetchReminders } = useReminders()
 
-      await fetchReminders(42)
+      await fetchReminders('42')
 
       expect(mockGet).toHaveBeenCalledWith('/api/pets/42/reminders')
-    })
-
-    it('does NOT call /api/reminders when petId is provided', async () => {
-      mockGet.mockResolvedValueOnce([reminderA])
-      const { useReminders } = await import('./useReminders')
-      const { fetchReminders } = useReminders()
-
-      await fetchReminders(42)
-
-      expect(mockGet).not.toHaveBeenCalledWith('/api/reminders')
     })
 
     it('hydrates the store with the pet-specific reminders', async () => {
@@ -236,21 +235,21 @@ describe('useReminders', () => {
       const { useReminders } = await import('./useReminders')
       const { fetchReminders } = useReminders()
 
-      await fetchReminders(42)
+      await fetchReminders('42')
 
       expect(setRemindersSpy).toHaveBeenCalledWith([reminderA])
     })
 
-    it('uses the nested route for petId = 0 (falsy edge case — 0 treated as "no petId")', async () => {
-      // petId of 0 is falsy in JS; the condition is `petId != null`
-      // so 0 IS a valid petId and should use the nested route
+    it('uses the nested route for petId = "0" (falsy edge case — "0" treated as valid petId)', async () => {
+      // petId of "0" is falsy in JS; the condition is `petId != null`
+      // so "0" IS a valid petId and should use the nested route
       mockGet.mockResolvedValueOnce([])
       const { useReminders } = await import('./useReminders')
       const { fetchReminders } = useReminders()
 
-      await fetchReminders(0)
+      await fetchReminders('0')
 
-      // 0 != null is true, so it should call the pet-specific URL
+      // "0" != null is true, so it should call the pet-specific URL
       expect(mockGet).toHaveBeenCalledWith('/api/pets/0/reminders')
     })
   })
@@ -263,7 +262,7 @@ describe('useReminders', () => {
       const { useReminders } = await import('./useReminders')
       const { fetchReminderById } = useReminders()
 
-      await fetchReminderById(1)
+      await fetchReminderById('1')
 
       expect(mockGet).toHaveBeenCalledWith('/api/reminders/1')
     })
@@ -274,7 +273,7 @@ describe('useReminders', () => {
       const { useReminders } = await import('./useReminders')
       const { fetchReminderById } = useReminders()
 
-      await fetchReminderById(1)
+      await fetchReminderById('1')
 
       expect(setSelectedReminderSpy).toHaveBeenCalledWith(reminderA)
     })
@@ -284,7 +283,7 @@ describe('useReminders', () => {
       const { useReminders } = await import('./useReminders')
       const { fetchReminderById } = useReminders()
 
-      const result = await fetchReminderById(1)
+      const result = await fetchReminderById('1')
 
       expect(result).toEqual(reminderA)
     })
@@ -294,7 +293,7 @@ describe('useReminders', () => {
       const { useReminders } = await import('./useReminders')
       const { fetchReminderById } = useReminders()
 
-      const result = await fetchReminderById(999)
+      const result = await fetchReminderById('999')
 
       expect(result).toBeNull()
     })
@@ -304,7 +303,7 @@ describe('useReminders', () => {
       const { useReminders } = await import('./useReminders')
       const { fetchReminderById, error } = useReminders()
 
-      await fetchReminderById(999)
+      await fetchReminderById('999')
 
       expect(error.value).toBe('No encontrado')
     })
@@ -315,7 +314,7 @@ describe('useReminders', () => {
       const { useReminders } = await import('./useReminders')
       const { fetchReminderById } = useReminders()
 
-      await fetchReminderById(999)
+      await fetchReminderById('999')
 
       expect(setSelectedReminderSpy).not.toHaveBeenCalled()
     })
@@ -325,7 +324,7 @@ describe('useReminders', () => {
       const { useReminders } = await import('./useReminders')
       const { fetchReminderById } = useReminders()
 
-      await fetchReminderById(1)
+      await fetchReminderById('1')
 
       expect(remindersStore.isLoading).toBe(false)
     })
@@ -335,7 +334,7 @@ describe('useReminders', () => {
       const { useReminders } = await import('./useReminders')
       const { fetchReminderById } = useReminders()
 
-      await fetchReminderById(1)
+      await fetchReminderById('1')
 
       expect(remindersStore.isLoading).toBe(false)
     })
@@ -346,7 +345,7 @@ describe('useReminders', () => {
       const { fetchReminderById, error } = useReminders()
 
       error.value = 'error previo'
-      await fetchReminderById(1)
+      await fetchReminderById('1')
 
       expect(error.value).toBeNull()
     })
@@ -356,10 +355,10 @@ describe('useReminders', () => {
 
   describe('createReminder()', () => {
     const payload = {
-      pet_id: 42,
+      pet_id: '42',
       type: 'vacuna' as const,
       title: 'Nueva vacuna',
-      scheduled_date: '2027-06-15T10:00',
+      scheduled_date: '2027-06-15T10:00:00Z',
     }
 
     it('calls POST /api/reminders with the payload', async () => {
@@ -473,7 +472,7 @@ describe('useReminders', () => {
   // ── updateReminder ─────────────────────────────────────────
 
   describe('updateReminder()', () => {
-    const patchPayload = { title: 'Título actualizado' }
+    const patchPayload = { type: 'vacuna' as const, title: 'Título actualizado', scheduled_date: '2027-06-15T10:00:00Z' }
     const updatedReminder = { ...reminderA, title: 'Título actualizado' }
 
     it('calls PUT /api/reminders/{id} with the correct id and payload', async () => {
@@ -481,7 +480,7 @@ describe('useReminders', () => {
       const { useReminders } = await import('./useReminders')
       const { updateReminder } = useReminders()
 
-      await updateReminder(1, patchPayload)
+      await updateReminder('1', patchPayload)
 
       expect(mockPut).toHaveBeenCalledWith('/api/reminders/1', patchPayload)
     })
@@ -492,7 +491,7 @@ describe('useReminders', () => {
       const { useReminders } = await import('./useReminders')
       const { updateReminder } = useReminders()
 
-      await updateReminder(1, patchPayload)
+      await updateReminder('1', patchPayload)
 
       expect(updateStoreSpy).toHaveBeenCalledWith(updatedReminder)
     })
@@ -502,7 +501,7 @@ describe('useReminders', () => {
       const { useReminders } = await import('./useReminders')
       const { updateReminder } = useReminders()
 
-      const result = await updateReminder(1, patchPayload)
+      const result = await updateReminder('1', patchPayload)
 
       expect(result).toEqual(updatedReminder)
     })
@@ -512,7 +511,7 @@ describe('useReminders', () => {
       const { useReminders } = await import('./useReminders')
       const { updateReminder } = useReminders()
 
-      const result = await updateReminder(999, patchPayload)
+      const result = await updateReminder('999', patchPayload)
 
       expect(result).toBeNull()
     })
@@ -522,7 +521,7 @@ describe('useReminders', () => {
       const { useReminders } = await import('./useReminders')
       const { updateReminder, error } = useReminders()
 
-      await updateReminder(999, patchPayload)
+      await updateReminder('999', patchPayload)
 
       expect(error.value).toBe('Not found')
     })
@@ -533,7 +532,7 @@ describe('useReminders', () => {
       const { useReminders } = await import('./useReminders')
       const { updateReminder } = useReminders()
 
-      await updateReminder(1, patchPayload)
+      await updateReminder('1', patchPayload)
 
       expect(updateStoreSpy).not.toHaveBeenCalled()
     })
@@ -543,7 +542,7 @@ describe('useReminders', () => {
       const { useReminders } = await import('./useReminders')
       const { updateReminder } = useReminders()
 
-      await updateReminder(1, patchPayload)
+      await updateReminder('1', patchPayload)
 
       expect(remindersStore.isLoading).toBe(false)
     })
@@ -553,7 +552,7 @@ describe('useReminders', () => {
       const { useReminders } = await import('./useReminders')
       const { updateReminder } = useReminders()
 
-      await updateReminder(1, patchPayload)
+      await updateReminder('1', patchPayload)
 
       expect(remindersStore.isLoading).toBe(false)
     })
@@ -564,7 +563,7 @@ describe('useReminders', () => {
       const { updateReminder, error } = useReminders()
 
       error.value = 'error previo'
-      await updateReminder(1, patchPayload)
+      await updateReminder('1', patchPayload)
 
       expect(error.value).toBeNull()
     })
@@ -578,7 +577,7 @@ describe('useReminders', () => {
       const { useReminders } = await import('./useReminders')
       const { deleteReminder } = useReminders()
 
-      await deleteReminder(1)
+      await deleteReminder('1')
 
       expect(mockDel).toHaveBeenCalledWith('/api/reminders/1')
     })
@@ -589,9 +588,9 @@ describe('useReminders', () => {
       const { useReminders } = await import('./useReminders')
       const { deleteReminder } = useReminders()
 
-      await deleteReminder(1)
+      await deleteReminder('1')
 
-      expect(removeReminderSpy).toHaveBeenCalledWith(1)
+      expect(removeReminderSpy).toHaveBeenCalledWith('1')
     })
 
     it('returns true on success', async () => {
@@ -599,7 +598,7 @@ describe('useReminders', () => {
       const { useReminders } = await import('./useReminders')
       const { deleteReminder } = useReminders()
 
-      const result = await deleteReminder(1)
+      const result = await deleteReminder('1')
 
       expect(result).toBe(true)
     })
@@ -609,7 +608,7 @@ describe('useReminders', () => {
       const { useReminders } = await import('./useReminders')
       const { deleteReminder } = useReminders()
 
-      const result = await deleteReminder(1)
+      const result = await deleteReminder('1')
 
       expect(result).toBe(false)
     })
@@ -620,7 +619,7 @@ describe('useReminders', () => {
       const { useReminders } = await import('./useReminders')
       const { deleteReminder } = useReminders()
 
-      await deleteReminder(1)
+      await deleteReminder('1')
 
       expect(removeReminderSpy).not.toHaveBeenCalled()
     })
@@ -630,7 +629,7 @@ describe('useReminders', () => {
       const { useReminders } = await import('./useReminders')
       const { deleteReminder, error } = useReminders()
 
-      await deleteReminder(1)
+      await deleteReminder('1')
 
       expect(error.value).toBe('Forbidden')
     })
@@ -643,7 +642,7 @@ describe('useReminders', () => {
       const { useReminders } = await import('./useReminders')
       const { deleteReminder } = useReminders()
 
-      await deleteReminder(1)
+      await deleteReminder('1')
 
       expect(loadingDuringCall).toBe(true)
     })
@@ -653,7 +652,7 @@ describe('useReminders', () => {
       const { useReminders } = await import('./useReminders')
       const { deleteReminder } = useReminders()
 
-      await deleteReminder(1)
+      await deleteReminder('1')
 
       expect(remindersStore.isLoading).toBe(false)
     })
@@ -663,7 +662,7 @@ describe('useReminders', () => {
       const { useReminders } = await import('./useReminders')
       const { deleteReminder } = useReminders()
 
-      await deleteReminder(1)
+      await deleteReminder('1')
 
       expect(remindersStore.isLoading).toBe(false)
     })
@@ -674,7 +673,7 @@ describe('useReminders', () => {
       const { deleteReminder, error } = useReminders()
 
       error.value = 'error previo'
-      await deleteReminder(1)
+      await deleteReminder('1')
 
       expect(error.value).toBeNull()
     })
@@ -684,7 +683,7 @@ describe('useReminders', () => {
       const { useReminders } = await import('./useReminders')
       const { deleteReminder, error } = useReminders()
 
-      await deleteReminder(1)
+      await deleteReminder('1')
 
       expect(error.value).toBe('Ocurrió un error inesperado. Intenta de nuevo.')
     })
@@ -701,6 +700,7 @@ describe('useReminders', () => {
     })
 
     it('is set on failure and then cleared on the next successful call', async () => {
+      mockPets.value = [{ id: '42', name: 'Luna' }]
       mockGet
         .mockRejectedValueOnce({ data: { error: 'Fallo temporal' } })
         .mockResolvedValueOnce([reminderA])
@@ -716,6 +716,7 @@ describe('useReminders', () => {
     })
 
     it('extracts error from { data: { error: string } } shape', async () => {
+      mockPets.value = [{ id: '42', name: 'Luna' }]
       mockGet.mockRejectedValueOnce({ data: { error: 'Mensaje del servidor' } })
       const { useReminders } = await import('./useReminders')
       const { fetchReminders, error } = useReminders()
@@ -726,6 +727,7 @@ describe('useReminders', () => {
     })
 
     it('extracts error from { data: string } shape', async () => {
+      mockPets.value = [{ id: '42', name: 'Luna' }]
       mockGet.mockRejectedValueOnce({ data: 'Error como string' })
       const { useReminders } = await import('./useReminders')
       const { fetchReminders, error } = useReminders()
@@ -736,6 +738,7 @@ describe('useReminders', () => {
     })
 
     it('extracts error from { message: string } shape', async () => {
+      mockPets.value = [{ id: '42', name: 'Luna' }]
       mockGet.mockRejectedValueOnce({ message: 'Error de red' })
       const { useReminders } = await import('./useReminders')
       const { fetchReminders, error } = useReminders()
@@ -743,222 +746,6 @@ describe('useReminders', () => {
       await fetchReminders()
 
       expect(error.value).toBe('Error de red')
-    })
-  })
-
-  // ── exportRemindersPDF ──────────────────────────────────────
-  //
-  // useExportPDF is mocked at the top of this file so these tests assert
-  // the delegation contract of exportRemindersPDF, not the PDF download
-  // mechanics. The real downloadPDF and slugify implementations are
-  // covered by useExportPDF.test.ts.
-
-  describe('exportRemindersPDF()', () => {
-    describe('endpoint selection', () => {
-      it('uses /api/reminders/export when no petId is provided', async () => {
-        mockDownloadPDF.mockResolvedValueOnce(undefined)
-        const { useReminders } = await import('./useReminders')
-        const { exportRemindersPDF } = useReminders()
-
-        await exportRemindersPDF()
-
-        expect(mockDownloadPDF).toHaveBeenCalledWith(
-          '/api/reminders/export',
-          expect.any(String),
-        )
-      })
-
-      it('uses /api/pets/{petId}/reminders/export when petId is provided', async () => {
-        mockDownloadPDF.mockResolvedValueOnce(undefined)
-        const { useReminders } = await import('./useReminders')
-        const { exportRemindersPDF } = useReminders()
-
-        await exportRemindersPDF(42)
-
-        expect(mockDownloadPDF).toHaveBeenCalledWith(
-          '/api/pets/42/reminders/export',
-          expect.any(String),
-        )
-      })
-
-      it('uses the pet-specific endpoint for petId = 0 (falsy but non-null)', async () => {
-        // petId of 0 is falsy but not null/undefined — the condition is
-        // `petId != null`, so 0 IS a valid petId and uses the nested route.
-        mockDownloadPDF.mockResolvedValueOnce(undefined)
-        const { useReminders } = await import('./useReminders')
-        const { exportRemindersPDF } = useReminders()
-
-        await exportRemindersPDF(0)
-
-        expect(mockDownloadPDF).toHaveBeenCalledWith(
-          '/api/pets/0/reminders/export',
-          expect.any(String),
-        )
-      })
-    })
-
-    describe('filename construction', () => {
-      it('uses filename "recordatorios.pdf" when no petName is provided', async () => {
-        mockDownloadPDF.mockResolvedValueOnce(undefined)
-        const { useReminders } = await import('./useReminders')
-        const { exportRemindersPDF } = useReminders()
-
-        await exportRemindersPDF()
-
-        expect(mockDownloadPDF).toHaveBeenCalledWith(
-          expect.any(String),
-          'recordatorios.pdf',
-        )
-      })
-
-      it('appends the slugified petName suffix when petName is provided', async () => {
-        // mockSlugify defaults to lowercase-hyphenate passthrough in beforeEach.
-        mockDownloadPDF.mockResolvedValueOnce(undefined)
-        const { useReminders } = await import('./useReminders')
-        const { exportRemindersPDF } = useReminders()
-
-        await exportRemindersPDF(42, 'Max Perro')
-
-        // slugify('Max Perro') → 'max-perro'; suffix → '-max-perro'.
-        expect(mockDownloadPDF).toHaveBeenCalledWith(
-          expect.any(String),
-          'recordatorios-max-perro.pdf',
-        )
-      })
-
-      it('uses "recordatorios.pdf" when petId is provided but petName is undefined', async () => {
-        mockDownloadPDF.mockResolvedValueOnce(undefined)
-        const { useReminders } = await import('./useReminders')
-        const { exportRemindersPDF } = useReminders()
-
-        await exportRemindersPDF(42)
-
-        expect(mockDownloadPDF).toHaveBeenCalledWith(
-          '/api/pets/42/reminders/export',
-          'recordatorios.pdf',
-        )
-      })
-
-      it('calls slugify with the petName when petName is provided', async () => {
-        mockDownloadPDF.mockResolvedValueOnce(undefined)
-        const { useReminders } = await import('./useReminders')
-        const { exportRemindersPDF } = useReminders()
-
-        await exportRemindersPDF(42, 'Luna García')
-
-        expect(mockSlugify).toHaveBeenCalledWith('Luna García')
-      })
-
-      it('does NOT call slugify when petName is undefined', async () => {
-        mockDownloadPDF.mockResolvedValueOnce(undefined)
-        const { useReminders } = await import('./useReminders')
-        const { exportRemindersPDF } = useReminders()
-
-        await exportRemindersPDF(42)
-
-        expect(mockSlugify).not.toHaveBeenCalled()
-      })
-
-      it('combines pet-scoped endpoint and named filename correctly', async () => {
-        mockDownloadPDF.mockResolvedValueOnce(undefined)
-        const { useReminders } = await import('./useReminders')
-        const { exportRemindersPDF } = useReminders()
-
-        await exportRemindersPDF(7, 'Rex')
-
-        expect(mockDownloadPDF).toHaveBeenCalledWith(
-          '/api/pets/7/reminders/export',
-          'recordatorios-rex.pdf',
-        )
-      })
-    })
-
-    describe('loading state', () => {
-      it('sets remindersStore.isLoading to true during the export', async () => {
-        let loadingDuringCall = false
-        mockDownloadPDF.mockImplementationOnce(async () => {
-          loadingDuringCall = remindersStore.isLoading
-        })
-        const { useReminders } = await import('./useReminders')
-        const { exportRemindersPDF } = useReminders()
-
-        await exportRemindersPDF()
-
-        expect(loadingDuringCall).toBe(true)
-      })
-
-      it('sets remindersStore.isLoading to false after a successful export', async () => {
-        mockDownloadPDF.mockResolvedValueOnce(undefined)
-        const { useReminders } = await import('./useReminders')
-        const { exportRemindersPDF } = useReminders()
-
-        await exportRemindersPDF()
-
-        expect(remindersStore.isLoading).toBe(false)
-      })
-
-      it('sets remindersStore.isLoading to false even when downloadPDF throws', async () => {
-        mockDownloadPDF.mockRejectedValueOnce(new Error('Network failure'))
-        const { useReminders } = await import('./useReminders')
-        const { exportRemindersPDF } = useReminders()
-
-        await exportRemindersPDF()
-
-        expect(remindersStore.isLoading).toBe(false)
-      })
-    })
-
-    describe('error handling', () => {
-      it('clears any previous error before starting the export', async () => {
-        mockDownloadPDF.mockResolvedValueOnce(undefined)
-        const { useReminders } = await import('./useReminders')
-        const { exportRemindersPDF, error } = useReminders()
-
-        error.value = 'error previo'
-        await exportRemindersPDF()
-
-        expect(error.value).toBeNull()
-      })
-
-      it('leaves error as null after a successful export', async () => {
-        mockDownloadPDF.mockResolvedValueOnce(undefined)
-        const { useReminders } = await import('./useReminders')
-        const { exportRemindersPDF, error } = useReminders()
-
-        await exportRemindersPDF()
-
-        expect(error.value).toBeNull()
-      })
-
-      it('stores the error message when downloadPDF throws with { message }', async () => {
-        mockDownloadPDF.mockRejectedValueOnce({ message: 'PDF generation failed' })
-        const { useReminders } = await import('./useReminders')
-        const { exportRemindersPDF, error } = useReminders()
-
-        await exportRemindersPDF()
-
-        expect(error.value).toBe('PDF generation failed')
-      })
-
-      it('stores the error message when downloadPDF throws with { data: { error } }', async () => {
-        mockDownloadPDF.mockRejectedValueOnce({ data: { error: 'Forbidden' } })
-        const { useReminders } = await import('./useReminders')
-        const { exportRemindersPDF, error } = useReminders()
-
-        await exportRemindersPDF()
-
-        expect(error.value).toBe('Forbidden')
-      })
-
-      it('uses the generic fallback message for unexpected error shapes', async () => {
-        mockDownloadPDF.mockRejectedValueOnce('unexpected string error')
-        const { useReminders } = await import('./useReminders')
-        const { exportRemindersPDF, error } = useReminders()
-
-        await exportRemindersPDF()
-
-        expect(error.value).toBe('Ocurrió un error inesperado. Intenta de nuevo.')
-      })
     })
   })
 })

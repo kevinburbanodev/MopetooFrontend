@@ -3,71 +3,31 @@
 // RF-1100 to RF-1109
 //
 // Endpoints:
-//   GET /api/admin/stats           — platform KPI overview
-//   GET /api/admin/stats/revenue   — monthly revenue time series
-//   GET /api/admin/stats/activity  — recent platform activity log
+//   GET /api/admin/stats/overview  — platform KPI overview
+//   GET /api/admin/stats/revenue   — revenue time series + aggregates
 //
-// All endpoints are admin-only. Dual API response shapes are
-// supported for both envelope and direct formats.
+// All endpoints are admin-only.
 // ============================================================
 
 import { ref } from 'vue'
-import type {
-  StatsOverview,
-  StatsOverviewResponse,
-  RevenueDataPoint,
-  RevenueFilters,
-  RevenueStatsResponse,
-  ActivityEntry,
-  ActivityLogResponse,
-} from '../types'
-
-function extractErrorMessage(err: unknown): string {
-  if (typeof err === 'object' && err !== null) {
-    if ('data' in err) {
-      const data = (err as { data: unknown }).data
-      if (typeof data === 'object' && data !== null && 'error' in data) {
-        return String((data as { error: unknown }).error)
-      }
-      if (typeof data === 'string' && data.length > 0) return data
-    }
-    if (
-      'message' in err &&
-      typeof (err as { message: unknown }).message === 'string'
-    ) {
-      return (err as { message: string }).message
-    }
-  }
-  return 'Ocurrió un error inesperado. Intenta de nuevo.'
-}
+import type { StatsOverview, RevenueStats, RevenueFilters } from '../types'
+import { extractErrorMessage } from '../../shared/utils/extractErrorMessage'
 
 export function useStats() {
-  const api = useApi()
+  const { get } = useApi()
   const statsStore = useStatsStore()
   const error = ref<string | null>(null)
   const revenueLoading = ref(false)
 
   /**
-   * Fetch platform overview KPIs from /api/admin/stats.
-   * Supports both direct StatsOverview and { stats: StatsOverview } envelopes.
+   * Fetch platform overview KPIs from /api/admin/stats/overview.
    * Sets isLoading on the store during the request.
    */
   async function fetchOverview(): Promise<void> {
     statsStore.setLoading(true)
     error.value = null
     try {
-      const response = await api.get<StatsOverview | StatsOverviewResponse>('/api/admin/stats')
-      let data: StatsOverview
-      if (
-        response &&
-        typeof response === 'object' &&
-        'stats' in response &&
-        (response as StatsOverviewResponse).stats
-      ) {
-        data = (response as StatsOverviewResponse).stats as StatsOverview
-      } else {
-        data = response as StatsOverview
-      }
+      const data = await get<StatsOverview>('/api/admin/stats/overview')
       statsStore.setOverview(data)
     } catch (err: unknown) {
       error.value = extractErrorMessage(err)
@@ -77,52 +37,29 @@ export function useStats() {
   }
 
   /**
-   * Fetch monthly revenue time series from /api/admin/stats/revenue.
-   * Supports both RevenueDataPoint[] direct array and { data: [] } envelope.
+   * Fetch revenue stats from /api/admin/stats/revenue.
    * Uses local revenueLoading ref (not store isLoading) so StatsChart and
    * RevenueReport can show their own skeleton independently of the overview.
+   *
+   * Stores both the full RevenueStats (aggregates) and the series array
+   * (for chart/table rendering).
    */
   async function fetchRevenueData(filters?: RevenueFilters): Promise<void> {
     revenueLoading.value = true
     error.value = null
     try {
       const params = new URLSearchParams()
-      if (filters?.months) params.set('months', String(filters.months))
+      if (filters?.from) params.set('from', filters.from)
+      if (filters?.to) params.set('to', filters.to)
       const qs = params.toString()
       const path = qs ? `/api/admin/stats/revenue?${qs}` : '/api/admin/stats/revenue'
-      const response = await api.get<RevenueDataPoint[] | RevenueStatsResponse>(path)
-      const data: RevenueDataPoint[] = Array.isArray(response)
-        ? response
-        : ((response as RevenueStatsResponse).data ?? [])
-      statsStore.setRevenueData(data)
+      const data = await get<RevenueStats>(path)
+      statsStore.setRevenueStats(data)
+      statsStore.setRevenueData(data.series)
     } catch (err: unknown) {
       error.value = extractErrorMessage(err)
     } finally {
       revenueLoading.value = false
-    }
-  }
-
-  /**
-   * Fetch recent platform activity log from /api/admin/stats/activity.
-   * Supports both ActivityEntry[] direct array and { activities: [], total: N } envelope.
-   */
-  async function fetchActivityLog(): Promise<void> {
-    error.value = null
-    try {
-      const response = await api.get<ActivityEntry[] | ActivityLogResponse>(
-        '/api/admin/stats/activity',
-      )
-      if (Array.isArray(response)) {
-        statsStore.setActivityEntries(response, response.length)
-      } else {
-        const envelope = response as ActivityLogResponse
-        statsStore.setActivityEntries(
-          envelope.activities ?? [],
-          envelope.total ?? 0,
-        )
-      }
-    } catch (err: unknown) {
-      error.value = extractErrorMessage(err)
     }
   }
 
@@ -132,6 +69,5 @@ export function useStats() {
     statsStore,
     fetchOverview,
     fetchRevenueData,
-    fetchActivityLog,
   }
 }

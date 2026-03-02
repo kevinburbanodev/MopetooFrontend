@@ -10,8 +10,6 @@
 //   (guarded by import.meta.client) to prevent SSR hydration issues.
 // ============================================================
 
-import type { ApiError } from '../types/api.types'
-
 export function useApi() {
   const config = useRuntimeConfig()
   const baseURL = (config.public.apiBase as string) ?? ''
@@ -122,7 +120,7 @@ function onResponseCheck({ response }: { response: Response }): void {
     const maintenanceStore = useMaintenanceStore()
     // Update the store so the maintenance middleware and page
     // reflect the new state immediately.
-    maintenanceStore.setStatus({ is_enabled: true })
+    maintenanceStore.setStatus({ is_active: true })
     // Navigate to the maintenance page. navigateTo is a Nuxt auto-import
     // and is safe to call from within a $fetch hook on the client.
     navigateTo('/maintenance')

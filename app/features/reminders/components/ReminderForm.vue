@@ -4,7 +4,7 @@
 // In edit mode: all fields pre-populated from the `reminder` prop.
 // Emits a typed submit payload so the parent page handles API calls.
 
-import type { CreateReminderPayload, ReminderType, RecurrenceType, Reminder } from '../types'
+import type { CreateReminderPayload, ReminderType, Reminder } from '../types'
 import type { Pet } from '../../pets/types'
 
 const props = defineProps<{
@@ -31,7 +31,6 @@ const form = reactive({
   scheduled_date: props.reminder?.scheduled_date
     ? props.reminder.scheduled_date.slice(0, 16)
     : '',
-  recurrence: (props.reminder?.recurrence ?? '') as RecurrenceType | '',
   notes: props.reminder?.notes ?? '',
 })
 
@@ -61,13 +60,6 @@ const TYPE_OPTIONS: { value: ReminderType; label: string; icon: string }[] = [
   { value: 'otro', label: 'Otro', icon: '📌' },
 ]
 
-const RECURRENCE_OPTIONS: { value: RecurrenceType; label: string }[] = [
-  { value: 'once', label: 'Una vez' },
-  { value: 'weekly', label: 'Semanal' },
-  { value: 'monthly', label: 'Mensual' },
-  { value: 'yearly', label: 'Anual' },
-]
-
 // ── Submit ────────────────────────────────────────────────────
 function handleSubmit(): void {
   submitted.value = true
@@ -77,8 +69,7 @@ function handleSubmit(): void {
     pet_id: Number(form.pet_id),
     type: form.type,
     title: form.title.trim(),
-    scheduled_date: form.scheduled_date,
-    ...(form.recurrence ? { recurrence: form.recurrence as RecurrenceType } : {}),
+    scheduled_date: form.scheduled_date + ':00Z',
     ...(form.notes.trim() ? { notes: form.notes.trim() } : {}),
   }
 
@@ -183,24 +174,6 @@ function handleSubmit(): void {
       <div v-if="submitted && !isDateValid" class="invalid-feedback">
         Selecciona una fecha y hora.
       </div>
-    </div>
-
-    <!-- Recurrence -->
-    <div class="mb-3">
-      <label for="reminder-recurrence" class="form-label fw-semibold">
-        Recurrencia
-      </label>
-      <select
-        id="reminder-recurrence"
-        v-model="form.recurrence"
-        class="form-select"
-      >
-        <option value="">Sin recurrencia</option>
-        <option v-for="opt in RECURRENCE_OPTIONS" :key="opt.value" :value="opt.value">
-          {{ opt.label }}
-        </option>
-      </select>
-      <div class="form-text">Repetirá automáticamente este recordatorio.</div>
     </div>
 
     <!-- Notes -->

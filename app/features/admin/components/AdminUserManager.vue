@@ -1,20 +1,23 @@
 <script setup lang="ts">
 // AdminUserManager — paginated user management table.
-// Provides search + PRO/Admin filters. Each row has:
-//   - Toggle PRO (optimistic update via updateUser)
-//   - Toggle Admin (optimistic update via updateUser)
-//   - Delete with 2-step inline confirmation
+// Provides search + plan/active filters. Each row has:
+//   - Toggle PRO (grantPro / revokePro)
+//   - Toggle Admin (grantAdmin / revokeAdmin)
+//   - Activar / Desactivar (activateUser / deactivateUser)
 // Pagination: prev/next buttons with "Página X de Y" display.
 
 import type { AdminUserFilters } from '../types'
 
-const { fetchUsers, updateUser, deleteUser, error, adminStore } = useAdmin()
+const {
+  fetchUsers, grantPro, revokePro, grantAdmin, revokeAdmin,
+  activateUser, deactivateUser, error, adminStore,
+} = useAdmin()
 const authStore = useAuthStore()
 
 /**
  * Returns true if the given user row is the currently authenticated admin.
- * Used to disable the "Quitar Admin" toggle and "Eliminar" button on the
- * admin's own row — prevents accidental self-demotion or self-deletion.
+ * Used to disable the "Quitar Admin" toggle and "Desactivar" button on the
+ * admin's own row — prevents accidental self-demotion or self-deactivation.
  */
 function isSelf(userId: number): boolean {
   return authStore.currentUser?.id === userId
@@ -22,28 +25,10 @@ function isSelf(userId: number): boolean {
 
 // ── Filters ────────────────────────────────────────────────
 const searchQuery = ref('')
-const filterPro = ref<boolean | undefined>(undefined)
-const filterAdmin = ref<boolean | undefined>(undefined)
+const filterPlan = ref<string | undefined>(undefined)
+const filterActive = ref<boolean | undefined>(undefined)
 const currentPage = ref(1)
 const PER_PAGE = 20
-
-// ── Delete confirmation ─────────────────────────────────────
-// 2-step inline pattern: first click sets confirmingDeleteId,
-// second click executes; cancel clears it.
-const confirmingDeleteId = ref<number | null>(null)
-
-function requestDelete(userId: number): void {
-  confirmingDeleteId.value = userId
-}
-
-function cancelDelete(): void {
-  confirmingDeleteId.value = null
-}
-
-async function confirmDelete(userId: number): Promise<void> {
-  confirmingDeleteId.value = null
-  await deleteUser(userId)
-}
 
 // ── Debounced fetch ─────────────────────────────────────────
 let debounceTimer: ReturnType<typeof setTimeout> | null = null
@@ -59,12 +44,12 @@ function scheduleRefetch(): void {
 async function loadUsers(): Promise<void> {
   const filters: AdminUserFilters = {
     page: currentPage.value,
-    per_page: PER_PAGE,
+    limit: PER_PAGE,
   }
   const q = searchQuery.value.trim()
   if (q) filters.search = q
-  if (filterPro.value !== undefined) filters.is_pro = filterPro.value
-  if (filterAdmin.value !== undefined) filters.is_admin = filterAdmin.value
+  if (filterPlan.value) filters.plan = filterPlan.value
+  if (filterActive.value !== undefined) filters.active = filterActive.value
   await fetchUsers(filters)
 }
 
@@ -99,7 +84,7 @@ function formatDate(dateString: string): string {
 
 // ── Watchers ────────────────────────────────────────────────
 watch(searchQuery, scheduleRefetch)
-watch([filterPro, filterAdmin], () => {
+watch([filterPlan, filterActive], () => {
   currentPage.value = 1
   loadUsers()
 })
@@ -128,30 +113,32 @@ onMounted(async () => {
         </div>
       </div>
 
-      <!-- PRO filter -->
-      <div class="form-check form-check-inline mb-0">
-        <input
-          id="filter-pro"
-          v-model="filterPro"
-          class="form-check-input"
-          type="checkbox"
-          :true-value="true"
-          :false-value="undefined"
-        />
-        <label class="form-check-label" for="filter-pro">Solo PRO</label>
+      <!-- Plan filter -->
+      <div style="min-width: 140px;">
+        <label for="filter-plan" class="visually-hidden">Filtrar por plan</label>
+        <select
+          id="filter-plan"
+          v-model="filterPlan"
+          class="form-select form-select-sm"
+        >
+          <option :value="undefined">Todos los planes</option>
+          <option value="free">Free</option>
+          <option value="pro_monthly">PRO mensual</option>
+          <option value="pro_annual">PRO anual</option>
+        </select>
       </div>
 
-      <!-- Admin filter -->
-      <div class="form-check form-check-inline mb-0">
+      <!-- Active filter -->
+      <div class="form-check form-switch mb-0">
         <input
-          id="filter-admin"
-          v-model="filterAdmin"
+          id="filter-active"
+          v-model="filterActive"
           class="form-check-input"
           type="checkbox"
           :true-value="true"
           :false-value="undefined"
         />
-        <label class="form-check-label" for="filter-admin">Solo Admin</label>
+        <label class="form-check-label" for="filter-active">Solo activos</label>
       </div>
 
       <!-- Result count -->
@@ -185,6 +172,7 @@ onMounted(async () => {
               <th scope="col">Ciudad</th>
               <th scope="col" class="text-center">PRO</th>
               <th scope="col" class="text-center">Admin</th>
+              <th scope="col" class="text-center">Estado</th>
               <th scope="col" class="text-center">Mascotas</th>
               <th scope="col">Registro</th>
               <th scope="col" class="text-end">Acciones</th>
@@ -197,6 +185,7 @@ onMounted(async () => {
                 <td><div class="skeleton-pulse rounded admin-table-skeleton__name" /></td>
                 <td><div class="skeleton-pulse rounded admin-table-skeleton__email" /></td>
                 <td><div class="skeleton-pulse rounded admin-table-skeleton__city" /></td>
+                <td class="text-center"><div class="skeleton-pulse rounded admin-table-skeleton__badge mx-auto" /></td>
                 <td class="text-center"><div class="skeleton-pulse rounded admin-table-skeleton__badge mx-auto" /></td>
                 <td class="text-center"><div class="skeleton-pulse rounded admin-table-skeleton__badge mx-auto" /></td>
                 <td class="text-center"><div class="skeleton-pulse rounded admin-table-skeleton__count mx-auto" /></td>
@@ -243,62 +232,58 @@ onMounted(async () => {
                     —
                   </span>
                 </td>
+                <td class="text-center">
+                  <span
+                    v-if="user.is_active"
+                    class="badge bg-success"
+                    aria-label="Usuario activo"
+                  >
+                    Activo
+                  </span>
+                  <span
+                    v-else
+                    class="badge bg-secondary"
+                    aria-label="Usuario inactivo"
+                  >
+                    Inactivo
+                  </span>
+                </td>
                 <td class="text-center">{{ user.pets_count }}</td>
                 <td class="text-muted small">{{ formatDate(user.created_at) }}</td>
                 <td class="text-end">
                   <div class="d-flex justify-content-end gap-1 flex-wrap">
-                    <!-- 2-step delete confirmation -->
-                    <template v-if="confirmingDeleteId === user.id">
-                      <button
-                        type="button"
-                        class="btn btn-sm btn-danger"
-                        :aria-label="`Confirmar eliminación de ${user.name}`"
-                        @click="confirmDelete(user.id)"
-                      >
-                        ¿Confirmar?
-                      </button>
-                      <button
-                        type="button"
-                        class="btn btn-sm btn-outline-secondary"
-                        aria-label="Cancelar eliminación"
-                        @click="cancelDelete"
-                      >
-                        Cancelar
-                      </button>
-                    </template>
-                    <template v-else>
-                      <!-- Toggle PRO -->
-                      <button
-                        type="button"
-                        class="btn btn-sm btn-outline-warning"
-                        :aria-label="user.is_pro ? `Quitar PRO a ${user.name}` : `Activar PRO para ${user.name}`"
-                        @click="updateUser(user.id, { is_pro: !user.is_pro })"
-                      >
-                        {{ user.is_pro ? 'Quitar PRO' : 'Dar PRO' }}
-                      </button>
-                      <!-- Toggle Admin — disabled for own account to prevent self-demotion -->
-                      <button
-                        type="button"
-                        class="btn btn-sm btn-outline-danger"
-                        :disabled="isSelf(user.id)"
-                        :title="isSelf(user.id) ? 'No puedes modificar tu propio rol de administrador' : undefined"
-                        :aria-label="isSelf(user.id) ? 'No puedes modificar tu propio rol de administrador' : (user.is_admin ? `Quitar Admin a ${user.name}` : `Hacer Admin a ${user.name}`)"
-                        @click="updateUser(user.id, { is_admin: !user.is_admin })"
-                      >
-                        {{ user.is_admin ? 'Quitar Admin' : 'Dar Admin' }}
-                      </button>
-                      <!-- Delete — disabled for own account to prevent self-deletion -->
-                      <button
-                        type="button"
-                        class="btn btn-sm btn-outline-danger"
-                        :disabled="isSelf(user.id)"
-                        :title="isSelf(user.id) ? 'No puedes eliminar tu propia cuenta desde el panel' : undefined"
-                        :aria-label="isSelf(user.id) ? 'No puedes eliminar tu propia cuenta desde el panel' : `Eliminar usuario ${user.name}`"
-                        @click="requestDelete(user.id)"
-                      >
-                        Eliminar
-                      </button>
-                    </template>
+                    <!-- Toggle PRO -->
+                    <button
+                      type="button"
+                      class="btn btn-sm btn-outline-warning"
+                      :aria-label="user.is_pro ? `Quitar PRO a ${user.name}` : `Activar PRO para ${user.name}`"
+                      @click="user.is_pro ? revokePro(user.id) : grantPro(user.id, 'pro_monthly')"
+                    >
+                      {{ user.is_pro ? 'Quitar PRO' : 'Dar PRO' }}
+                    </button>
+                    <!-- Toggle Admin — disabled for own account to prevent self-demotion -->
+                    <button
+                      type="button"
+                      class="btn btn-sm btn-outline-danger"
+                      :disabled="isSelf(user.id)"
+                      :title="isSelf(user.id) ? 'No puedes modificar tu propio rol de administrador' : undefined"
+                      :aria-label="isSelf(user.id) ? 'No puedes modificar tu propio rol de administrador' : (user.is_admin ? `Quitar Admin a ${user.name}` : `Hacer Admin a ${user.name}`)"
+                      @click="user.is_admin ? revokeAdmin(user.id) : grantAdmin(user.id)"
+                    >
+                      {{ user.is_admin ? 'Quitar Admin' : 'Dar Admin' }}
+                    </button>
+                    <!-- Activar / Desactivar — disabled for own account to prevent self-deactivation -->
+                    <button
+                      type="button"
+                      class="btn btn-sm"
+                      :class="user.is_active ? 'btn-outline-secondary' : 'btn-outline-success'"
+                      :disabled="isSelf(user.id)"
+                      :title="isSelf(user.id) ? 'No puedes desactivar tu propia cuenta desde el panel' : undefined"
+                      :aria-label="isSelf(user.id) ? 'No puedes desactivar tu propia cuenta desde el panel' : (user.is_active ? `Desactivar a ${user.name}` : `Activar a ${user.name}`)"
+                      @click="user.is_active ? deactivateUser(user.id) : activateUser(user.id)"
+                    >
+                      {{ user.is_active ? 'Desactivar' : 'Activar' }}
+                    </button>
                   </div>
                 </td>
               </tr>
@@ -306,7 +291,7 @@ onMounted(async () => {
 
             <!-- Empty state -->
             <tr v-else>
-              <td colspan="8" class="text-center py-5 text-muted">
+              <td colspan="9" class="text-center py-5 text-muted">
                 <div class="fs-2 mb-2" aria-hidden="true">👥</div>
                 No se encontraron usuarios con los filtros actuales.
               </td>
@@ -376,6 +361,6 @@ onMounted(async () => {
   &__badge { height: 1.25rem; width: 3rem; border-radius: var(--bs-border-radius-pill) !important; }
   &__count { height: 0.875rem; width: 2rem; }
   &__date { height: 0.875rem; width: 70px; }
-  &__actions { height: 2rem; width: 180px; }
+  &__actions { height: 2rem; width: 220px; }
 }
 </style>

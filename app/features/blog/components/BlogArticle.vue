@@ -5,15 +5,9 @@
 // CONTENT SECURITY NOTE:
 // Article body content is rendered as plain text — NOT via v-html.
 // Rationale: even if the backend sanitises HTML, rendering server-sourced
-// HTML client-side with v-html is an XSS vector. The backend must either:
-//   (a) expose a pre-rendered, sanitised HTML field AND confirm DOMPurify
-//       is applied server-side, OR
-//   (b) provide a plain-text / Markdown field.
-// If the API later guarantees sanitised HTML (e.g. via a separate
-// `content_html: true` flag), replace the <p> block below with:
-//   <div v-html="sanitisedContent" class="blog-article__body" />
-// and add DOMPurify as a client-only guard. For now, plain text is displayed
-// which is safe and readable for CMS content.
+// HTML client-side with v-html is an XSS vector.
+
+import { BLOG_CATEGORIES } from '../types'
 
 const blogStore = useBlogStore()
 const post = computed(() => blogStore.selectedPost)
@@ -33,7 +27,7 @@ function isSafeImageUrl(url: string | undefined): boolean {
 }
 
 const safeHeroImage = computed(() =>
-  isSafeImageUrl(post.value?.featured_image) ? post.value!.featured_image : null,
+  isSafeImageUrl(post.value?.cover_image_url) ? post.value!.cover_image_url : null,
 )
 
 const heroImgError = ref(false)
@@ -43,21 +37,11 @@ function onHeroImgError(): void {
   heroImgError.value = true
 }
 
-// ── Author avatar ──────────────────────────────────────────────
-const safeAvatarUrl = computed(() =>
-  isSafeImageUrl(post.value?.author.avatar) ? post.value!.author.avatar : null,
-)
-
-const avatarError = ref(false)
-const showAvatar = computed(() => !!safeAvatarUrl.value && !avatarError.value)
-
-function onAvatarError(): void {
-  avatarError.value = true
-}
-
-const authorInitial = computed(() =>
-  post.value?.author.name.charAt(0).toUpperCase() ?? '?',
-)
+// ── Category label lookup ───────────────────────────────────────
+const categoryLabel = computed(() => {
+  if (!post.value) return ''
+  return BLOG_CATEGORIES.find(c => c.value === post.value!.category)?.label ?? post.value.category
+})
 
 // ── Date formatting ────────────────────────────────────────────
 function formatDate(isoString: string): string {
@@ -74,20 +58,12 @@ function formatDate(isoString: string): string {
 }
 
 const formattedPublished = computed(() =>
-  post.value ? formatDate(post.value.published_at) : '',
+  post.value?.published_at ? formatDate(post.value.published_at) : '',
 )
 
 const formattedUpdated = computed(() =>
   post.value ? formatDate(post.value.updated_at) : '',
 )
-
-// ── Reading time ───────────────────────────────────────────────
-const readingTime = computed(() => {
-  if (!post.value?.reading_time_minutes) return null
-  return post.value.reading_time_minutes === 1
-    ? '1 min de lectura'
-    : `${post.value.reading_time_minutes} min de lectura`
-})
 </script>
 
 <template>
@@ -105,7 +81,6 @@ const readingTime = computed(() => {
     <div class="skeleton-pulse rounded mb-4 blog-article-skeleton__title blog-article-skeleton__title--short" aria-hidden="true" />
     <!-- Meta -->
     <div class="d-flex gap-3 mb-4" aria-hidden="true">
-      <div class="skeleton-pulse rounded-circle blog-article-skeleton__avatar" />
       <div class="d-flex flex-column gap-2">
         <div class="skeleton-pulse rounded blog-article-skeleton__meta-line" />
         <div class="skeleton-pulse rounded blog-article-skeleton__meta-line blog-article-skeleton__meta-line--short" />
@@ -126,57 +101,31 @@ const readingTime = computed(() => {
       </NuxtLink>
     </nav>
 
-    <!-- Category + reading time -->
+    <!-- Category badge -->
     <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
       <NuxtLink
         :to="`/blog`"
         class="badge bg-primary text-decoration-none blog-article__category-badge"
-        :aria-label="`Categoría: ${post.category.name}`"
+        :aria-label="`Categoría: ${categoryLabel}`"
       >
-        {{ post.category.name }}
+        {{ categoryLabel }}
       </NuxtLink>
-      <span
-        v-if="readingTime"
-        class="badge bg-light text-secondary"
-        :aria-label="readingTime"
-      >
-        {{ readingTime }}
-      </span>
     </div>
 
     <!-- Title -->
     <h1 class="blog-article__title mb-3">{{ post.title }}</h1>
 
-    <!-- Author + date meta -->
+    <!-- Date meta -->
     <div class="d-flex flex-wrap align-items-center gap-3 mb-4 pb-4 border-bottom">
-      <div class="d-flex align-items-center gap-2">
-        <img
-          v-if="showAvatar"
-          :src="safeAvatarUrl!"
-          :alt="`Avatar de ${post.author.name}`"
-          class="blog-article__author-avatar rounded-circle"
-          width="40"
-          height="40"
-          @error="onAvatarError"
-        />
-        <span
-          v-else
-          class="blog-article__author-avatar-fallback d-flex align-items-center justify-content-center rounded-circle"
-          aria-hidden="true"
-        >
-          {{ authorInitial }}
-        </span>
-        <div>
-          <p class="small fw-semibold mb-0">{{ post.author.name }}</p>
-          <time :datetime="post.published_at" class="small text-muted">
-            {{ formattedPublished }}
-          </time>
-        </div>
+      <div>
+        <time v-if="post.published_at" :datetime="post.published_at" class="small text-muted">
+          {{ formattedPublished }}
+        </time>
       </div>
 
       <!-- Updated date (only show if meaningfully different from published) -->
       <p
-        v-if="post.updated_at !== post.published_at"
+        v-if="post.published_at && post.updated_at !== post.published_at"
         class="small text-muted mb-0 ms-auto"
       >
         Actualizado el
@@ -196,9 +145,7 @@ const readingTime = computed(() => {
       />
     </figure>
 
-    <!-- Article body — rendered as plain text paragraphs.
-         See the content security note at the top of <script> for why
-         v-html is intentionally NOT used here. -->
+    <!-- Article body — rendered as plain text paragraphs. -->
     <div class="blog-article__body">
       <p
         v-for="(paragraph, index) in post.content.split('\n').filter(Boolean)"
@@ -207,21 +154,6 @@ const readingTime = computed(() => {
       >
         {{ paragraph }}
       </p>
-    </div>
-
-    <!-- Tags -->
-    <div
-      v-if="post.tags.length > 0"
-      class="mt-5 pt-4 border-top d-flex flex-wrap gap-2 align-items-center"
-    >
-      <span class="small fw-semibold text-muted me-1">Etiquetas:</span>
-      <span
-        v-for="tag in post.tags"
-        :key="tag"
-        class="badge bg-secondary-subtle text-secondary-emphasis fw-normal"
-      >
-        {{ tag }}
-      </span>
     </div>
 
     <!-- More articles CTA -->
@@ -260,24 +192,6 @@ const readingTime = computed(() => {
     font-size: clamp(1.5rem, 4vw, 2.25rem);
     font-weight: 700;
     line-height: 1.25;
-  }
-
-  // ── Author avatar ─────────────────────────────────────────
-  &__author-avatar {
-    width: 40px;
-    height: 40px;
-    object-fit: cover;
-    flex-shrink: 0;
-  }
-
-  &__author-avatar-fallback {
-    width: 40px;
-    height: 40px;
-    flex-shrink: 0;
-    background-color: var(--bs-primary);
-    color: #fff;
-    font-size: 1rem;
-    font-weight: 700;
   }
 
   // ── Hero image ────────────────────────────────────────────
@@ -358,12 +272,6 @@ const readingTime = computed(() => {
     width: 85%;
 
     &--short { width: 55%; }
-  }
-
-  &__avatar {
-    width: 40px;
-    height: 40px;
-    flex-shrink: 0;
   }
 
   &__meta-line {

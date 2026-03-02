@@ -1,13 +1,16 @@
 <script setup lang="ts">
 // PetshopList — public petshop directory.
 // Fetches petshops on mount, provides client-side search + category + city
-// filters. Featured stores appear in a dedicated section above the grid
-// when no filters are active.
-// Displays skeleton loading and two empty states.
+// filters. Premium stores (plan !== '') appear in a dedicated section above
+// the grid when no filters are active.
+// Category and city filter changes trigger a server-side re-fetch.
+// Search is client-side only.
+
+import { PRODUCT_CATEGORIES } from '../types'
 
 const { fetchPetshops, error, petshopsStore } = usePetshops()
 
-// ── Client-side filters ────────────────────────────────────
+// ── Filters ──────────────────────────────────────────────────
 const searchQuery = ref('')
 const selectedCategory = ref('')
 const selectedCity = ref('')
@@ -20,34 +23,15 @@ const cityOptions = computed<string[]>(() => {
   return [...new Set(cities)].sort()
 })
 
-// Derive unique category options from loaded data for the category select
-const categoryOptions = computed<string[]>(() => {
-  const cats: string[] = []
-  for (const p of petshopsStore.petshops) {
-    for (const c of p.categories) {
-      if (!cats.includes(c)) cats.push(c)
-    }
-  }
-  return cats.sort()
-})
-
 const hasActiveFilters = computed(() =>
   searchQuery.value.trim() !== ''
   || selectedCategory.value !== ''
   || selectedCity.value !== '',
 )
 
-// All petshops after applying client-side filters
+// All petshops after applying client-side search filter
 const filteredPetshops = computed(() => {
   let result = petshopsStore.petshops
-
-  if (selectedCity.value) {
-    result = result.filter(p => p.city === selectedCity.value)
-  }
-
-  if (selectedCategory.value) {
-    result = result.filter(p => p.categories.includes(selectedCategory.value))
-  }
 
   const q = searchQuery.value.trim().toLowerCase()
   if (q) {
@@ -61,15 +45,15 @@ const filteredPetshops = computed(() => {
   return result
 })
 
-// Featured section only visible when no filters are active
-const showFeaturedSection = computed(() =>
-  !hasActiveFilters.value && petshopsStore.getFeaturedPetshops.length > 0,
+// Premium section only visible when no filters are active
+const showPremiumSection = computed(() =>
+  !hasActiveFilters.value && petshopsStore.getPremiumPetshops.length > 0,
 )
 
-// Regular (non-featured) petshops for the main grid when no filters active
+// Regular (non-premium) petshops for the main grid when no filters active
 const regularPetshops = computed(() => {
   if (hasActiveFilters.value) return filteredPetshops.value
-  return filteredPetshops.value.filter(p => !p.is_featured)
+  return filteredPetshops.value.filter(p => p.plan === '')
 })
 
 function clearFilters(): void {
@@ -79,6 +63,18 @@ function clearFilters(): void {
 }
 
 const SKELETON_COUNT = 6
+
+// Re-fetch from server when category or city changes
+watch([selectedCategory, selectedCity], () => {
+  const filters: Record<string, string> = {}
+  if (selectedCategory.value) filters.city = selectedCity.value || undefined as unknown as string
+  if (selectedCity.value) filters.city = selectedCity.value
+
+  fetchPetshops({
+    city: selectedCity.value || undefined,
+    category: selectedCategory.value || undefined,
+  })
+})
 
 onMounted(async () => {
   await fetchPetshops()
@@ -98,7 +94,7 @@ onMounted(async () => {
     <!-- Filters bar -->
     <div class="card border-0 shadow-sm mb-4 p-3">
       <div class="row g-3 align-items-end">
-        <!-- Search input -->
+        <!-- Search input (client-side only) -->
         <div class="col-12 col-md-5">
           <label for="petshop-search" class="form-label small fw-semibold text-muted">
             Buscar tienda
@@ -118,7 +114,7 @@ onMounted(async () => {
           </div>
         </div>
 
-        <!-- Category filter -->
+        <!-- Category filter (product categories) -->
         <div class="col-12 col-sm-6 col-md-3">
           <label for="petshop-category" class="form-label small fw-semibold text-muted">
             Categoría
@@ -131,11 +127,11 @@ onMounted(async () => {
           >
             <option value="">Todas las categorías</option>
             <option
-              v-for="cat in categoryOptions"
-              :key="cat"
-              :value="cat"
+              v-for="cat in PRODUCT_CATEGORIES"
+              :key="cat.value"
+              :value="cat.value"
             >
-              {{ cat }}
+              {{ cat.label }}
             </option>
           </select>
         </div>
@@ -244,9 +240,9 @@ onMounted(async () => {
 
     <!-- Results -->
     <template v-else>
-      <!-- Featured stores section — hidden when filters are active -->
+      <!-- Premium stores section — hidden when filters are active -->
       <section
-        v-if="showFeaturedSection"
+        v-if="showPremiumSection"
         class="mb-5"
         aria-label="Tiendas destacadas"
       >
@@ -255,12 +251,12 @@ onMounted(async () => {
             <span aria-hidden="true">⭐</span> Tiendas Destacadas
           </h2>
           <span class="badge bg-warning text-dark">
-            {{ petshopsStore.getFeaturedPetshops.length }}
+            {{ petshopsStore.getPremiumPetshops.length }}
           </span>
         </div>
         <div class="row g-4">
           <div
-            v-for="petshop in petshopsStore.getFeaturedPetshops"
+            v-for="petshop in petshopsStore.getPremiumPetshops"
             :key="petshop.id"
             class="col-12 col-md-6 col-lg-4"
           >
@@ -276,7 +272,7 @@ onMounted(async () => {
         {{ filteredPetshops.length === 1 ? 'tienda' : 'tiendas' }}
       </p>
 
-      <!-- Main grid — all results when filters active, non-featured otherwise -->
+      <!-- Main grid — all results when filters active, non-premium otherwise -->
       <div class="row g-4">
         <div
           v-for="petshop in regularPetshops"

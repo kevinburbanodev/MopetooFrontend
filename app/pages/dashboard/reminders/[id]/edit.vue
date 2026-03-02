@@ -41,7 +41,8 @@ onUnmounted(() => {
 })
 
 async function handleSubmit(payload: ReminderFormSubmitPayload): Promise<void> {
-  const reminder = await updateReminder(reminderId.value, payload.data)
+  const { pet_id, ...data } = payload.data
+  const reminder = await updateReminder(reminderId.value, data)
   if (reminder) {
     await router.push('/dashboard/reminders')
   }

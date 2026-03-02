@@ -10,9 +10,10 @@
 //     getters that delegate to the module-level refs. This mirrors
 //     the pattern established in StatsOverview, PetshopList, etc.
 //   - Tests cover: loading skeleton, empty state, inactive state,
-//     active state, two-step confirm flows (enable and disable),
-//     error display, metadata display, onMounted behaviour, and
-//     the loading-during-toggle disabled state.
+//     active state, two-step confirm flows (activate and deactivate),
+//     activation form inputs, error display, metadata display,
+//     estimated return display, onMounted behaviour, and the
+//     loading-during-toggle disabled state.
 //
 // What this suite intentionally does NOT cover:
 //   - Intl date formatting locale variations (SSR-safe by design)
@@ -33,7 +34,8 @@ import type { MaintenanceStatus } from '../types'
 // component reads from useMaintenance(), not directly from the store.
 
 const mockFetchStatus = vi.fn()
-const mockToggleMaintenance = vi.fn()
+const mockActivateMaintenance = vi.fn()
+const mockDeactivateMaintenance = vi.fn()
 const mockError = ref<string | null>(null)
 const mockMaintenanceStore = reactive({
   status: null as MaintenanceStatus | null,
@@ -48,7 +50,8 @@ const mockMaintenanceStore = reactive({
 vi.mock('../composables/useMaintenance', () => ({
   useMaintenance: () => ({
     fetchStatus: mockFetchStatus,
-    toggleMaintenance: mockToggleMaintenance,
+    activateMaintenance: mockActivateMaintenance,
+    deactivateMaintenance: mockDeactivateMaintenance,
     error: mockError,
     maintenanceStore: mockMaintenanceStore,
   }),
@@ -62,7 +65,7 @@ async function mountToggle() {
       plugins: [
         createTestingPinia({
           initialState: {
-            auth: { token: 'admin.jwt', currentUser: { id: 1, is_admin: true } },
+            auth: { token: 'admin.jwt', currentEntity: { id: 1, is_admin: true }, entityType: 'user' },
           },
         }),
       ],
@@ -75,7 +78,8 @@ async function mountToggle() {
 describe('MaintenanceToggle', () => {
   beforeEach(() => {
     mockFetchStatus.mockReset()
-    mockToggleMaintenance.mockReset()
+    mockActivateMaintenance.mockReset()
+    mockDeactivateMaintenance.mockReset()
     mockError.value = null
     mockMaintenanceStore.status = null
     mockMaintenanceStore.isLoading = false
@@ -186,7 +190,7 @@ describe('MaintenanceToggle', () => {
       mockMaintenanceStore.isLoading = false
       mockMaintenanceStore.hasStatus = true
       mockMaintenanceStore.isEnabled = false
-      mockMaintenanceStore.status = { is_enabled: false }
+      mockMaintenanceStore.status = { is_active: false }
     })
 
     it('shows the status badge with class bg-success', async () => {
@@ -241,7 +245,7 @@ describe('MaintenanceToggle', () => {
       mockMaintenanceStore.isLoading = false
       mockMaintenanceStore.hasStatus = true
       mockMaintenanceStore.isEnabled = true
-      mockMaintenanceStore.status = { is_enabled: true }
+      mockMaintenanceStore.status = { is_active: true }
     })
 
     it('shows the status badge with class bg-danger', async () => {
@@ -290,7 +294,7 @@ describe('MaintenanceToggle', () => {
       mockMaintenanceStore.isLoading = false
       mockMaintenanceStore.hasStatus = true
       mockMaintenanceStore.isEnabled = false
-      mockMaintenanceStore.status = { is_enabled: false }
+      mockMaintenanceStore.status = { is_active: false }
     })
 
     it('clicking the action button shows the confirm row', async () => {
@@ -320,6 +324,33 @@ describe('MaintenanceToggle', () => {
       expect(buttons.some((b) => b.text().trim() === 'Cancelar')).toBe(true)
     })
 
+    it('shows the activation form with message and estimated return inputs', async () => {
+      const wrapper = await mountToggle()
+      await wrapper.findAll('button').find(
+        (b) => b.text().trim() === 'Activar mantenimiento',
+      )!.trigger('click')
+      expect(wrapper.find('#maintenance-message').exists()).toBe(true)
+      expect(wrapper.find('#maintenance-estimated-return').exists()).toBe(true)
+    })
+
+    it('message input has the correct placeholder', async () => {
+      const wrapper = await mountToggle()
+      await wrapper.findAll('button').find(
+        (b) => b.text().trim() === 'Activar mantenimiento',
+      )!.trigger('click')
+      expect(wrapper.find('#maintenance-message').attributes('placeholder')).toBe(
+        'El sitio se encuentra en mantenimiento.',
+      )
+    })
+
+    it('estimated return input has type="datetime-local"', async () => {
+      const wrapper = await mountToggle()
+      await wrapper.findAll('button').find(
+        (b) => b.text().trim() === 'Activar mantenimiento',
+      )!.trigger('click')
+      expect(wrapper.find('#maintenance-estimated-return').attributes('type')).toBe('datetime-local')
+    })
+
     it('action button is hidden while confirm row is visible', async () => {
       const wrapper = await mountToggle()
       await wrapper.findAll('button').find(
@@ -341,14 +372,14 @@ describe('MaintenanceToggle', () => {
       expect(wrapper.text()).not.toContain('¿Activar el modo mantenimiento?')
     })
 
-    it('clicking "Cancelar" does NOT call toggleMaintenance', async () => {
+    it('clicking "Cancelar" does NOT call activateMaintenance', async () => {
       const wrapper = await mountToggle()
       await wrapper.findAll('button').find(
         (b) => b.text().trim() === 'Activar mantenimiento',
       )!.trigger('click')
       const cancelBtn = wrapper.findAll('button').find((b) => b.text().trim() === 'Cancelar')
       await cancelBtn!.trigger('click')
-      expect(mockToggleMaintenance).not.toHaveBeenCalled()
+      expect(mockActivateMaintenance).not.toHaveBeenCalled()
     })
 
     it('clicking "Cancelar" restores the primary action button', async () => {
@@ -363,23 +394,77 @@ describe('MaintenanceToggle', () => {
       expect(actionBtn).toBeDefined()
     })
 
-    it('clicking "Confirmar" calls toggleMaintenance(true) — toggling from false to true', async () => {
+    it('clicking "Cancelar" clears form fields', async () => {
+      const wrapper = await mountToggle()
+      await wrapper.findAll('button').find(
+        (b) => b.text().trim() === 'Activar mantenimiento',
+      )!.trigger('click')
+      // Type something in the message input
+      await wrapper.find('#maintenance-message').setValue('Test message')
+      await wrapper.findAll('button').find((b) => b.text().trim() === 'Cancelar')!.trigger('click')
+      // Reopen the confirm row
+      await wrapper.findAll('button').find(
+        (b) => b.text().trim() === 'Activar mantenimiento',
+      )!.trigger('click')
+      expect((wrapper.find('#maintenance-message').element as HTMLInputElement).value).toBe('')
+    })
+
+    it('clicking "Confirmar" calls activateMaintenance with default message when input is empty', async () => {
       const wrapper = await mountToggle()
       await wrapper.findAll('button').find(
         (b) => b.text().trim() === 'Activar mantenimiento',
       )!.trigger('click')
       const confirmBtn = wrapper.findAll('button').find((b) => b.text().trim() === 'Confirmar')
       await confirmBtn!.trigger('click')
-      expect(mockToggleMaintenance).toHaveBeenCalledWith(true)
+      expect(mockActivateMaintenance).toHaveBeenCalledWith({
+        message: 'El sitio se encuentra en mantenimiento.',
+        estimated_return: undefined,
+      })
     })
 
-    it('clicking "Confirmar" calls toggleMaintenance exactly once', async () => {
+    it('clicking "Confirmar" passes the custom message from the input', async () => {
+      const wrapper = await mountToggle()
+      await wrapper.findAll('button').find(
+        (b) => b.text().trim() === 'Activar mantenimiento',
+      )!.trigger('click')
+      await wrapper.find('#maintenance-message').setValue('Mantenimiento programado')
+      await wrapper.findAll('button').find((b) => b.text().trim() === 'Confirmar')!.trigger('click')
+      expect(mockActivateMaintenance).toHaveBeenCalledWith({
+        message: 'Mantenimiento programado',
+        estimated_return: undefined,
+      })
+    })
+
+    it('clicking "Confirmar" passes the estimated return from the input', async () => {
+      const wrapper = await mountToggle()
+      await wrapper.findAll('button').find(
+        (b) => b.text().trim() === 'Activar mantenimiento',
+      )!.trigger('click')
+      await wrapper.find('#maintenance-message').setValue('Down for updates')
+      await wrapper.find('#maintenance-estimated-return').setValue('2025-01-15T14:00')
+      await wrapper.findAll('button').find((b) => b.text().trim() === 'Confirmar')!.trigger('click')
+      expect(mockActivateMaintenance).toHaveBeenCalledWith({
+        message: 'Down for updates',
+        estimated_return: '2025-01-15T14:00',
+      })
+    })
+
+    it('clicking "Confirmar" calls activateMaintenance exactly once', async () => {
       const wrapper = await mountToggle()
       await wrapper.findAll('button').find(
         (b) => b.text().trim() === 'Activar mantenimiento',
       )!.trigger('click')
       await wrapper.findAll('button').find((b) => b.text().trim() === 'Confirmar')!.trigger('click')
-      expect(mockToggleMaintenance).toHaveBeenCalledTimes(1)
+      expect(mockActivateMaintenance).toHaveBeenCalledTimes(1)
+    })
+
+    it('clicking "Confirmar" does NOT call deactivateMaintenance', async () => {
+      const wrapper = await mountToggle()
+      await wrapper.findAll('button').find(
+        (b) => b.text().trim() === 'Activar mantenimiento',
+      )!.trigger('click')
+      await wrapper.findAll('button').find((b) => b.text().trim() === 'Confirmar')!.trigger('click')
+      expect(mockDeactivateMaintenance).not.toHaveBeenCalled()
     })
 
     it('confirm button has class btn-danger (confirm activate = danger action)', async () => {
@@ -399,7 +484,7 @@ describe('MaintenanceToggle', () => {
       mockMaintenanceStore.isLoading = false
       mockMaintenanceStore.hasStatus = true
       mockMaintenanceStore.isEnabled = true
-      mockMaintenanceStore.status = { is_enabled: true }
+      mockMaintenanceStore.status = { is_active: true }
     })
 
     it('clicking the action button shows the confirm row with deactivation text', async () => {
@@ -410,13 +495,31 @@ describe('MaintenanceToggle', () => {
       expect(wrapper.text()).toContain('¿Desactivar el modo mantenimiento?')
     })
 
-    it('clicking "Confirmar" calls toggleMaintenance(false) — toggling from true to false', async () => {
+    it('does NOT show the activation form inputs when deactivating', async () => {
+      const wrapper = await mountToggle()
+      await wrapper.findAll('button').find(
+        (b) => b.text().trim() === 'Desactivar mantenimiento',
+      )!.trigger('click')
+      expect(wrapper.find('#maintenance-message').exists()).toBe(false)
+      expect(wrapper.find('#maintenance-estimated-return').exists()).toBe(false)
+    })
+
+    it('clicking "Confirmar" calls deactivateMaintenance', async () => {
       const wrapper = await mountToggle()
       await wrapper.findAll('button').find(
         (b) => b.text().trim() === 'Desactivar mantenimiento',
       )!.trigger('click')
       await wrapper.findAll('button').find((b) => b.text().trim() === 'Confirmar')!.trigger('click')
-      expect(mockToggleMaintenance).toHaveBeenCalledWith(false)
+      expect(mockDeactivateMaintenance).toHaveBeenCalledTimes(1)
+    })
+
+    it('clicking "Confirmar" does NOT call activateMaintenance', async () => {
+      const wrapper = await mountToggle()
+      await wrapper.findAll('button').find(
+        (b) => b.text().trim() === 'Desactivar mantenimiento',
+      )!.trigger('click')
+      await wrapper.findAll('button').find((b) => b.text().trim() === 'Confirmar')!.trigger('click')
+      expect(mockActivateMaintenance).not.toHaveBeenCalled()
     })
 
     it('confirm button has class btn-success (confirm deactivate = safe action)', async () => {
@@ -439,13 +542,13 @@ describe('MaintenanceToggle', () => {
       )
     })
 
-    it('clicking "Cancelar" does NOT call toggleMaintenance', async () => {
+    it('clicking "Cancelar" does NOT call deactivateMaintenance', async () => {
       const wrapper = await mountToggle()
       await wrapper.findAll('button').find(
         (b) => b.text().trim() === 'Desactivar mantenimiento',
       )!.trigger('click')
       await wrapper.findAll('button').find((b) => b.text().trim() === 'Cancelar')!.trigger('click')
-      expect(mockToggleMaintenance).not.toHaveBeenCalled()
+      expect(mockDeactivateMaintenance).not.toHaveBeenCalled()
     })
   })
 
@@ -476,69 +579,124 @@ describe('MaintenanceToggle', () => {
   // ── Metadata display ─────────────────────────────────────────
 
   describe('metadata display', () => {
-    it('shows "Actualizado por [name]" when status.updated_by is set', async () => {
+    it('shows "Activado por admin #ID" when status.activated_by_admin_id is set', async () => {
       mockMaintenanceStore.hasStatus = true
       mockMaintenanceStore.isEnabled = false
       mockMaintenanceStore.status = {
-        is_enabled: false,
-        updated_by: 'admin@mopetoo.com',
+        is_active: false,
+        activated_by_admin_id: 42,
       }
       const wrapper = await mountToggle()
-      expect(wrapper.text()).toContain('Actualizado por')
-      expect(wrapper.text()).toContain('admin@mopetoo.com')
+      expect(wrapper.text()).toContain('Activado por admin')
+      expect(wrapper.text()).toContain('#42')
     })
 
-    it('shows "Última actualización:" when updated_at is set but updated_by is absent', async () => {
+    it('shows "Última activación:" when activated_at is set but activated_by_admin_id is absent', async () => {
       mockMaintenanceStore.hasStatus = true
       mockMaintenanceStore.isEnabled = false
       mockMaintenanceStore.status = {
-        is_enabled: false,
-        updated_at: '2025-01-15T10:00:00Z',
+        is_active: false,
+        activated_at: '2025-01-15T10:00:00Z',
       }
       const wrapper = await mountToggle()
-      expect(wrapper.text()).toContain('Última actualización:')
+      expect(wrapper.text()).toContain('Última activación:')
     })
 
-    it('does NOT show metadata when both updated_by and updated_at are absent', async () => {
+    it('does NOT show metadata when both activated_by_admin_id and activated_at are absent', async () => {
       mockMaintenanceStore.hasStatus = true
       mockMaintenanceStore.isEnabled = false
-      mockMaintenanceStore.status = { is_enabled: false }
+      mockMaintenanceStore.status = { is_active: false }
       const wrapper = await mountToggle()
-      expect(wrapper.text()).not.toContain('Actualizado por')
-      expect(wrapper.text()).not.toContain('Última actualización:')
+      expect(wrapper.text()).not.toContain('Activado por admin')
+      expect(wrapper.text()).not.toContain('Última activación:')
     })
 
     it('shows the custom message in an alert-secondary with role="note"', async () => {
       mockMaintenanceStore.hasStatus = true
       mockMaintenanceStore.isEnabled = true
       mockMaintenanceStore.status = {
-        is_enabled: true,
+        is_active: true,
         message: 'Estaremos de regreso en 2 horas.',
       }
       const wrapper = await mountToggle()
-      const noteEl = wrapper.find('[role="note"]')
-      expect(noteEl.exists()).toBe(true)
-      expect(noteEl.text()).toContain('Estaremos de regreso en 2 horas.')
+      const noteEl = wrapper.findAll('[role="note"]').find(
+        (el) => el.attributes('aria-label') === 'Mensaje de mantenimiento actual',
+      )
+      expect(noteEl).toBeDefined()
+      expect(noteEl!.text()).toContain('Estaremos de regreso en 2 horas.')
     })
 
     it('note element has aria-label "Mensaje de mantenimiento actual"', async () => {
       mockMaintenanceStore.hasStatus = true
       mockMaintenanceStore.isEnabled = true
       mockMaintenanceStore.status = {
-        is_enabled: true,
+        is_active: true,
         message: 'Mensaje de prueba.',
       }
       const wrapper = await mountToggle()
-      const noteEl = wrapper.find('[role="note"]')
-      expect(noteEl.attributes('aria-label')).toBe('Mensaje de mantenimiento actual')
+      const noteEl = wrapper.findAll('[role="note"]').find(
+        (el) => el.attributes('aria-label') === 'Mensaje de mantenimiento actual',
+      )
+      expect(noteEl).toBeDefined()
     })
 
     it('does NOT show the message note when status.message is absent', async () => {
       mockMaintenanceStore.hasStatus = true
       mockMaintenanceStore.isEnabled = true
-      mockMaintenanceStore.status = { is_enabled: true }
+      mockMaintenanceStore.status = { is_active: true }
       const wrapper = await mountToggle()
-      expect(wrapper.find('[role="note"]').exists()).toBe(false)
+      const messageNote = wrapper.findAll('[role="note"]').find(
+        (el) => el.attributes('aria-label') === 'Mensaje de mantenimiento actual',
+      )
+      expect(messageNote).toBeUndefined()
+    })
+  })
+
+  // ── Estimated return display ──────────────────────────────────
+
+  describe('estimated return display', () => {
+    it('shows estimated return info when maintenance is active and estimated_return is set', async () => {
+      mockMaintenanceStore.hasStatus = true
+      mockMaintenanceStore.isEnabled = true
+      mockMaintenanceStore.status = {
+        is_active: true,
+        estimated_return: '2025-01-15T12:00:00Z',
+      }
+      const wrapper = await mountToggle()
+      expect(wrapper.text()).toContain('Retorno estimado:')
+    })
+
+    it('estimated return element has aria-label "Retorno estimado"', async () => {
+      mockMaintenanceStore.hasStatus = true
+      mockMaintenanceStore.isEnabled = true
+      mockMaintenanceStore.status = {
+        is_active: true,
+        estimated_return: '2025-01-15T12:00:00Z',
+      }
+      const wrapper = await mountToggle()
+      const returnNote = wrapper.findAll('[role="note"]').find(
+        (el) => el.attributes('aria-label') === 'Retorno estimado',
+      )
+      expect(returnNote).toBeDefined()
+    })
+
+    it('does NOT show estimated return when maintenance is inactive', async () => {
+      mockMaintenanceStore.hasStatus = true
+      mockMaintenanceStore.isEnabled = false
+      mockMaintenanceStore.status = {
+        is_active: false,
+        estimated_return: '2025-01-15T12:00:00Z',
+      }
+      const wrapper = await mountToggle()
+      expect(wrapper.text()).not.toContain('Retorno estimado:')
+    })
+
+    it('does NOT show estimated return when estimated_return is absent', async () => {
+      mockMaintenanceStore.hasStatus = true
+      mockMaintenanceStore.isEnabled = true
+      mockMaintenanceStore.status = { is_active: true }
+      const wrapper = await mountToggle()
+      expect(wrapper.text()).not.toContain('Retorno estimado:')
     })
   })
 
@@ -549,7 +707,7 @@ describe('MaintenanceToggle', () => {
       mockMaintenanceStore.isLoading = true
       mockMaintenanceStore.hasStatus = true
       mockMaintenanceStore.isEnabled = false
-      mockMaintenanceStore.status = { is_enabled: false }
+      mockMaintenanceStore.status = { is_active: false }
     })
 
     it('the primary action button has the disabled attribute', async () => {

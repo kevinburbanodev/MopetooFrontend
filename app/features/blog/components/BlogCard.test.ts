@@ -7,10 +7,10 @@
 //
 // Key design points:
 //   - isSafeImageUrl guard: http/https accepted; javascript: / data: rejected.
-//   - SVG placeholder rendered when featured_image is absent or blocked.
-//   - Author avatar: safe URL shows <img>; otherwise initial fallback letter.
+//   - SVG placeholder rendered when cover_image_url is absent or blocked.
 //   - Date is formatted in Spanish via Intl.DateTimeFormat — not the raw ISO string.
-//   - Up to 3 tags are shown; +N overflow badge when more than 3 tags exist.
+//   - Excerpt derived from content (first 150 chars + '...').
+//   - Category label via BLOG_CATEGORIES lookup.
 //   - Title NuxtLink href: /blog/<slug> verified via custom NuxtLink stub.
 //
 // NuxtLink stubs:
@@ -28,39 +28,22 @@
 import { describe, it, expect } from 'vitest'
 import { mountSuspended } from '@nuxt/test-utils/runtime'
 import BlogCard from './BlogCard.vue'
-import type { BlogPost, BlogCategory } from '../types'
+import type { BlogPost } from '../types'
 
 // ── Fixtures ─────────────────────────────────────────────────
 
-function makeBlogCategory(overrides: Partial<BlogCategory> = {}): BlogCategory {
-  return {
-    id: 'cat-1',
-    slug: 'salud',
-    name: 'Salud',
-    post_count: 5,
-    ...overrides,
-  }
-}
-
 function makeBlogPost(overrides: Partial<BlogPost> = {}): BlogPost {
   return {
-    id: 'post-1',
+    id: 1,
     slug: 'cuidado-perros',
     title: 'Cuidado de perros en verano',
-    excerpt: 'Consejos para mantener a tu perro fresco durante el verano.',
     content: 'Párrafo uno.\nPárrafo dos.\nPárrafo tres.',
-    featured_image: 'https://example.com/image.jpg',
-    author: {
-      id: 'author-1',
-      name: 'Ana García',
-      avatar: 'https://example.com/avatar.jpg',
-    },
-    category: makeBlogCategory(),
-    tags: ['perros', 'verano', 'salud'],
+    cover_image_url: 'https://example.com/image.jpg',
+    category: 'salud',
+    published: true,
     published_at: '2025-06-15T10:00:00Z',
+    created_at: '2025-06-15T10:00:00Z',
     updated_at: '2025-06-15T10:00:00Z',
-    reading_time_minutes: 5,
-    is_published: true,
     ...overrides,
   }
 }
@@ -83,7 +66,6 @@ describe('BlogCard', () => {
 
   describe('core content', () => {
     it('renders the post title', async () => {
-      // Use custom stub so NuxtLink slot content (title text) is visible
       const wrapper = await mountSuspended(BlogCard, {
         props: { post: defaultPost },
         global: { stubs: { NuxtLink: NuxtLinkHrefStub } },
@@ -91,15 +73,28 @@ describe('BlogCard', () => {
       expect(wrapper.text()).toContain('Cuidado de perros en verano')
     })
 
-    it('renders the post excerpt', async () => {
+    it('renders the excerpt derived from content (first 150 chars + "...")', async () => {
+      const longContent = 'A'.repeat(200)
+      const post = makeBlogPost({ content: longContent })
       const wrapper = await mountSuspended(BlogCard, {
-        props: { post: defaultPost },
+        props: { post },
         global: { stubs: { NuxtLink: NuxtLinkHrefStub } },
       })
-      expect(wrapper.text()).toContain('Consejos para mantener a tu perro fresco durante el verano.')
+      expect(wrapper.text()).toContain('A'.repeat(150) + '...')
     })
 
-    it('renders the category badge with post.category.name', async () => {
+    it('renders the full content as excerpt when content is 150 chars or less', async () => {
+      const shortContent = 'Contenido corto.'
+      const post = makeBlogPost({ content: shortContent })
+      const wrapper = await mountSuspended(BlogCard, {
+        props: { post },
+        global: { stubs: { NuxtLink: NuxtLinkHrefStub } },
+      })
+      expect(wrapper.text()).toContain('Contenido corto.')
+      expect(wrapper.text()).not.toContain('...')
+    })
+
+    it('renders the category badge with the label from BLOG_CATEGORIES lookup', async () => {
       const wrapper = await mountSuspended(BlogCard, {
         props: { post: defaultPost },
         global: { stubs: { NuxtLink: NuxtLinkHrefStub } },
@@ -107,6 +102,16 @@ describe('BlogCard', () => {
       const badge = wrapper.find('.blog-card__category-badge')
       expect(badge.exists()).toBe(true)
       expect(badge.text()).toContain('Salud')
+    })
+
+    it('falls back to raw category value when category is not in BLOG_CATEGORIES', async () => {
+      const post = makeBlogPost({ category: 'desconocida' as any })
+      const wrapper = await mountSuspended(BlogCard, {
+        props: { post },
+        global: { stubs: { NuxtLink: NuxtLinkHrefStub } },
+      })
+      const badge = wrapper.find('.blog-card__category-badge')
+      expect(badge.text()).toContain('desconocida')
     })
 
     it('wraps in an <article> element with correct aria-label', async () => {
@@ -120,11 +125,11 @@ describe('BlogCard', () => {
     })
   })
 
-  // ── Featured image ──────────────────────────────────────────
+  // ── Cover image ───────────────────────────────────────────
 
-  describe('featured image', () => {
-    it('shows the featured image when featured_image is a valid https URL', async () => {
-      const post = makeBlogPost({ featured_image: 'https://example.com/image.jpg' })
+  describe('cover image', () => {
+    it('shows the cover image when cover_image_url is a valid https URL', async () => {
+      const post = makeBlogPost({ cover_image_url: 'https://example.com/image.jpg' })
       const wrapper = await mountSuspended(BlogCard, {
         props: { post },
         global: { stubs: { NuxtLink: true } },
@@ -134,8 +139,8 @@ describe('BlogCard', () => {
       expect(img.attributes('src')).toBe('https://example.com/image.jpg')
     })
 
-    it('shows SVG placeholder when featured_image is undefined', async () => {
-      const post = makeBlogPost({ featured_image: undefined })
+    it('shows SVG placeholder when cover_image_url is undefined', async () => {
+      const post = makeBlogPost({ cover_image_url: undefined })
       const wrapper = await mountSuspended(BlogCard, {
         props: { post },
         global: { stubs: { NuxtLink: true } },
@@ -145,8 +150,8 @@ describe('BlogCard', () => {
       expect(wrapper.find('svg').exists()).toBe(true)
     })
 
-    it('shows SVG placeholder when featured_image is a javascript: URI (blocked)', async () => {
-      const post = makeBlogPost({ featured_image: 'javascript:alert(1)' })
+    it('shows SVG placeholder when cover_image_url is a javascript: URI (blocked)', async () => {
+      const post = makeBlogPost({ cover_image_url: 'javascript:alert(1)' })
       const wrapper = await mountSuspended(BlogCard, {
         props: { post },
         global: { stubs: { NuxtLink: true } },
@@ -155,8 +160,8 @@ describe('BlogCard', () => {
       expect(wrapper.find('.blog-card__placeholder').exists()).toBe(true)
     })
 
-    it('shows SVG placeholder when featured_image is a data: URI (blocked)', async () => {
-      const post = makeBlogPost({ featured_image: 'data:image/png;base64,abc123' })
+    it('shows SVG placeholder when cover_image_url is a data: URI (blocked)', async () => {
+      const post = makeBlogPost({ cover_image_url: 'data:image/png;base64,abc123' })
       const wrapper = await mountSuspended(BlogCard, {
         props: { post },
         global: { stubs: { NuxtLink: true } },
@@ -165,8 +170,8 @@ describe('BlogCard', () => {
       expect(wrapper.find('.blog-card__placeholder').exists()).toBe(true)
     })
 
-    it('shows SVG placeholder after @error event on the featured image', async () => {
-      const post = makeBlogPost({ featured_image: 'https://example.com/broken.jpg' })
+    it('shows SVG placeholder after @error event on the cover image', async () => {
+      const post = makeBlogPost({ cover_image_url: 'https://example.com/broken.jpg' })
       const wrapper = await mountSuspended(BlogCard, {
         props: { post },
         global: { stubs: { NuxtLink: true } },
@@ -176,63 +181,6 @@ describe('BlogCard', () => {
       await wrapper.vm.$nextTick()
       expect(wrapper.find('.blog-card__image').exists()).toBe(false)
       expect(wrapper.find('.blog-card__placeholder').exists()).toBe(true)
-    })
-  })
-
-  // ── Author ──────────────────────────────────────────────────
-
-  describe('author', () => {
-    it('shows author avatar image when author.avatar is a safe https URL', async () => {
-      const post = makeBlogPost({
-        author: { id: 'a1', name: 'Ana García', avatar: 'https://example.com/avatar.jpg' },
-      })
-      const wrapper = await mountSuspended(BlogCard, {
-        props: { post },
-        global: { stubs: { NuxtLink: true } },
-      })
-      const avatar = wrapper.find('.blog-card__avatar')
-      expect(avatar.exists()).toBe(true)
-      expect(avatar.attributes('src')).toBe('https://example.com/avatar.jpg')
-    })
-
-    it('shows initial fallback when author.avatar is undefined', async () => {
-      const post = makeBlogPost({
-        author: { id: 'a1', name: 'Ana García', avatar: undefined },
-      })
-      const wrapper = await mountSuspended(BlogCard, {
-        props: { post },
-        global: { stubs: { NuxtLink: true } },
-      })
-      expect(wrapper.find('.blog-card__avatar').exists()).toBe(false)
-      const fallback = wrapper.find('.blog-card__avatar-fallback')
-      expect(fallback.exists()).toBe(true)
-      expect(fallback.text()).toBe('A') // first letter of "Ana García" uppercased
-    })
-
-    it('initial fallback letter is always uppercase', async () => {
-      const post = makeBlogPost({
-        author: { id: 'a1', name: 'pedro Ramírez', avatar: undefined },
-      })
-      const wrapper = await mountSuspended(BlogCard, {
-        props: { post },
-        global: { stubs: { NuxtLink: true } },
-      })
-      const fallback = wrapper.find('.blog-card__avatar-fallback')
-      expect(fallback.text()).toBe('P')
-    })
-
-    it('shows initial fallback after @error event on avatar image', async () => {
-      const post = makeBlogPost({
-        author: { id: 'a1', name: 'Ana García', avatar: 'https://example.com/broken-avatar.jpg' },
-      })
-      const wrapper = await mountSuspended(BlogCard, {
-        props: { post },
-        global: { stubs: { NuxtLink: true } },
-      })
-      await wrapper.find('.blog-card__avatar').trigger('error')
-      await wrapper.vm.$nextTick()
-      expect(wrapper.find('.blog-card__avatar').exists()).toBe(false)
-      expect(wrapper.find('.blog-card__avatar-fallback').exists()).toBe(true)
     })
   })
 
@@ -262,89 +210,14 @@ describe('BlogCard', () => {
       const timeEl = wrapper.find('time')
       expect(timeEl.attributes('datetime')).toBe('2025-06-15T10:00:00Z')
     })
-  })
 
-  // ── Reading time badge ──────────────────────────────────────
-
-  describe('reading time badge', () => {
-    it('shows reading time badge when reading_time_minutes is defined', async () => {
-      const post = makeBlogPost({ reading_time_minutes: 5 })
+    it('does not render <time> element when published_at is undefined', async () => {
+      const post = makeBlogPost({ published_at: undefined })
       const wrapper = await mountSuspended(BlogCard, {
         props: { post },
         global: { stubs: { NuxtLink: true } },
       })
-      expect(wrapper.text()).toContain('5 min de lectura')
-    })
-
-    it('hides reading time badge when reading_time_minutes is undefined', async () => {
-      const post = makeBlogPost({ reading_time_minutes: undefined })
-      const wrapper = await mountSuspended(BlogCard, {
-        props: { post },
-        global: { stubs: { NuxtLink: true } },
-      })
-      expect(wrapper.text()).not.toContain('min de lectura')
-    })
-
-    it('shows "1 min de lectura" when reading_time_minutes is 1', async () => {
-      const post = makeBlogPost({ reading_time_minutes: 1 })
-      const wrapper = await mountSuspended(BlogCard, {
-        props: { post },
-        global: { stubs: { NuxtLink: true } },
-      })
-      expect(wrapper.text()).toContain('1 min de lectura')
-    })
-  })
-
-  // ── Tags ───────────────────────────────────────────────────
-
-  describe('tags', () => {
-    it('renders up to 3 tags', async () => {
-      const post = makeBlogPost({ tags: ['perros', 'verano', 'salud'] })
-      const wrapper = await mountSuspended(BlogCard, {
-        props: { post },
-        global: { stubs: { NuxtLink: true } },
-      })
-      expect(wrapper.text()).toContain('perros')
-      expect(wrapper.text()).toContain('verano')
-      expect(wrapper.text()).toContain('salud')
-    })
-
-    it('does NOT show overflow badge when tags.length <= 3', async () => {
-      const post = makeBlogPost({ tags: ['perros', 'verano', 'salud'] })
-      const wrapper = await mountSuspended(BlogCard, {
-        props: { post },
-        global: { stubs: { NuxtLink: true } },
-      })
-      expect(wrapper.text()).not.toContain('+')
-    })
-
-    it('shows +N overflow badge when tags.length > 3', async () => {
-      const post = makeBlogPost({ tags: ['perros', 'verano', 'salud', 'nutricion', 'ejercicio'] })
-      const wrapper = await mountSuspended(BlogCard, {
-        props: { post },
-        global: { stubs: { NuxtLink: true } },
-      })
-      // 5 tags — 3 shown — 2 hidden — badge shows +2
-      expect(wrapper.text()).toContain('+2')
-    })
-
-    it('overflow badge value is the correct count of hidden tags', async () => {
-      const post = makeBlogPost({ tags: ['t1', 't2', 't3', 't4'] })
-      const wrapper = await mountSuspended(BlogCard, {
-        props: { post },
-        global: { stubs: { NuxtLink: true } },
-      })
-      expect(wrapper.text()).toContain('+1')
-    })
-
-    it('renders no tag section when tags array is empty', async () => {
-      const post = makeBlogPost({ tags: [] })
-      const wrapper = await mountSuspended(BlogCard, {
-        props: { post },
-        global: { stubs: { NuxtLink: true } },
-      })
-      const tagSection = wrapper.find('[aria-label="Etiquetas"]')
-      expect(tagSection.exists()).toBe(false)
+      expect(wrapper.find('time').exists()).toBe(false)
     })
   })
 
@@ -357,7 +230,6 @@ describe('BlogCard', () => {
         props: { post },
         global: { stubs: { NuxtLink: NuxtLinkHrefStub } },
       })
-      // The title link is the first <a> inside the card title
       const titleLink = wrapper.find('.blog-card__title-link')
       expect(titleLink.exists()).toBe(true)
       expect(titleLink.attributes('href')).toBe('/blog/cuidado-perros')

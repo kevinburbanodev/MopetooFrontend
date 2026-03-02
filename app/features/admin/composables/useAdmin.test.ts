@@ -7,11 +7,10 @@
 //     not a Nuxt built-in, so mockNuxtImport is NOT the right tool.
 //   - Pinia is isolated per test via createTestingPinia (stubActions: false)
 //     so real store action logic runs and we can spy on it.
-//   - ID validation guards are tested to ensure path-traversal protection.
+//   - ID validation guards are tested to ensure positive-number validation.
 //
-// What this suite does NOT cover intentionally:
-//   - Component rendering — covered in component test files.
-//   - Network retry logic — none exists.
+// Backend uses specific PATCH endpoints for each action
+// (no generic PUT or DELETE). All IDs are positive numbers.
 // ============================================================
 
 import { describe, it, expect, beforeEach, vi } from 'vitest'
@@ -23,114 +22,78 @@ import type {
   AdminPetshop,
   AdminClinic,
   AdminTransaction,
-  AdminStats,
+  AdminDonation,
 } from '../types'
 
 // ── useApi mock ───────────────────────────────────────────────
 
 const mockGet = vi.fn()
-const mockPut = vi.fn()
-const mockDel = vi.fn()
+const mockPatch = vi.fn()
 
 vi.mock('../../shared/composables/useApi', () => ({
-  useApi: () => ({ get: mockGet, put: mockPut, del: mockDel }),
+  useApi: () => ({ get: mockGet, patch: mockPatch }),
 }))
 
 // ── Fixtures ─────────────────────────────────────────────────
 
-function makeStats(overrides: Partial<AdminStats> = {}): AdminStats {
-  return {
-    total_users: 100,
-    total_pets: 250,
-    total_shelters: 15,
-    total_clinics: 20,
-    total_stores: 30,
-    total_adoptions: 45,
-    total_pro_subscriptions: 60,
-    total_donations: 80,
-    revenue_total: 5000000,
-    revenue_month: 300000,
-    ...overrides,
-  }
-}
-
 function makeUser(overrides: Partial<AdminUser> = {}): AdminUser {
   return {
-    id: 1,
-    name: 'Juan',
-    last_name: 'Pérez',
-    email: 'juan@example.com',
-    country: 'Colombia',
-    city: 'Bogotá',
-    is_pro: false,
-    is_admin: false,
-    pets_count: 2,
-    created_at: '2024-01-01T00:00:00Z',
-    updated_at: '2024-01-01T00:00:00Z',
+    id: 1, name: 'Juan', last_name: 'Pérez', email: 'juan@example.com',
+    country: 'Colombia', city: 'Bogotá', is_pro: false, is_admin: false,
+    is_active: true, pets_count: 2,
+    created_at: '2024-01-01T00:00:00Z', updated_at: '2024-01-01T00:00:00Z',
     ...overrides,
   }
 }
 
 function makeShelter(overrides: Partial<AdminShelter> = {}): AdminShelter {
   return {
-    id: 'shelter-1',
-    name: 'Refugio Los Amigos',
-    city: 'Bogotá',
-    is_verified: false,
-    is_featured: false,
-    pets_count: 5,
-    created_at: '2024-01-01T00:00:00Z',
-    ...overrides,
+    id: 1, name: 'Refugio Los Amigos', city: 'Bogotá',
+    is_verified: false, is_active: true, pets_count: 5,
+    created_at: '2024-01-01T00:00:00Z', ...overrides,
   }
 }
 
 function makePetshop(overrides: Partial<AdminPetshop> = {}): AdminPetshop {
   return {
-    id: 'shop-1',
-    name: 'Tienda Mascota Feliz',
-    city: 'Medellín',
-    is_verified: false,
-    is_featured: false,
-    created_at: '2024-01-01T00:00:00Z',
+    id: 1, name: 'Tienda Mascota Feliz', city: 'Medellín',
+    is_active: true, plan: 'free', created_at: '2024-01-01T00:00:00Z',
     ...overrides,
   }
 }
 
 function makeClinic(overrides: Partial<AdminClinic> = {}): AdminClinic {
   return {
-    id: 'clinic-1',
-    name: 'Clínica Vet Norte',
-    city: 'Cali',
-    is_verified: false,
-    is_featured: false,
-    specialties: ['Cirugía'],
-    created_at: '2024-01-01T00:00:00Z',
+    id: 1, name: 'Clínica Vet Norte', city: 'Cali',
+    is_verified: false, is_active: true, plan: 'free',
+    specialties: ['Cirugía'], created_at: '2024-01-01T00:00:00Z',
     ...overrides,
   }
 }
 
 function makeTransaction(overrides: Partial<AdminTransaction> = {}): AdminTransaction {
   return {
-    id: 'txn-1',
-    user_id: 1,
-    user_name: 'Juan Pérez',
-    user_email: 'juan@example.com',
-    type: 'subscription',
-    amount: 49000,
-    currency: 'COP',
-    status: 'completed',
-    description: 'PRO mensual',
-    created_at: '2024-01-15T10:00:00Z',
-    ...overrides,
+    id: 1, user_id: 1, plan: 'pro_monthly', amount_cop: 49000,
+    status: 'approved', reference: 'REF-001',
+    created_at: '2024-01-15T10:00:00Z', ...overrides,
+  }
+}
+
+function makeDonation(overrides: Partial<AdminDonation> = {}): AdminDonation {
+  return {
+    id: 1, user_id: 1, shelter_id: 1, amount_cop: 25000,
+    status: 'approved', reference: 'DON-001',
+    created_at: '2024-02-01T10:00:00Z', ...overrides,
   }
 }
 
 const userA = makeUser({ id: 1 })
 const userB = makeUser({ id: 2, name: 'María' })
-const shelterA = makeShelter({ id: 'shelter-1' })
-const petshopA = makePetshop({ id: 'shop-1' })
-const clinicA = makeClinic({ id: 'clinic-1' })
-const txA = makeTransaction({ id: 'txn-1' })
+const shelterA = makeShelter({ id: 1 })
+const petshopA = makePetshop({ id: 1 })
+const clinicA = makeClinic({ id: 1 })
+const txA = makeTransaction({ id: 1 })
+const donA = makeDonation({ id: 1 })
 
 // ── Suite ─────────────────────────────────────────────────────
 
@@ -144,134 +107,64 @@ describe('useAdmin', () => {
     const { useAdminStore } = await import('../stores/admin.store')
     adminStore = useAdminStore()
     mockGet.mockReset()
-    mockPut.mockReset()
-    mockDel.mockReset()
-  })
-
-  // ── fetchStats ──────────────────────────────────────────────
-
-  describe('fetchStats()', () => {
-    it('calls GET /api/admin/stats', async () => {
-      mockGet.mockResolvedValueOnce(makeStats())
-      const { useAdmin } = await import('./useAdmin')
-      const { fetchStats } = useAdmin()
-      await fetchStats()
-      expect(mockGet).toHaveBeenCalledWith('/api/admin/stats')
-    })
-
-    it('hydrates the store with a direct AdminStats object', async () => {
-      const stats = makeStats({ total_users: 42 })
-      mockGet.mockResolvedValueOnce(stats)
-      const setStatsSpy = vi.spyOn(adminStore, 'setStats')
-      const { useAdmin } = await import('./useAdmin')
-      await useAdmin().fetchStats()
-      expect(setStatsSpy).toHaveBeenCalledWith(stats)
-    })
-
-    it('hydrates the store from a { stats: AdminStats } envelope', async () => {
-      const stats = makeStats({ total_users: 77 })
-      mockGet.mockResolvedValueOnce({ stats })
-      const setStatsSpy = vi.spyOn(adminStore, 'setStats')
-      const { useAdmin } = await import('./useAdmin')
-      await useAdmin().fetchStats()
-      expect(setStatsSpy).toHaveBeenCalledWith(stats)
-    })
-
-    it('sets isLoading true during fetch and false after', async () => {
-      let loadingDuring = false
-      mockGet.mockImplementationOnce(async () => {
-        loadingDuring = adminStore.isLoading
-        return makeStats()
-      })
-      const { useAdmin } = await import('./useAdmin')
-      await useAdmin().fetchStats()
-      expect(loadingDuring).toBe(true)
-      expect(adminStore.isLoading).toBe(false)
-    })
-
-    it('sets error when the API call fails', async () => {
-      mockGet.mockRejectedValueOnce({ message: 'Network error' })
-      const { useAdmin } = await import('./useAdmin')
-      const { fetchStats, error } = useAdmin()
-      await fetchStats()
-      expect(error.value).toBe('Network error')
-    })
-
-    it('clears a previous error on successful fetch', async () => {
-      mockGet.mockRejectedValueOnce({ message: 'fail' })
-      const { useAdmin } = await import('./useAdmin')
-      const { fetchStats, error } = useAdmin()
-      await fetchStats()
-      expect(error.value).toBeTruthy()
-      mockGet.mockResolvedValueOnce(makeStats())
-      await fetchStats()
-      expect(error.value).toBeNull()
-    })
-
-    it('sets isLoading false even when the fetch throws', async () => {
-      mockGet.mockRejectedValueOnce(new Error('fail'))
-      const { useAdmin } = await import('./useAdmin')
-      await useAdmin().fetchStats()
-      expect(adminStore.isLoading).toBe(false)
-    })
+    mockPatch.mockReset()
   })
 
   // ── fetchUsers ──────────────────────────────────────────────
 
   describe('fetchUsers()', () => {
     it('calls GET /api/admin/users when no filters are provided', async () => {
-      mockGet.mockResolvedValueOnce([userA])
+      mockGet.mockResolvedValueOnce({ users: [userA], total: 1 })
       const { useAdmin } = await import('./useAdmin')
       await useAdmin().fetchUsers()
       expect(mockGet).toHaveBeenCalledWith('/api/admin/users')
     })
 
     it('appends search filter to query string', async () => {
-      mockGet.mockResolvedValueOnce([])
+      mockGet.mockResolvedValueOnce({ users: [], total: 0 })
       const { useAdmin } = await import('./useAdmin')
       await useAdmin().fetchUsers({ search: 'juan' })
       expect(mockGet).toHaveBeenCalledWith('/api/admin/users?search=juan')
     })
 
-    it('appends is_pro filter to query string', async () => {
-      mockGet.mockResolvedValueOnce([])
+    it('appends plan filter to query string', async () => {
+      mockGet.mockResolvedValueOnce({ users: [], total: 0 })
       const { useAdmin } = await import('./useAdmin')
-      await useAdmin().fetchUsers({ is_pro: true })
-      expect(mockGet).toHaveBeenCalledWith('/api/admin/users?is_pro=true')
+      await useAdmin().fetchUsers({ plan: 'pro_monthly' })
+      expect(mockGet).toHaveBeenCalledWith('/api/admin/users?plan=pro_monthly')
     })
 
-    it('appends is_admin filter to query string', async () => {
-      mockGet.mockResolvedValueOnce([])
+    it('appends active filter to query string', async () => {
+      mockGet.mockResolvedValueOnce({ users: [], total: 0 })
       const { useAdmin } = await import('./useAdmin')
-      await useAdmin().fetchUsers({ is_admin: false })
-      expect(mockGet).toHaveBeenCalledWith('/api/admin/users?is_admin=false')
+      await useAdmin().fetchUsers({ active: true })
+      expect(mockGet).toHaveBeenCalledWith('/api/admin/users?active=true')
     })
 
-    it('appends page and per_page to query string', async () => {
-      mockGet.mockResolvedValueOnce([])
+    it('appends country filter to query string', async () => {
+      mockGet.mockResolvedValueOnce({ users: [], total: 0 })
       const { useAdmin } = await import('./useAdmin')
-      await useAdmin().fetchUsers({ page: 2, per_page: 20 })
-      expect(mockGet).toHaveBeenCalledWith('/api/admin/users?page=2&per_page=20')
+      await useAdmin().fetchUsers({ country: 'Colombia' })
+      expect(mockGet).toHaveBeenCalledWith('/api/admin/users?country=Colombia')
     })
 
-    it('hydrates the store when the response is a plain AdminUser array', async () => {
-      mockGet.mockResolvedValueOnce([userA, userB])
-      const setUsersSpy = vi.spyOn(adminStore, 'setUsers')
+    it('appends page and limit to query string', async () => {
+      mockGet.mockResolvedValueOnce({ users: [], total: 0 })
       const { useAdmin } = await import('./useAdmin')
-      await useAdmin().fetchUsers()
-      expect(setUsersSpy).toHaveBeenCalledWith([userA, userB], 2)
+      await useAdmin().fetchUsers({ page: 2, limit: 20 })
+      expect(mockGet).toHaveBeenCalledWith('/api/admin/users?page=2&limit=20')
     })
 
-    it('hydrates the store from a { users, total } envelope', async () => {
-      mockGet.mockResolvedValueOnce({ users: [userA], total: 42, page: 1, per_page: 20 })
+    it('hydrates the store from { users, total } response', async () => {
+      mockGet.mockResolvedValueOnce({ users: [userA], total: 42 })
       const setUsersSpy = vi.spyOn(adminStore, 'setUsers')
       const { useAdmin } = await import('./useAdmin')
       await useAdmin().fetchUsers()
       expect(setUsersSpy).toHaveBeenCalledWith([userA], 42)
     })
 
-    it('uses empty array and 0 when envelope users field is missing', async () => {
-      mockGet.mockResolvedValueOnce({ total: 0, page: 1, per_page: 20 })
+    it('uses empty array and 0 when users field is missing', async () => {
+      mockGet.mockResolvedValueOnce({ total: 0 })
       const setUsersSpy = vi.spyOn(adminStore, 'setUsers')
       const { useAdmin } = await import('./useAdmin')
       await useAdmin().fetchUsers()
@@ -286,6 +179,18 @@ describe('useAdmin', () => {
       expect(error.value).toBe('Forbidden')
     })
 
+    it('sets isLoading true during fetch and false after', async () => {
+      let loadingDuring = false
+      mockGet.mockImplementationOnce(async () => {
+        loadingDuring = adminStore.isLoading
+        return { users: [userA], total: 1 }
+      })
+      const { useAdmin } = await import('./useAdmin')
+      await useAdmin().fetchUsers()
+      expect(loadingDuring).toBe(true)
+      expect(adminStore.isLoading).toBe(false)
+    })
+
     it('sets isLoading false after failure', async () => {
       mockGet.mockRejectedValueOnce(new Error('fail'))
       const { useAdmin } = await import('./useAdmin')
@@ -294,101 +199,156 @@ describe('useAdmin', () => {
     })
   })
 
-  // ── updateUser ──────────────────────────────────────────────
+  // ── User PATCH actions ─────────────────────────────────────
 
-  describe('updateUser()', () => {
-    it('calls PUT /api/admin/users/:id with the provided data', async () => {
-      mockPut.mockResolvedValueOnce(userA)
-      adminStore.setUsers([userA], 1)
+  describe('grantPro()', () => {
+    it('calls PATCH /api/admin/users/:id/grant-pro with plan', async () => {
+      mockPatch.mockResolvedValueOnce({ message: 'ok' })
       const { useAdmin } = await import('./useAdmin')
-      await useAdmin().updateUser(1, { is_pro: true })
-      expect(mockPut).toHaveBeenCalledWith('/api/admin/users/1', { is_pro: true })
+      await useAdmin().grantPro(1, 'pro_monthly')
+      expect(mockPatch).toHaveBeenCalledWith('/api/admin/users/1/grant-pro', { plan: 'pro_monthly' })
     })
 
-    it('calls adminStore.updateUser on success', async () => {
-      mockPut.mockResolvedValueOnce(userA)
+    it('updates store on success', async () => {
+      mockPatch.mockResolvedValueOnce({ message: 'ok' })
       adminStore.setUsers([userA], 1)
       const updateSpy = vi.spyOn(adminStore, 'updateUser')
       const { useAdmin } = await import('./useAdmin')
-      await useAdmin().updateUser(1, { is_pro: true })
+      await useAdmin().grantPro(1, 'pro_monthly')
       expect(updateSpy).toHaveBeenCalledWith(1, { is_pro: true })
     })
 
     it('returns true on success', async () => {
-      mockPut.mockResolvedValueOnce(userA)
-      adminStore.setUsers([userA], 1)
+      mockPatch.mockResolvedValueOnce({ message: 'ok' })
       const { useAdmin } = await import('./useAdmin')
-      const result = await useAdmin().updateUser(1, { is_pro: true })
-      expect(result).toBe(true)
-    })
-
-    it('returns false and sets error for invalid user id (0)', async () => {
-      const { useAdmin } = await import('./useAdmin')
-      const { updateUser, error } = useAdmin()
-      const result = await updateUser(0, { is_pro: true })
-      expect(result).toBe(false)
-      expect(error.value).toBe('ID de usuario inválido.')
-      expect(mockPut).not.toHaveBeenCalled()
-    })
-
-    it('returns false and sets error for negative user id', async () => {
-      const { useAdmin } = await import('./useAdmin')
-      const result = await useAdmin().updateUser(-5, { is_admin: true })
-      expect(result).toBe(false)
-      expect(mockPut).not.toHaveBeenCalled()
-    })
-
-    it('returns false and sets error when API call fails', async () => {
-      mockPut.mockRejectedValueOnce({ message: 'Server error' })
-      const { useAdmin } = await import('./useAdmin')
-      const { updateUser, error } = useAdmin()
-      const result = await updateUser(1, { is_pro: true })
-      expect(result).toBe(false)
-      expect(error.value).toBe('Server error')
-    })
-  })
-
-  // ── deleteUser ──────────────────────────────────────────────
-
-  describe('deleteUser()', () => {
-    it('calls DELETE /api/admin/users/:id', async () => {
-      mockDel.mockResolvedValueOnce(undefined)
-      adminStore.setUsers([userA], 1)
-      const { useAdmin } = await import('./useAdmin')
-      await useAdmin().deleteUser(1)
-      expect(mockDel).toHaveBeenCalledWith('/api/admin/users/1')
-    })
-
-    it('calls adminStore.removeUser on success', async () => {
-      mockDel.mockResolvedValueOnce(undefined)
-      adminStore.setUsers([userA], 1)
-      const removeSpy = vi.spyOn(adminStore, 'removeUser')
-      const { useAdmin } = await import('./useAdmin')
-      await useAdmin().deleteUser(1)
-      expect(removeSpy).toHaveBeenCalledWith(1)
-    })
-
-    it('returns true on success', async () => {
-      mockDel.mockResolvedValueOnce(undefined)
-      const { useAdmin } = await import('./useAdmin')
-      const result = await useAdmin().deleteUser(1)
-      expect(result).toBe(true)
+      expect(await useAdmin().grantPro(1, 'pro_monthly')).toBe(true)
     })
 
     it('returns false and sets error for invalid id (0)', async () => {
       const { useAdmin } = await import('./useAdmin')
-      const { deleteUser, error } = useAdmin()
-      const result = await deleteUser(0)
-      expect(result).toBe(false)
+      const { grantPro, error } = useAdmin()
+      expect(await grantPro(0, 'pro_monthly')).toBe(false)
       expect(error.value).toBe('ID de usuario inválido.')
-      expect(mockDel).not.toHaveBeenCalled()
+      expect(mockPatch).not.toHaveBeenCalled()
     })
 
-    it('returns false when API call fails', async () => {
-      mockDel.mockRejectedValueOnce({ message: 'fail' })
+    it('returns false and sets error for negative id', async () => {
       const { useAdmin } = await import('./useAdmin')
-      const result = await useAdmin().deleteUser(1)
-      expect(result).toBe(false)
+      expect(await useAdmin().grantPro(-5, 'pro_monthly')).toBe(false)
+      expect(mockPatch).not.toHaveBeenCalled()
+    })
+
+    it('returns false on API failure', async () => {
+      mockPatch.mockRejectedValueOnce({ message: 'Server error' })
+      const { useAdmin } = await import('./useAdmin')
+      const { grantPro, error } = useAdmin()
+      expect(await grantPro(1, 'pro_monthly')).toBe(false)
+      expect(error.value).toBe('Server error')
+    })
+  })
+
+  describe('revokePro()', () => {
+    it('calls PATCH /api/admin/users/:id/revoke-pro', async () => {
+      mockPatch.mockResolvedValueOnce({ message: 'ok' })
+      const { useAdmin } = await import('./useAdmin')
+      await useAdmin().revokePro(1)
+      expect(mockPatch).toHaveBeenCalledWith('/api/admin/users/1/revoke-pro', {})
+    })
+
+    it('updates store with is_pro: false', async () => {
+      mockPatch.mockResolvedValueOnce({ message: 'ok' })
+      adminStore.setUsers([makeUser({ id: 1, is_pro: true })], 1)
+      const updateSpy = vi.spyOn(adminStore, 'updateUser')
+      const { useAdmin } = await import('./useAdmin')
+      await useAdmin().revokePro(1)
+      expect(updateSpy).toHaveBeenCalledWith(1, { is_pro: false })
+    })
+
+    it('returns false for invalid id', async () => {
+      const { useAdmin } = await import('./useAdmin')
+      expect(await useAdmin().revokePro(0)).toBe(false)
+    })
+  })
+
+  describe('grantAdmin()', () => {
+    it('calls PATCH /api/admin/users/:id/grant-admin', async () => {
+      mockPatch.mockResolvedValueOnce({ message: 'ok' })
+      const { useAdmin } = await import('./useAdmin')
+      await useAdmin().grantAdmin(1)
+      expect(mockPatch).toHaveBeenCalledWith('/api/admin/users/1/grant-admin', {})
+    })
+
+    it('updates store with is_admin: true', async () => {
+      mockPatch.mockResolvedValueOnce({ message: 'ok' })
+      adminStore.setUsers([userA], 1)
+      const updateSpy = vi.spyOn(adminStore, 'updateUser')
+      const { useAdmin } = await import('./useAdmin')
+      await useAdmin().grantAdmin(1)
+      expect(updateSpy).toHaveBeenCalledWith(1, { is_admin: true })
+    })
+
+    it('returns false for invalid id', async () => {
+      const { useAdmin } = await import('./useAdmin')
+      expect(await useAdmin().grantAdmin(0)).toBe(false)
+    })
+  })
+
+  describe('revokeAdmin()', () => {
+    it('calls PATCH /api/admin/users/:id/revoke-admin', async () => {
+      mockPatch.mockResolvedValueOnce({ message: 'ok' })
+      const { useAdmin } = await import('./useAdmin')
+      await useAdmin().revokeAdmin(2)
+      expect(mockPatch).toHaveBeenCalledWith('/api/admin/users/2/revoke-admin', {})
+    })
+
+    it('updates store with is_admin: false', async () => {
+      mockPatch.mockResolvedValueOnce({ message: 'ok' })
+      adminStore.setUsers([userB], 1)
+      const updateSpy = vi.spyOn(adminStore, 'updateUser')
+      const { useAdmin } = await import('./useAdmin')
+      await useAdmin().revokeAdmin(2)
+      expect(updateSpy).toHaveBeenCalledWith(2, { is_admin: false })
+    })
+  })
+
+  describe('activateUser()', () => {
+    it('calls PATCH /api/admin/users/:id/activate', async () => {
+      mockPatch.mockResolvedValueOnce({ message: 'ok' })
+      const { useAdmin } = await import('./useAdmin')
+      await useAdmin().activateUser(1)
+      expect(mockPatch).toHaveBeenCalledWith('/api/admin/users/1/activate', {})
+    })
+
+    it('updates store with is_active: true', async () => {
+      mockPatch.mockResolvedValueOnce({ message: 'ok' })
+      adminStore.setUsers([makeUser({ id: 1, is_active: false })], 1)
+      const updateSpy = vi.spyOn(adminStore, 'updateUser')
+      const { useAdmin } = await import('./useAdmin')
+      await useAdmin().activateUser(1)
+      expect(updateSpy).toHaveBeenCalledWith(1, { is_active: true })
+    })
+
+    it('returns false for invalid id', async () => {
+      const { useAdmin } = await import('./useAdmin')
+      expect(await useAdmin().activateUser(-1)).toBe(false)
+    })
+  })
+
+  describe('deactivateUser()', () => {
+    it('calls PATCH /api/admin/users/:id/deactivate', async () => {
+      mockPatch.mockResolvedValueOnce({ message: 'ok' })
+      const { useAdmin } = await import('./useAdmin')
+      await useAdmin().deactivateUser(1)
+      expect(mockPatch).toHaveBeenCalledWith('/api/admin/users/1/deactivate', {})
+    })
+
+    it('updates store with is_active: false', async () => {
+      mockPatch.mockResolvedValueOnce({ message: 'ok' })
+      adminStore.setUsers([userA], 1)
+      const updateSpy = vi.spyOn(adminStore, 'updateUser')
+      const { useAdmin } = await import('./useAdmin')
+      await useAdmin().deactivateUser(1)
+      expect(updateSpy).toHaveBeenCalledWith(1, { is_active: false })
     })
   })
 
@@ -396,29 +356,21 @@ describe('useAdmin', () => {
 
   describe('fetchShelters()', () => {
     it('calls GET /api/admin/shelters when no filters are provided', async () => {
-      mockGet.mockResolvedValueOnce([shelterA])
+      mockGet.mockResolvedValueOnce({ shelters: [shelterA], total: 1 })
       const { useAdmin } = await import('./useAdmin')
       await useAdmin().fetchShelters()
       expect(mockGet).toHaveBeenCalledWith('/api/admin/shelters')
     })
 
     it('appends search filter to query string', async () => {
-      mockGet.mockResolvedValueOnce([])
+      mockGet.mockResolvedValueOnce({ shelters: [], total: 0 })
       const { useAdmin } = await import('./useAdmin')
       await useAdmin().fetchShelters({ search: 'norte' })
       expect(mockGet).toHaveBeenCalledWith('/api/admin/shelters?search=norte')
     })
 
-    it('hydrates the store from a plain array response', async () => {
-      mockGet.mockResolvedValueOnce([shelterA])
-      const setSpy = vi.spyOn(adminStore, 'setShelters')
-      const { useAdmin } = await import('./useAdmin')
-      await useAdmin().fetchShelters()
-      expect(setSpy).toHaveBeenCalledWith([shelterA], 1)
-    })
-
-    it('hydrates the store from a { shelters, total } envelope', async () => {
-      mockGet.mockResolvedValueOnce({ shelters: [shelterA], total: 5, page: 1, per_page: 20 })
+    it('hydrates the store from response', async () => {
+      mockGet.mockResolvedValueOnce({ shelters: [shelterA], total: 5 })
       const setSpy = vi.spyOn(adminStore, 'setShelters')
       const { useAdmin } = await import('./useAdmin')
       await useAdmin().fetchShelters()
@@ -441,74 +393,70 @@ describe('useAdmin', () => {
     })
   })
 
-  // ── updateShelter ───────────────────────────────────────────
+  // ── Shelter PATCH actions ──────────────────────────────────
 
-  describe('updateShelter()', () => {
-    it('calls PUT /api/admin/shelters/:id with data', async () => {
-      mockPut.mockResolvedValueOnce(shelterA)
+  describe('verifyShelter()', () => {
+    it('calls PATCH /api/admin/shelters/:id/verify', async () => {
+      mockPatch.mockResolvedValueOnce({ message: 'ok' })
+      const { useAdmin } = await import('./useAdmin')
+      await useAdmin().verifyShelter(1)
+      expect(mockPatch).toHaveBeenCalledWith('/api/admin/shelters/1/verify', {})
+    })
+
+    it('updates store with is_verified: true', async () => {
+      mockPatch.mockResolvedValueOnce({ message: 'ok' })
       adminStore.setShelters([shelterA], 1)
+      const updateSpy = vi.spyOn(adminStore, 'updateShelter')
       const { useAdmin } = await import('./useAdmin')
-      await useAdmin().updateShelter('shelter-1', { is_verified: true })
-      expect(mockPut).toHaveBeenCalledWith('/api/admin/shelters/shelter-1', { is_verified: true })
+      await useAdmin().verifyShelter(1)
+      expect(updateSpy).toHaveBeenCalledWith(1, { is_verified: true })
     })
 
-    it('returns true on success', async () => {
-      mockPut.mockResolvedValueOnce(shelterA)
-      adminStore.setShelters([shelterA], 1)
+    it('returns false for invalid id', async () => {
       const { useAdmin } = await import('./useAdmin')
-      const result = await useAdmin().updateShelter('shelter-1', { is_verified: true })
-      expect(result).toBe(true)
-    })
-
-    it('returns false and sets error for invalid shelter id (path traversal attempt)', async () => {
-      const { useAdmin } = await import('./useAdmin')
-      const { updateShelter, error } = useAdmin()
-      const result = await updateShelter('../admin', { is_verified: true })
-      expect(result).toBe(false)
-      expect(error.value).toBe('ID de refugio inválido.')
-      expect(mockPut).not.toHaveBeenCalled()
-    })
-
-    it('returns false and sets error on API failure', async () => {
-      mockPut.mockRejectedValueOnce({ message: 'Server error' })
-      const { useAdmin } = await import('./useAdmin')
-      const result = await useAdmin().updateShelter('shelter-1', { is_featured: true })
-      expect(result).toBe(false)
-    })
-  })
-
-  // ── deleteShelter ───────────────────────────────────────────
-
-  describe('deleteShelter()', () => {
-    it('calls DELETE /api/admin/shelters/:id', async () => {
-      mockDel.mockResolvedValueOnce(undefined)
-      adminStore.setShelters([shelterA], 1)
-      const { useAdmin } = await import('./useAdmin')
-      await useAdmin().deleteShelter('shelter-1')
-      expect(mockDel).toHaveBeenCalledWith('/api/admin/shelters/shelter-1')
-    })
-
-    it('returns true on success', async () => {
-      mockDel.mockResolvedValueOnce(undefined)
-      const { useAdmin } = await import('./useAdmin')
-      const result = await useAdmin().deleteShelter('shelter-1')
-      expect(result).toBe(true)
-    })
-
-    it('returns false for invalid id (empty string)', async () => {
-      const { useAdmin } = await import('./useAdmin')
-      const { deleteShelter, error } = useAdmin()
-      const result = await deleteShelter('')
-      expect(result).toBe(false)
-      expect(error.value).toBe('ID de refugio inválido.')
-      expect(mockDel).not.toHaveBeenCalled()
+      expect(await useAdmin().verifyShelter(0)).toBe(false)
     })
 
     it('returns false on API failure', async () => {
-      mockDel.mockRejectedValueOnce(new Error('fail'))
+      mockPatch.mockRejectedValueOnce(new Error('fail'))
       const { useAdmin } = await import('./useAdmin')
-      const result = await useAdmin().deleteShelter('shelter-1')
-      expect(result).toBe(false)
+      expect(await useAdmin().verifyShelter(1)).toBe(false)
+    })
+  })
+
+  describe('activateShelter()', () => {
+    it('calls PATCH /api/admin/shelters/:id/activate', async () => {
+      mockPatch.mockResolvedValueOnce({ message: 'ok' })
+      const { useAdmin } = await import('./useAdmin')
+      await useAdmin().activateShelter(1)
+      expect(mockPatch).toHaveBeenCalledWith('/api/admin/shelters/1/activate', {})
+    })
+
+    it('updates store with is_active: true', async () => {
+      mockPatch.mockResolvedValueOnce({ message: 'ok' })
+      adminStore.setShelters([makeShelter({ id: 1, is_active: false })], 1)
+      const updateSpy = vi.spyOn(adminStore, 'updateShelter')
+      const { useAdmin } = await import('./useAdmin')
+      await useAdmin().activateShelter(1)
+      expect(updateSpy).toHaveBeenCalledWith(1, { is_active: true })
+    })
+  })
+
+  describe('deactivateShelter()', () => {
+    it('calls PATCH /api/admin/shelters/:id/deactivate', async () => {
+      mockPatch.mockResolvedValueOnce({ message: 'ok' })
+      const { useAdmin } = await import('./useAdmin')
+      await useAdmin().deactivateShelter(1)
+      expect(mockPatch).toHaveBeenCalledWith('/api/admin/shelters/1/deactivate', {})
+    })
+
+    it('updates store with is_active: false', async () => {
+      mockPatch.mockResolvedValueOnce({ message: 'ok' })
+      adminStore.setShelters([shelterA], 1)
+      const updateSpy = vi.spyOn(adminStore, 'updateShelter')
+      const { useAdmin } = await import('./useAdmin')
+      await useAdmin().deactivateShelter(1)
+      expect(updateSpy).toHaveBeenCalledWith(1, { is_active: false })
     })
   })
 
@@ -516,22 +464,14 @@ describe('useAdmin', () => {
 
   describe('fetchPetshops()', () => {
     it('calls GET /api/admin/stores when no filters are provided', async () => {
-      mockGet.mockResolvedValueOnce([petshopA])
+      mockGet.mockResolvedValueOnce({ stores: [petshopA], total: 1 })
       const { useAdmin } = await import('./useAdmin')
       await useAdmin().fetchPetshops()
       expect(mockGet).toHaveBeenCalledWith('/api/admin/stores')
     })
 
-    it('hydrates the store from a plain array response', async () => {
-      mockGet.mockResolvedValueOnce([petshopA])
-      const setSpy = vi.spyOn(adminStore, 'setPetshops')
-      const { useAdmin } = await import('./useAdmin')
-      await useAdmin().fetchPetshops()
-      expect(setSpy).toHaveBeenCalledWith([petshopA], 1)
-    })
-
-    it('hydrates the store from a { stores, total } envelope', async () => {
-      mockGet.mockResolvedValueOnce({ stores: [petshopA], total: 10, page: 1, per_page: 20 })
+    it('hydrates the store from response', async () => {
+      mockGet.mockResolvedValueOnce({ stores: [petshopA], total: 10 })
       const setSpy = vi.spyOn(adminStore, 'setPetshops')
       const { useAdmin } = await import('./useAdmin')
       await useAdmin().fetchPetshops()
@@ -547,87 +487,90 @@ describe('useAdmin', () => {
     })
   })
 
-  // ── updatePetshop ───────────────────────────────────────────
+  // ── Store PATCH actions ────────────────────────────────────
 
-  describe('updatePetshop()', () => {
-    it('calls PUT /api/admin/stores/:id with data', async () => {
-      mockPut.mockResolvedValueOnce(petshopA)
-      adminStore.setPetshops([petshopA], 1)
+  describe('activateStore()', () => {
+    it('calls PATCH /api/admin/stores/:id/activate', async () => {
+      mockPatch.mockResolvedValueOnce({ message: 'ok' })
       const { useAdmin } = await import('./useAdmin')
-      await useAdmin().updatePetshop('shop-1', { is_verified: true })
-      expect(mockPut).toHaveBeenCalledWith('/api/admin/stores/shop-1', { is_verified: true })
+      await useAdmin().activateStore(1)
+      expect(mockPatch).toHaveBeenCalledWith('/api/admin/stores/1/activate', {})
     })
 
-    it('returns true on success', async () => {
-      mockPut.mockResolvedValueOnce(petshopA)
-      adminStore.setPetshops([petshopA], 1)
+    it('updates store with is_active: true', async () => {
+      mockPatch.mockResolvedValueOnce({ message: 'ok' })
+      adminStore.setPetshops([makePetshop({ id: 1, is_active: false })], 1)
+      const updateSpy = vi.spyOn(adminStore, 'updatePetshop')
       const { useAdmin } = await import('./useAdmin')
-      const result = await useAdmin().updatePetshop('shop-1', { is_featured: true })
-      expect(result).toBe(true)
-    })
-
-    it('returns false and sets error for invalid petshop id', async () => {
-      const { useAdmin } = await import('./useAdmin')
-      const { updatePetshop, error } = useAdmin()
-      const result = await updatePetshop('../../etc/passwd', { is_verified: true })
-      expect(result).toBe(false)
-      expect(error.value).toBe('ID de tienda inválido.')
-    })
-
-    it('returns false on API failure', async () => {
-      mockPut.mockRejectedValueOnce(new Error('fail'))
-      const { useAdmin } = await import('./useAdmin')
-      const result = await useAdmin().updatePetshop('shop-1', { is_verified: true })
-      expect(result).toBe(false)
-    })
-  })
-
-  // ── deletePetshop ───────────────────────────────────────────
-
-  describe('deletePetshop()', () => {
-    it('calls DELETE /api/admin/stores/:id', async () => {
-      mockDel.mockResolvedValueOnce(undefined)
-      const { useAdmin } = await import('./useAdmin')
-      await useAdmin().deletePetshop('shop-1')
-      expect(mockDel).toHaveBeenCalledWith('/api/admin/stores/shop-1')
-    })
-
-    it('returns true on success', async () => {
-      mockDel.mockResolvedValueOnce(undefined)
-      const { useAdmin } = await import('./useAdmin')
-      const result = await useAdmin().deletePetshop('shop-1')
-      expect(result).toBe(true)
+      await useAdmin().activateStore(1)
+      expect(updateSpy).toHaveBeenCalledWith(1, { is_active: true })
     })
 
     it('returns false for invalid id', async () => {
       const { useAdmin } = await import('./useAdmin')
-      const { deletePetshop, error } = useAdmin()
-      const result = await deletePetshop('')
-      expect(result).toBe(false)
-      expect(error.value).toBe('ID de tienda inválido.')
+      expect(await useAdmin().activateStore(0)).toBe(false)
     })
   })
 
-  // ── fetchAdminClinics ───────────────────────────────────────
+  describe('deactivateStore()', () => {
+    it('calls PATCH /api/admin/stores/:id/deactivate', async () => {
+      mockPatch.mockResolvedValueOnce({ message: 'ok' })
+      const { useAdmin } = await import('./useAdmin')
+      await useAdmin().deactivateStore(1)
+      expect(mockPatch).toHaveBeenCalledWith('/api/admin/stores/1/deactivate', {})
+    })
+
+    it('updates store with is_active: false', async () => {
+      mockPatch.mockResolvedValueOnce({ message: 'ok' })
+      adminStore.setPetshops([petshopA], 1)
+      const updateSpy = vi.spyOn(adminStore, 'updatePetshop')
+      const { useAdmin } = await import('./useAdmin')
+      await useAdmin().deactivateStore(1)
+      expect(updateSpy).toHaveBeenCalledWith(1, { is_active: false })
+    })
+  })
+
+  describe('setStorePlan()', () => {
+    it('calls PATCH /api/admin/stores/:id/plan with plan body', async () => {
+      mockPatch.mockResolvedValueOnce({ message: 'ok' })
+      const { useAdmin } = await import('./useAdmin')
+      await useAdmin().setStorePlan(1, 'featured')
+      expect(mockPatch).toHaveBeenCalledWith('/api/admin/stores/1/plan', { plan: 'featured' })
+    })
+
+    it('updates store with new plan', async () => {
+      mockPatch.mockResolvedValueOnce({ message: 'ok' })
+      adminStore.setPetshops([petshopA], 1)
+      const updateSpy = vi.spyOn(adminStore, 'updatePetshop')
+      const { useAdmin } = await import('./useAdmin')
+      await useAdmin().setStorePlan(1, 'featured')
+      expect(updateSpy).toHaveBeenCalledWith(1, { plan: 'featured' })
+    })
+
+    it('returns false for invalid id', async () => {
+      const { useAdmin } = await import('./useAdmin')
+      expect(await useAdmin().setStorePlan(0, 'featured')).toBe(false)
+    })
+
+    it('returns false on API failure', async () => {
+      mockPatch.mockRejectedValueOnce(new Error('fail'))
+      const { useAdmin } = await import('./useAdmin')
+      expect(await useAdmin().setStorePlan(1, 'featured')).toBe(false)
+    })
+  })
+
+  // ── fetchAdminClinics ─────────────────────────────────────
 
   describe('fetchAdminClinics()', () => {
     it('calls GET /api/admin/clinics when no filters are provided', async () => {
-      mockGet.mockResolvedValueOnce([clinicA])
+      mockGet.mockResolvedValueOnce({ clinics: [clinicA], total: 1 })
       const { useAdmin } = await import('./useAdmin')
       await useAdmin().fetchAdminClinics()
       expect(mockGet).toHaveBeenCalledWith('/api/admin/clinics')
     })
 
-    it('hydrates the store from a plain array response', async () => {
-      mockGet.mockResolvedValueOnce([clinicA])
-      const setSpy = vi.spyOn(adminStore, 'setAdminClinics')
-      const { useAdmin } = await import('./useAdmin')
-      await useAdmin().fetchAdminClinics()
-      expect(setSpy).toHaveBeenCalledWith([clinicA], 1)
-    })
-
-    it('hydrates the store from a { clinics, total } envelope', async () => {
-      mockGet.mockResolvedValueOnce({ clinics: [clinicA], total: 7, page: 1, per_page: 20 })
+    it('hydrates the store from response', async () => {
+      mockGet.mockResolvedValueOnce({ clinics: [clinicA], total: 7 })
       const setSpy = vi.spyOn(adminStore, 'setAdminClinics')
       const { useAdmin } = await import('./useAdmin')
       await useAdmin().fetchAdminClinics()
@@ -650,102 +593,122 @@ describe('useAdmin', () => {
     })
   })
 
-  // ── updateAdminClinic ───────────────────────────────────────
+  // ── Clinic PATCH actions ───────────────────────────────────
 
-  describe('updateAdminClinic()', () => {
-    it('calls PUT /api/admin/clinics/:id with data', async () => {
-      mockPut.mockResolvedValueOnce(clinicA)
+  describe('verifyClinic()', () => {
+    it('calls PATCH /api/admin/clinics/:id/verify', async () => {
+      mockPatch.mockResolvedValueOnce({ message: 'ok' })
+      const { useAdmin } = await import('./useAdmin')
+      await useAdmin().verifyClinic(1)
+      expect(mockPatch).toHaveBeenCalledWith('/api/admin/clinics/1/verify', {})
+    })
+
+    it('updates store with is_verified: true', async () => {
+      mockPatch.mockResolvedValueOnce({ message: 'ok' })
       adminStore.setAdminClinics([clinicA], 1)
+      const updateSpy = vi.spyOn(adminStore, 'updateAdminClinic')
       const { useAdmin } = await import('./useAdmin')
-      await useAdmin().updateAdminClinic('clinic-1', { is_verified: true })
-      expect(mockPut).toHaveBeenCalledWith('/api/admin/clinics/clinic-1', { is_verified: true })
-    })
-
-    it('returns true on success', async () => {
-      mockPut.mockResolvedValueOnce(clinicA)
-      adminStore.setAdminClinics([clinicA], 1)
-      const { useAdmin } = await import('./useAdmin')
-      const result = await useAdmin().updateAdminClinic('clinic-1', { is_featured: true })
-      expect(result).toBe(true)
-    })
-
-    it('returns false and sets error for invalid clinic id', async () => {
-      const { useAdmin } = await import('./useAdmin')
-      const { updateAdminClinic, error } = useAdmin()
-      const result = await updateAdminClinic('../evil', { is_verified: true })
-      expect(result).toBe(false)
-      expect(error.value).toBe('ID de clínica inválido.')
-      expect(mockPut).not.toHaveBeenCalled()
-    })
-
-    it('returns false on API failure', async () => {
-      mockPut.mockRejectedValueOnce(new Error('fail'))
-      const { useAdmin } = await import('./useAdmin')
-      const result = await useAdmin().updateAdminClinic('clinic-1', { is_verified: true })
-      expect(result).toBe(false)
-    })
-  })
-
-  // ── deleteAdminClinic ───────────────────────────────────────
-
-  describe('deleteAdminClinic()', () => {
-    it('calls DELETE /api/admin/clinics/:id', async () => {
-      mockDel.mockResolvedValueOnce(undefined)
-      const { useAdmin } = await import('./useAdmin')
-      await useAdmin().deleteAdminClinic('clinic-1')
-      expect(mockDel).toHaveBeenCalledWith('/api/admin/clinics/clinic-1')
-    })
-
-    it('returns true on success', async () => {
-      mockDel.mockResolvedValueOnce(undefined)
-      const { useAdmin } = await import('./useAdmin')
-      const result = await useAdmin().deleteAdminClinic('clinic-1')
-      expect(result).toBe(true)
+      await useAdmin().verifyClinic(1)
+      expect(updateSpy).toHaveBeenCalledWith(1, { is_verified: true })
     })
 
     it('returns false for invalid id', async () => {
       const { useAdmin } = await import('./useAdmin')
-      const { deleteAdminClinic, error } = useAdmin()
-      const result = await deleteAdminClinic('')
-      expect(result).toBe(false)
-      expect(error.value).toBe('ID de clínica inválido.')
-    })
-
-    it('returns false on API failure', async () => {
-      mockDel.mockRejectedValueOnce(new Error('fail'))
-      const { useAdmin } = await import('./useAdmin')
-      const result = await useAdmin().deleteAdminClinic('clinic-1')
-      expect(result).toBe(false)
+      expect(await useAdmin().verifyClinic(0)).toBe(false)
     })
   })
 
-  // ── fetchTransactions ───────────────────────────────────────
+  describe('activateClinic()', () => {
+    it('calls PATCH /api/admin/clinics/:id/activate', async () => {
+      mockPatch.mockResolvedValueOnce({ message: 'ok' })
+      const { useAdmin } = await import('./useAdmin')
+      await useAdmin().activateClinic(1)
+      expect(mockPatch).toHaveBeenCalledWith('/api/admin/clinics/1/activate', {})
+    })
+
+    it('updates store with is_active: true', async () => {
+      mockPatch.mockResolvedValueOnce({ message: 'ok' })
+      adminStore.setAdminClinics([makeClinic({ id: 1, is_active: false })], 1)
+      const updateSpy = vi.spyOn(adminStore, 'updateAdminClinic')
+      const { useAdmin } = await import('./useAdmin')
+      await useAdmin().activateClinic(1)
+      expect(updateSpy).toHaveBeenCalledWith(1, { is_active: true })
+    })
+  })
+
+  describe('deactivateClinic()', () => {
+    it('calls PATCH /api/admin/clinics/:id/deactivate', async () => {
+      mockPatch.mockResolvedValueOnce({ message: 'ok' })
+      const { useAdmin } = await import('./useAdmin')
+      await useAdmin().deactivateClinic(1)
+      expect(mockPatch).toHaveBeenCalledWith('/api/admin/clinics/1/deactivate', {})
+    })
+
+    it('updates store with is_active: false', async () => {
+      mockPatch.mockResolvedValueOnce({ message: 'ok' })
+      adminStore.setAdminClinics([clinicA], 1)
+      const updateSpy = vi.spyOn(adminStore, 'updateAdminClinic')
+      const { useAdmin } = await import('./useAdmin')
+      await useAdmin().deactivateClinic(1)
+      expect(updateSpy).toHaveBeenCalledWith(1, { is_active: false })
+    })
+  })
+
+  describe('setClinicPlan()', () => {
+    it('calls PATCH /api/admin/clinics/:id/plan with plan body', async () => {
+      mockPatch.mockResolvedValueOnce({ message: 'ok' })
+      const { useAdmin } = await import('./useAdmin')
+      await useAdmin().setClinicPlan(1, 'pro')
+      expect(mockPatch).toHaveBeenCalledWith('/api/admin/clinics/1/plan', { plan: 'pro' })
+    })
+
+    it('updates store with new plan', async () => {
+      mockPatch.mockResolvedValueOnce({ message: 'ok' })
+      adminStore.setAdminClinics([clinicA], 1)
+      const updateSpy = vi.spyOn(adminStore, 'updateAdminClinic')
+      const { useAdmin } = await import('./useAdmin')
+      await useAdmin().setClinicPlan(1, 'pro')
+      expect(updateSpy).toHaveBeenCalledWith(1, { plan: 'pro' })
+    })
+
+    it('returns false for invalid id', async () => {
+      const { useAdmin } = await import('./useAdmin')
+      expect(await useAdmin().setClinicPlan(0, 'pro')).toBe(false)
+    })
+
+    it('returns false on API failure', async () => {
+      mockPatch.mockRejectedValueOnce(new Error('fail'))
+      const { useAdmin } = await import('./useAdmin')
+      expect(await useAdmin().setClinicPlan(1, 'pro')).toBe(false)
+    })
+  })
+
+  // ── fetchTransactions ─────────────────────────────────────
 
   describe('fetchTransactions()', () => {
     it('calls GET /api/admin/transactions when no filters are provided', async () => {
-      mockGet.mockResolvedValueOnce([txA])
+      mockGet.mockResolvedValueOnce({ transactions: [txA], total: 1 })
       const { useAdmin } = await import('./useAdmin')
       await useAdmin().fetchTransactions()
       expect(mockGet).toHaveBeenCalledWith('/api/admin/transactions')
     })
 
-    it('appends page and per_page to query string', async () => {
-      mockGet.mockResolvedValueOnce([])
+    it('appends page and limit to query string', async () => {
+      mockGet.mockResolvedValueOnce({ transactions: [], total: 0 })
       const { useAdmin } = await import('./useAdmin')
-      await useAdmin().fetchTransactions({ page: 3, per_page: 10 })
-      expect(mockGet).toHaveBeenCalledWith('/api/admin/transactions?page=3&per_page=10')
+      await useAdmin().fetchTransactions({ page: 3, limit: 10 })
+      expect(mockGet).toHaveBeenCalledWith('/api/admin/transactions?page=3&limit=10')
     })
 
-    it('hydrates the store from a plain array response', async () => {
-      mockGet.mockResolvedValueOnce([txA])
-      const setSpy = vi.spyOn(adminStore, 'setTransactions')
+    it('appends status filter', async () => {
+      mockGet.mockResolvedValueOnce({ transactions: [], total: 0 })
       const { useAdmin } = await import('./useAdmin')
-      await useAdmin().fetchTransactions()
-      expect(setSpy).toHaveBeenCalledWith([txA], 1)
+      await useAdmin().fetchTransactions({ status: 'approved' })
+      expect(mockGet).toHaveBeenCalledWith('/api/admin/transactions?status=approved')
     })
 
-    it('hydrates the store from a { transactions, total } envelope', async () => {
-      mockGet.mockResolvedValueOnce({ transactions: [txA], total: 99, page: 1, per_page: 20 })
+    it('hydrates the store from response', async () => {
+      mockGet.mockResolvedValueOnce({ transactions: [txA], total: 99 })
       const setSpy = vi.spyOn(adminStore, 'setTransactions')
       const { useAdmin } = await import('./useAdmin')
       await useAdmin().fetchTransactions()
@@ -768,38 +731,79 @@ describe('useAdmin', () => {
     })
   })
 
-  // ── error extraction ────────────────────────────────────────
+  // ── fetchDonations ────────────────────────────────────────
+
+  describe('fetchDonations()', () => {
+    it('calls GET /api/admin/donations when no filters are provided', async () => {
+      mockGet.mockResolvedValueOnce({ donations: [donA], total: 1 })
+      const { useAdmin } = await import('./useAdmin')
+      await useAdmin().fetchDonations()
+      expect(mockGet).toHaveBeenCalledWith('/api/admin/donations')
+    })
+
+    it('appends shelter_id filter', async () => {
+      mockGet.mockResolvedValueOnce({ donations: [], total: 0 })
+      const { useAdmin } = await import('./useAdmin')
+      await useAdmin().fetchDonations({ shelter_id: 5 })
+      expect(mockGet).toHaveBeenCalledWith('/api/admin/donations?shelter_id=5')
+    })
+
+    it('appends date range filters', async () => {
+      mockGet.mockResolvedValueOnce({ donations: [], total: 0 })
+      const { useAdmin } = await import('./useAdmin')
+      await useAdmin().fetchDonations({ from: '2024-01-01', to: '2024-12-31' })
+      expect(mockGet).toHaveBeenCalledWith('/api/admin/donations?from=2024-01-01&to=2024-12-31')
+    })
+
+    it('hydrates the store from response', async () => {
+      mockGet.mockResolvedValueOnce({ donations: [donA], total: 10 })
+      const setSpy = vi.spyOn(adminStore, 'setDonations')
+      const { useAdmin } = await import('./useAdmin')
+      await useAdmin().fetchDonations()
+      expect(setSpy).toHaveBeenCalledWith([donA], 10)
+    })
+
+    it('sets error on API failure', async () => {
+      mockGet.mockRejectedValueOnce({ message: 'fail' })
+      const { useAdmin } = await import('./useAdmin')
+      const { fetchDonations, error } = useAdmin()
+      await fetchDonations()
+      expect(error.value).toBe('fail')
+    })
+  })
+
+  // ── error extraction ──────────────────────────────────────
 
   describe('error extraction from API errors', () => {
     it('extracts err.data.error string', async () => {
       mockGet.mockRejectedValueOnce({ data: { error: 'Forbidden resource' } })
       const { useAdmin } = await import('./useAdmin')
-      const { fetchStats, error } = useAdmin()
-      await fetchStats()
+      const { fetchUsers, error } = useAdmin()
+      await fetchUsers()
       expect(error.value).toBe('Forbidden resource')
     })
 
     it('extracts err.data string when it is a plain string', async () => {
       mockGet.mockRejectedValueOnce({ data: 'Access denied' })
       const { useAdmin } = await import('./useAdmin')
-      const { fetchStats, error } = useAdmin()
-      await fetchStats()
+      const { fetchUsers, error } = useAdmin()
+      await fetchUsers()
       expect(error.value).toBe('Access denied')
     })
 
     it('extracts err.message when no err.data is present', async () => {
       mockGet.mockRejectedValueOnce({ message: 'Network timeout' })
       const { useAdmin } = await import('./useAdmin')
-      const { fetchStats, error } = useAdmin()
-      await fetchStats()
+      const { fetchUsers, error } = useAdmin()
+      await fetchUsers()
       expect(error.value).toBe('Network timeout')
     })
 
     it('falls back to generic message for unknown error shape', async () => {
       mockGet.mockRejectedValueOnce('plain string error')
       const { useAdmin } = await import('./useAdmin')
-      const { fetchStats, error } = useAdmin()
-      await fetchStats()
+      const { fetchUsers, error } = useAdmin()
+      await fetchUsers()
       expect(error.value).toBe('Ocurrió un error inesperado. Intenta de nuevo.')
     })
   })
