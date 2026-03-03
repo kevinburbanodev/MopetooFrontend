@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import type { User, AuthShelter, AuthStore as AuthStoreType, AuthClinic } from '../../auth/types'
+
 const route = useRoute()
 const authStore = useAuthStore()
 
@@ -12,7 +14,6 @@ const publicLinks = computed(() => {
     ]
   }
   return [
-    { label: 'Inicio', to: '/' },
     { label: 'Blog', to: '/blog' },
     { label: 'Adopciones', to: '/shelter' },
     { label: 'Refugios', to: '/shelters' },
@@ -46,6 +47,45 @@ const authLinks = computed(() => {
       ]
   }
 })
+
+// ── Profile dropdown helpers ──────────────────────────────────
+function isSafeImageUrl(url: string | undefined | null): boolean {
+  if (!url) return false
+  try {
+    const parsed = new URL(url)
+    return parsed.protocol === 'https:' || parsed.protocol === 'http:'
+  }
+  catch { return false }
+}
+
+const avatarUrl = computed(() => {
+  const e = authStore.currentEntity
+  if (!e) return null
+  let url: string | undefined
+  if (authStore.isUser) url = (e as User).profile_picture_url
+  else if (authStore.isShelter) url = (e as AuthShelter).logo_url
+  else if (authStore.isStore) url = (e as AuthStoreType).logo_url
+  else if (authStore.isClinic) url = (e as AuthClinic).cover_image_url
+  return isSafeImageUrl(url) ? url! : null
+})
+
+const displayName = computed(() => {
+  const e = authStore.currentEntity
+  if (!e) return ''
+  if (authStore.isUser) return (e as User).name
+  if (authStore.isShelter) return (e as AuthShelter).organization_name
+  if (authStore.isStore) return (e as AuthStoreType).name
+  if (authStore.isClinic) return (e as AuthClinic).name
+  return ''
+})
+
+const displayEmail = computed(() => {
+  const e = authStore.currentEntity
+  if (!e) return ''
+  return (e as { email: string }).email
+})
+
+const avatarInitial = computed(() => displayName.value.charAt(0).toUpperCase() || '?')
 
 function isActive(path: string): boolean {
   // Exact match for root, prefix match for nested routes
@@ -87,19 +127,7 @@ function logout(): void {
       <!-- Links -->
       <div id="navbarMain" class="collapse navbar-collapse">
         <ul class="navbar-nav me-auto mb-2 mb-lg-0">
-          <!-- Public links -->
-          <li v-for="link in publicLinks" :key="link.to" class="nav-item">
-            <NuxtLink
-              class="nav-link"
-              :class="{ active: isActive(link.to) }"
-              :aria-current="isActive(link.to) ? 'page' : undefined"
-              :to="link.to"
-            >
-              {{ link.label }}
-            </NuxtLink>
-          </li>
-
-          <!-- Authenticated links -->
+          <!-- Authenticated links first (Dashboard, etc.) -->
           <template v-if="authStore.isAuthenticated">
             <li v-for="link in authLinks" :key="link.to" class="nav-item">
               <NuxtLink
@@ -112,12 +140,24 @@ function logout(): void {
               </NuxtLink>
             </li>
           </template>
+
+          <!-- Public links -->
+          <li v-for="link in publicLinks" :key="link.to" class="nav-item">
+            <NuxtLink
+              class="nav-link"
+              :class="{ active: isActive(link.to) }"
+              :aria-current="isActive(link.to) ? 'page' : undefined"
+              :to="link.to"
+            >
+              {{ link.label }}
+            </NuxtLink>
+          </li>
         </ul>
 
         <!-- Auth actions -->
         <div class="d-flex align-items-center gap-2">
           <template v-if="authStore.isAuthenticated">
-            <!-- Admin panel link — only for admin users -->
+            <!-- Admin panel link — outside dropdown, primary action for admins -->
             <NuxtLink
               v-if="authStore.isAdmin"
               to="/admin"
@@ -128,39 +168,65 @@ function logout(): void {
               ⚙️ Admin
             </NuxtLink>
 
-            <!-- PRO status indicator — shown for users, stores, clinics -->
-            <template v-if="authStore.isUser || authStore.isStore || authStore.isClinic">
-              <NuxtLink
-                v-if="!authStore.isPro"
-                to="/pricing"
-                class="btn btn-warning btn-sm fw-bold"
-                aria-label="Hazte PRO en Mopetoo"
+            <!-- Profile dropdown -->
+            <div class="dropdown">
+              <button
+                class="btn btn-link p-0 d-flex align-items-center gap-2 dropdown-toggle navbar-profile-toggle"
+                type="button"
+                data-bs-toggle="dropdown"
+                aria-expanded="false"
+                aria-label="Menú de perfil"
               >
-                Hazte PRO
-              </NuxtLink>
-              <span
-                v-else
-                class="badge bg-warning text-dark fw-bold"
-                aria-label="Tu cuenta tiene plan PRO activo"
-              >
-                PRO ✓
-              </span>
-            </template>
+                <img
+                  v-if="avatarUrl"
+                  :src="avatarUrl"
+                  :alt="displayName"
+                  class="navbar-avatar"
+                />
+                <span v-else class="navbar-avatar-fallback" aria-hidden="true">
+                  {{ avatarInitial }}
+                </span>
+              </button>
 
-            <NuxtLink
-              to="/dashboard/profile"
-              class="btn btn-outline-light btn-sm"
-              :class="{ active: isActive('/dashboard/profile') }"
-            >
-              Mi perfil
-            </NuxtLink>
-            <button
-              type="button"
-              class="btn btn-light btn-sm text-primary fw-semibold"
-              @click="logout"
-            >
-              Cerrar sesión
-            </button>
+              <ul class="dropdown-menu dropdown-menu-end shadow-sm">
+                <!-- User name/email header -->
+                <li class="px-3 py-2">
+                  <div class="fw-semibold text-truncate" style="max-width: 200px;">{{ displayName }}</div>
+                  <small class="text-muted text-truncate d-block" style="max-width: 200px;">{{ displayEmail }}</small>
+                </li>
+                <li><hr class="dropdown-divider" /></li>
+
+                <!-- PRO status — shown for users, stores, clinics -->
+                <template v-if="authStore.isUser || authStore.isStore || authStore.isClinic">
+                  <li v-if="!authStore.isPro">
+                    <NuxtLink to="/pricing" class="dropdown-item">
+                      <span class="me-2" aria-hidden="true">⭐</span>Hazte PRO
+                    </NuxtLink>
+                  </li>
+                  <li v-else class="px-3 py-1">
+                    <span class="badge bg-warning text-dark fw-bold" aria-label="Tu cuenta tiene plan PRO activo">
+                      PRO ✓
+                    </span>
+                  </li>
+                </template>
+
+                <!-- Mi perfil -->
+                <li>
+                  <NuxtLink to="/dashboard/profile" class="dropdown-item">
+                    <span class="me-2" aria-hidden="true">👤</span>Mi perfil
+                  </NuxtLink>
+                </li>
+
+                <li><hr class="dropdown-divider" /></li>
+
+                <!-- Cerrar sesión -->
+                <li>
+                  <button type="button" class="dropdown-item text-danger" @click="logout">
+                    <span class="me-2" aria-hidden="true">🚪</span>Cerrar sesión
+                  </button>
+                </li>
+              </ul>
+            </div>
           </template>
           <template v-else>
             <NuxtLink to="/login" class="btn navbar-btn--login btn-sm">
@@ -262,5 +328,38 @@ function logout(): void {
   font-family: 'Fraunces', Georgia, serif;
   font-size: 1.25rem;
   letter-spacing: -0.01em;
+}
+
+/* ── Profile dropdown ────────────────────────────────────────── */
+.navbar-profile-toggle {
+  text-decoration: none;
+}
+
+.navbar-profile-toggle::after {
+  /* Override Bootstrap dropdown caret color for dark navbar */
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.navbar-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid rgba(255, 255, 255, 0.6);
+}
+
+.navbar-avatar-fallback {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: #4caf82;
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.85rem;
+  border: 2px solid rgba(255, 255, 255, 0.6);
+  line-height: 1;
 }
 </style>

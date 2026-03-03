@@ -25,7 +25,7 @@ npm run test:coverage    # Single run with coverage report
 - Reminders feature slice (RF-200–RF-209): 228 tests (store 53, useReminders 57, ReminderCard 25, ReminderList 38, ReminderForm 55) ✅ — IDs normalized to string
 - Medical feature slice (RF-300–RF-309): 273 tests (store 44, useMedical 65, MedicalRecordCard 38, MedicalHistory 31, MedicalRecordForm 86) ✅
 - Export/PDF slice (RF-400–RF-409): 25 tests (useExportPDF 25) ✅ — maintenance header detection added; exportProfilePDF tests in usePets, exportRemindersPDF tests in useReminders
-- Shelters slice (RF-500–RF-509): 157 tests (store 35, useShelters 35, ShelterList 22, AdoptionPetCard 25, AdoptionDetail 40) ✅
+- Shelters slice (RF-500–RF-509): 157 tests (store 35, useShelters 35, ShelterList 22, AdoptionPetCard 25, AdoptionDetail 40) ✅ — shelter name links to /shelters/:id in AdoptionDetail, WhatsApp buttons on phone numbers, Google Maps iframe in ShelterDetail (address field), "Inicio" removed from authenticated navbar
 - Blog slice (RF-600–RF-609): 147 tests (store 34, useBlog 26, BlogCategoryFilter 20, BlogCard 16, BlogList 27, BlogArticle 24) ✅ — synced with backend model.BlogPost
 - Petshops slice (RF-700–RF-709): 203 tests (store 49, usePetshops 45, PetshopCard 29, PetshopList 38, PetshopDetail 42) ✅ — getPremiumPetshops filters plan === 'featured'; plan typed as union
 - Pro/Monetización slice (RF-800–RF-809): 157 tests (store 24, usePro 38, ProBanner 23, PricingTable 16, ProUpgradeModal 19, DonationForm 37) ✅ — donate(shelterId: number); SubscribeRequest removed
@@ -44,7 +44,7 @@ Each domain feature is self-contained under `app/features/<feature>/`:
 
 ```
 app/features/
-├── shared/          # Cross-feature kernel (useApi, useExportPDF, AppNavbar, api.types)
+├── shared/          # Cross-feature kernel (useApi, useExportPDF, useLocations, AppNavbar, SearchableSelect, api.types)
 ├── home/            # Landing page slice
 ├── auth/            # Login, register, password reset
 ├── pets/            # Pet profile CRUD
@@ -78,7 +78,11 @@ Nuxt is configured to auto-import:
 - **Composables**: `features/*/composables` and `features/shared/composables`
 - **Stores**: `features/*/stores`
 
-This means `useApi()`, `useAuth()`, `useAuthStore()`, etc. are available in any `.vue` file or composable without importing.
+This means `useApi()`, `useAuth()`, `useAuthStore()`, `useLocations()`, `SearchableSelect`, etc. are available in any `.vue` file or composable without importing.
+
+**Shared composable `useLocations()`:** fetches `GET /countries` and `GET /countries/:id/cities` from the public API. Returns `countries`, `cities` refs, loading states, `fetchCountries()`, `fetchCitiesByCountry(id)`, `clearCities()`. Countries are cached (only fetched once). Used by all 5 registration/profile forms and the adoption listings filter.
+
+**Shared component `SearchableSelect`:** accessible dropdown with text search (accent-insensitive via NFD normalization), keyboard navigation (Arrow/Enter/Escape), click-outside-to-close. Props: `modelValue`, `options: {value, label}[]`, `placeholder?`, `disabled?`, `loading?`, `inputId?`, `isInvalid?`. Uses Bootstrap 5 classes. Replaces plain `<input type="text">` for country/city fields across all registration forms.
 
 ### State Management (Pinia)
 
@@ -108,7 +112,7 @@ Token is persisted to `localStorage` under key `mopetoo_token`. The auth store e
 `useApi()` (from `features/shared/composables/useApi.ts`) is the single HTTP wrapper. It reads the JWT from `localStorage` and prepends `runtimeConfig.public.apiBase` to every request. For multipart uploads (pet photos), `usePets.ts` calls `$fetch` directly with `FormData`.
 
 **Backend API** (Go + Gin):
-- Public endpoints: `POST /users`, `POST /login`, `POST /forgot-password`, `POST /reset-password`
+- Public endpoints: `POST /users`, `POST /login`, `POST /forgot-password`, `POST /reset-password`, `GET /countries`, `GET /countries/:id/cities`, `GET /adoption-listings` (supports `?country=` filter)
 - Protected endpoints: all under `/api/*` — require `Authorization: Bearer <token>`
 - Pet create/update uses `multipart/form-data` (photo field)
 

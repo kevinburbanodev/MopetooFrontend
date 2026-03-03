@@ -268,9 +268,9 @@ describe('ShelterDetail', () => {
         props: { shelterId: '1' },
         global: { stubs: { NuxtLink: true, AdoptionPetCard: true } },
       })
-      const link = wrapper.find('a[target="_blank"]')
+      const link = wrapper.find('a[href="https://refugio.org"]')
       expect(link.exists()).toBe(true)
-      expect(link.attributes('href')).toBe('https://refugio.org')
+      expect(link.attributes('target')).toBe('_blank')
     })
 
     it('does NOT render the website link when website is a javascript: URI', async () => {
@@ -279,7 +279,7 @@ describe('ShelterDetail', () => {
         props: { shelterId: '1' },
         global: { stubs: { NuxtLink: true, AdoptionPetCard: true } },
       })
-      expect(wrapper.find('a[target="_blank"]').exists()).toBe(false)
+      expect(wrapper.find('a[href="javascript:alert(1)"]').exists()).toBe(false)
     })
 
     it('does NOT render the website link when website is undefined', async () => {
@@ -288,7 +288,11 @@ describe('ShelterDetail', () => {
         props: { shelterId: '1' },
         global: { stubs: { NuxtLink: true, AdoptionPetCard: true } },
       })
-      expect(wrapper.find('a[target="_blank"]').exists()).toBe(false)
+      const websiteLinks = wrapper.findAll('a').filter(a => {
+        const href = a.attributes('href') ?? ''
+        return href.startsWith('https://') && !href.startsWith('https://wa.me/')
+      })
+      expect(websiteLinks.length).toBe(0)
     })
   })
 

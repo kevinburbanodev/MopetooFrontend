@@ -17,6 +17,32 @@ const form = reactive<RegisterShelterPayload>({
 const confirmPassword = ref('')
 const submitted = ref(false)
 
+// ── Location dropdowns ───────────────────────────────────
+const {
+  countries, cities, loadingCountries, loadingCities,
+  fetchCountries, fetchCitiesByCountry, clearCities,
+} = useLocations()
+
+const countryOptions = computed(() =>
+  countries.value.map(c => ({ value: c.name, label: c.name })),
+)
+const cityOptions = computed(() =>
+  cities.value.map(c => ({ value: c.name, label: c.name })),
+)
+
+onMounted(() => fetchCountries())
+
+watch(() => form.country, (newCountry) => {
+  form.city = ''
+  clearCities()
+  if (!newCountry) return
+  const country = countries.value.find(c => c.name === newCountry)
+  if (country) {
+    form.phone_country_code = country.phone_code
+    fetchCitiesByCountry(country.id)
+  }
+})
+
 // ── Validation ─────────────────────────────────────────────
 const nameInvalid = computed(() => submitted.value && !form.organization_name.trim())
 const emailInvalid = computed(() => submitted.value && !form.email.trim())
@@ -185,40 +211,35 @@ async function handleSubmit(): Promise<void> {
     <div class="row g-3 mb-3">
       <div class="col-sm-6">
         <label for="register-shelter-country" class="form-label fw-semibold">País</label>
-        <input
-          id="register-shelter-country"
+        <SearchableSelect
           v-model="form.country"
-          type="text"
-          class="form-control"
-          :class="{ 'is-invalid': countryInvalid }"
-          placeholder="Colombia"
-          autocomplete="country-name"
-          aria-describedby="register-shelter-country-error"
+          :options="countryOptions"
+          placeholder="Seleccionar país..."
+          :loading="loadingCountries"
+          :is-invalid="countryInvalid"
+          input-id="register-shelter-country"
         />
         <div
           v-if="countryInvalid"
-          id="register-shelter-country-error"
-          class="invalid-feedback"
+          class="invalid-feedback d-block"
         >
           Ingresa el país.
         </div>
       </div>
       <div class="col-sm-6">
         <label for="register-shelter-city" class="form-label fw-semibold">Ciudad</label>
-        <input
-          id="register-shelter-city"
+        <SearchableSelect
           v-model="form.city"
-          type="text"
-          class="form-control"
-          :class="{ 'is-invalid': cityInvalid }"
-          placeholder="Bogotá"
-          autocomplete="address-level2"
-          aria-describedby="register-shelter-city-error"
+          :options="cityOptions"
+          placeholder="Seleccionar ciudad..."
+          :loading="loadingCities"
+          :disabled="!form.country"
+          :is-invalid="cityInvalid"
+          input-id="register-shelter-city"
         />
         <div
           v-if="cityInvalid"
-          id="register-shelter-city-error"
-          class="invalid-feedback"
+          class="invalid-feedback d-block"
         >
           Ingresa la ciudad.
         </div>

@@ -18,3 +18,18 @@ export interface PaginatedResponse<T> {
   page: number
   limit: number
 }
+
+// ── Location types (countries & cities catalog) ──────────────
+
+export interface Country {
+  id: number
+  name: string
+  code: string
+  phone_code: string
+}
+
+export interface City {
+  id: number
+  country_id: number
+  name: string
+}

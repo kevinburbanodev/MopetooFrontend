@@ -65,6 +65,27 @@ const safeWebsite = computed<string | null>(() =>
   isSafeUrl(shelter.value?.website) ? shelter.value?.website ?? null : null,
 )
 
+/**
+ * WhatsApp URL combining phone_country_code + phone → digits for wa.me.
+ */
+const whatsappUrl = computed<string | null>(() => {
+  const code = shelter.value?.phone_country_code
+  const phone = shelter.value?.phone
+  if (!code || !phone) return null
+  const digits = (code + phone).replace(/[^\d]/g, '')
+  if (digits.length < 4) return null
+  return `https://wa.me/${digits}`
+})
+
+/**
+ * Google Maps embed URL using the shelter address.
+ */
+const mapsEmbedUrl = computed<string | null>(() => {
+  const address = shelter.value?.address
+  if (!address) return null
+  return `https://maps.google.com/maps?q=${encodeURIComponent(address)}&output=embed`
+})
+
 // ── Shelter's adoption listings ──────────────────────────
 
 const shelterListings = computed(() => {
@@ -198,12 +219,24 @@ onUnmounted(() => {
               <p class="text-muted small mb-1 text-uppercase fw-semibold" style="letter-spacing: 0.04em;">
                 Teléfono
               </p>
-              <a
-                :href="`tel:${safePhone}`"
-                class="fw-semibold text-decoration-none text-body"
-              >
-                <span aria-hidden="true">📞</span> {{ safePhone }}
-              </a>
+              <div class="d-flex align-items-center gap-2">
+                <a
+                  :href="`tel:${safePhone}`"
+                  class="fw-semibold text-decoration-none text-body"
+                >
+                  <span aria-hidden="true">📞</span> {{ safePhone }}
+                </a>
+                <a
+                  v-if="whatsappUrl"
+                  :href="whatsappUrl"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="btn btn-success btn-sm"
+                  aria-label="Contactar por WhatsApp"
+                >
+                  WhatsApp
+                </a>
+              </div>
             </div>
 
             <div v-if="safeEmail" class="col-12 col-sm-6">
@@ -231,6 +264,32 @@ onUnmounted(() => {
             >
               <span aria-hidden="true">🌐</span> {{ safeWebsite }}
             </a>
+          </div>
+
+          <!-- Location / Google Maps -->
+          <div v-if="shelter.address" class="mt-4">
+            <h2
+              class="h6 fw-bold text-muted text-uppercase mb-3"
+              style="letter-spacing: 0.05em;"
+            >
+              Ubicación
+            </h2>
+            <p class="mb-2">
+              <span aria-hidden="true">📍</span> {{ shelter.address }}
+            </p>
+            <div class="shelter-detail__map-wrap">
+              <iframe
+                v-if="mapsEmbedUrl"
+                :src="mapsEmbedUrl"
+                width="100%"
+                height="300"
+                style="border: 0; border-radius: var(--bs-border-radius-lg);"
+                allowfullscreen
+                loading="lazy"
+                referrerpolicy="no-referrer-when-downgrade"
+                :title="`Mapa de ${shelter.organization_name}`"
+              />
+            </div>
           </div>
         </div>
       </div>

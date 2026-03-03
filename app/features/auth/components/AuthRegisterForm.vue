@@ -22,6 +22,32 @@ const photoFile = ref<File | null>(null)
 const photoPreviewUrl = ref<string | null>(null)
 const submitted = ref(false)
 
+// ── Location dropdowns ───────────────────────────────────
+const {
+  countries, cities, loadingCountries, loadingCities,
+  fetchCountries, fetchCitiesByCountry, clearCities,
+} = useLocations()
+
+const countryOptions = computed(() =>
+  countries.value.map(c => ({ value: c.name, label: c.name })),
+)
+const cityOptions = computed(() =>
+  cities.value.map(c => ({ value: c.name, label: c.name })),
+)
+
+onMounted(() => fetchCountries())
+
+watch(() => form.country, (newCountry) => {
+  form.city = ''
+  clearCities()
+  if (!newCountry) return
+  const country = countries.value.find(c => c.name === newCountry)
+  if (country) {
+    form.phone_country_code = country.phone_code
+    fetchCitiesByCountry(country.id)
+  }
+})
+
 // ── Validation (user form only) ────────────────────────────
 const nameInvalid = computed(() => submitted.value && !form.name.trim())
 const lastNameInvalid = computed(() => submitted.value && !form.last_name.trim())
@@ -278,40 +304,35 @@ const subtitles: Record<EntityType, string> = {
               <div class="row g-3 mb-3">
                 <div class="col-sm-6">
                   <label for="register-country" class="form-label fw-semibold">País</label>
-                  <input
-                    id="register-country"
+                  <SearchableSelect
                     v-model="form.country"
-                    type="text"
-                    class="form-control"
-                    :class="{ 'is-invalid': countryInvalid }"
-                    placeholder="Colombia"
-                    autocomplete="country-name"
-                    aria-describedby="register-country-error"
+                    :options="countryOptions"
+                    placeholder="Seleccionar país..."
+                    :loading="loadingCountries"
+                    :is-invalid="countryInvalid"
+                    input-id="register-country"
                   />
                   <div
                     v-if="countryInvalid"
-                    id="register-country-error"
-                    class="invalid-feedback"
+                    class="invalid-feedback d-block"
                   >
                     Ingresa tu país.
                   </div>
                 </div>
                 <div class="col-sm-6">
                   <label for="register-city" class="form-label fw-semibold">Ciudad</label>
-                  <input
-                    id="register-city"
+                  <SearchableSelect
                     v-model="form.city"
-                    type="text"
-                    class="form-control"
-                    :class="{ 'is-invalid': cityInvalid }"
-                    placeholder="Bogotá"
-                    autocomplete="address-level2"
-                    aria-describedby="register-city-error"
+                    :options="cityOptions"
+                    placeholder="Seleccionar ciudad..."
+                    :loading="loadingCities"
+                    :disabled="!form.country"
+                    :is-invalid="cityInvalid"
+                    input-id="register-city"
                   />
                   <div
                     v-if="cityInvalid"
-                    id="register-city-error"
-                    class="invalid-feedback"
+                    class="invalid-feedback d-block"
                   >
                     Ingresa tu ciudad.
                   </div>

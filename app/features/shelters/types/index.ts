@@ -21,6 +21,7 @@ export interface Shelter {
   city: string
   phone_country_code: string
   phone: string
+  address?: string
   logo_url?: string
   website?: string
   verified: boolean

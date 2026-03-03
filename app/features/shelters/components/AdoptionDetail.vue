@@ -96,6 +96,18 @@ const safeShelterEmail = computed<string | null>(() => {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : null
 })
 
+/**
+ * WhatsApp URL for the shelter phone.
+ * Strips non-digit chars (except leading +) to build wa.me link.
+ */
+const whatsappShelterUrl = computed<string | null>(() => {
+  const phone = listing.value?.shelter?.phone
+  if (!phone) return null
+  const digits = phone.replace(/[^\d]/g, '')
+  if (digits.length < 4) return null
+  return `https://wa.me/${digits}`
+})
+
 function onImgError(): void {
   imgError.value = true
 }
@@ -288,13 +300,29 @@ onMounted(async () => {
       <!-- ── Shelter info card ──────────────────────────────────── -->
       <div v-if="listing.shelter" class="adoption-detail__shelter-card card border-0 shadow-sm mb-4">
         <div class="card-body p-4">
-          <h5 class="fw-bold mb-2">{{ listing.shelter.name }}</h5>
+          <h5 class="fw-bold mb-2">
+            <NuxtLink :to="`/shelters/${listing.shelter.id}`" class="text-decoration-none text-body">
+              {{ listing.shelter.name }}
+            </NuxtLink>
+          </h5>
           <p v-if="listing.shelter.city" class="text-muted small mb-2">
             <span aria-hidden="true">📍</span> {{ listing.shelter.city }}
           </p>
-          <p v-if="safeShelterPhone" class="mb-2">
-            <span aria-hidden="true">📞</span>
-            <a :href="`tel:${safeShelterPhone}`">{{ safeShelterPhone }}</a>
+          <p v-if="safeShelterPhone" class="mb-2 d-flex align-items-center gap-2">
+            <span>
+              <span aria-hidden="true">📞</span>
+              <a :href="`tel:${safeShelterPhone}`">{{ safeShelterPhone }}</a>
+            </span>
+            <a
+              v-if="whatsappShelterUrl"
+              :href="whatsappShelterUrl"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="btn btn-success btn-sm"
+              aria-label="Contactar por WhatsApp"
+            >
+              WhatsApp
+            </a>
           </p>
           <p v-if="safeShelterEmail" class="mb-0">
             <span aria-hidden="true">✉</span>

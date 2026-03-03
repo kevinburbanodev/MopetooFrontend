@@ -6,6 +6,12 @@
 
 const { fetchAdoptionListings, error, sheltersStore } = useShelters()
 const { toastError } = useToast()
+const authStore = useAuthStore()
+
+const {
+  countries, cities, loadingCities,
+  fetchCountries, fetchCitiesByCountry,
+} = useLocations()
 
 watch(error, (v) => { if (v) toastError(v) })
 
@@ -16,27 +22,23 @@ const selectedCity = ref('')
 
 const SPECIES_OPTIONS = [
   { value: '', label: 'Todas las especies' },
-  { value: 'dog', label: 'Perros' },
-  { value: 'cat', label: 'Gatos' },
-  { value: 'bird', label: 'Aves' },
-  { value: 'rabbit', label: 'Conejos' },
-  { value: 'other', label: 'Otros' },
+  { value: 'perro', label: 'Perros' },
+  { value: 'gato', label: 'Gatos' },
+  { value: 'ave', label: 'Aves' },
+  { value: 'conejo', label: 'Conejos' },
+  { value: 'otro', label: 'Otros' },
 ]
 
-/** Unique cities derived from the current listings for the filter dropdown */
-const cityOptions = computed(() => {
-  const cities = new Set(sheltersStore.adoptionListings.map(l => l.city))
-  return [
-    { value: '', label: 'Todas las ciudades' },
-    ...[...cities].sort().map(c => ({ value: c, label: c })),
-  ]
-})
+/** Cities from the API for the user's country */
+const cityOptions = computed(() =>
+  cities.value.map(c => ({ value: c.name, label: c.name })),
+)
 
 const filteredListings = computed(() => {
   let result = sheltersStore.adoptionListings
 
   if (selectedSpecies.value) {
-    result = result.filter(l => l.species.toLowerCase() === selectedSpecies.value)
+    result = result.filter(l => l.species.trim().toLowerCase() === selectedSpecies.value)
   }
 
   if (selectedCity.value) {
@@ -68,7 +70,22 @@ const hasActiveFilters = computed(() =>
 const SKELETON_COUNT = 6
 
 onMounted(async () => {
-  await fetchAdoptionListings()
+  // Load countries to feed the city filter dropdown
+  await fetchCountries()
+
+  // Determine user's country for server-side filtering
+  const userCountry = authStore.currentEntity?.country ?? ''
+
+  if (userCountry) {
+    const country = countries.value.find(c => c.name === userCountry)
+    if (country) {
+      await fetchCitiesByCountry(country.id)
+    }
+    await fetchAdoptionListings(userCountry)
+  }
+  else {
+    await fetchAdoptionListings()
+  }
 })
 </script>
 
@@ -131,20 +148,13 @@ onMounted(async () => {
           <label for="listing-city" class="form-label small fw-semibold text-muted">
             Ciudad
           </label>
-          <select
-            id="listing-city"
+          <SearchableSelect
             v-model="selectedCity"
-            class="form-select"
-            aria-label="Filtrar por ciudad"
-          >
-            <option
-              v-for="opt in cityOptions"
-              :key="opt.value"
-              :value="opt.value"
-            >
-              {{ opt.label }}
-            </option>
-          </select>
+            :options="cityOptions"
+            placeholder="Todas las ciudades"
+            :loading="loadingCities"
+            input-id="listing-city"
+          />
         </div>
 
         <!-- Clear filters -->

@@ -25,6 +25,44 @@ const pendingPhoto = ref<File | null>(null)
 const submitted = ref(false)
 const saveSuccess = ref(false)
 
+// ── Location dropdowns ───────────────────────────────────
+const {
+  countries, cities, loadingCountries, loadingCities,
+  fetchCountries, fetchCitiesByCountry, clearCities,
+} = useLocations()
+
+const countryOptions = computed(() =>
+  countries.value.map(c => ({ value: c.name, label: c.name })),
+)
+const cityOptions = computed(() =>
+  cities.value.map(c => ({ value: c.name, label: c.name })),
+)
+
+// Pre-populate: load countries, then find user's country and load its cities
+onMounted(async () => {
+  await fetchCountries()
+  if (form.country) {
+    const country = countries.value.find(c => c.name === form.country)
+    if (country) {
+      form.phone_country_code = country.phone_code
+      await fetchCitiesByCountry(country.id)
+    }
+  }
+})
+
+watch(() => form.country, (newCountry, oldCountry) => {
+  // Skip initial watch trigger — onMounted handles pre-population
+  if (!oldCountry && newCountry === user.value?.country) return
+  form.city = ''
+  clearCities()
+  if (!newCountry) return
+  const country = countries.value.find(c => c.name === newCountry)
+  if (country) {
+    form.phone_country_code = country.phone_code
+    fetchCitiesByCountry(country.id)
+  }
+})
+
 // ── Validation ─────────────────────────────────────────────
 const nameInvalid = computed(() => submitted.value && !form.name?.trim())
 const lastNameInvalid = computed(() => submitted.value && !form.last_name?.trim())
@@ -201,22 +239,25 @@ async function handleSubmit(): Promise<void> {
       <div class="row g-3 mb-3">
         <div class="col-sm-6">
           <label for="profile-country" class="form-label fw-semibold">País</label>
-          <input
-            id="profile-country"
-            v-model="form.country"
-            type="text"
-            class="form-control"
-            autocomplete="country-name"
+          <SearchableSelect
+            :model-value="form.country ?? ''"
+            :options="countryOptions"
+            placeholder="Seleccionar país..."
+            :loading="loadingCountries"
+            input-id="profile-country"
+            @update:model-value="form.country = $event"
           />
         </div>
         <div class="col-sm-6">
           <label for="profile-city" class="form-label fw-semibold">Ciudad</label>
-          <input
-            id="profile-city"
-            v-model="form.city"
-            type="text"
-            class="form-control"
-            autocomplete="address-level2"
+          <SearchableSelect
+            :model-value="form.city ?? ''"
+            :options="cityOptions"
+            placeholder="Seleccionar ciudad..."
+            :loading="loadingCities"
+            :disabled="!form.country"
+            input-id="profile-city"
+            @update:model-value="form.city = $event"
           />
         </div>
       </div>

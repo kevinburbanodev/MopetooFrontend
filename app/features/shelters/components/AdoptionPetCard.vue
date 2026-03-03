@@ -43,9 +43,13 @@ const STATUS_CONFIG: Record<
   adopted: { label: 'Adoptado', badgeClass: 'bg-secondary' },
 }
 
+function capitalize(str: string): string {
+  return str.charAt(0).toUpperCase() + str.slice(1)
+}
+
 const speciesEmoji = computed(() => SPECIES_EMOJI[props.listing.species] ?? '🐾')
-const speciesLabel = computed(() => SPECIES_LABEL[props.listing.species] ?? props.listing.species)
-const genderLabel = computed(() => GENDER_LABEL[props.listing.gender] ?? props.listing.gender)
+const speciesLabel = computed(() => SPECIES_LABEL[props.listing.species] ?? capitalize(props.listing.species))
+const genderLabel = computed(() => GENDER_LABEL[props.listing.gender] ?? capitalize(props.listing.gender))
 const statusConfig = computed(() => STATUS_CONFIG[props.listing.status] ?? STATUS_CONFIG.available)
 
 // ── Age display ──────────────────────────────────────────

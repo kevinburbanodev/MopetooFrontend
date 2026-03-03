@@ -191,7 +191,7 @@ describe('AdoptionDetail', () => {
       mockSelectedListing.value = makeAdoptionListing()
       const wrapper = await mountSuspended(AdoptionDetail, {
         props: { listingId: '1' },
-        global: { stubs: { NuxtLink: true } },
+        global: { stubs: { NuxtLink: { template: '<a :href="to"><slot /></a>', props: ['to'] } } },
       })
       expect(wrapper.text()).toContain('Refugio Esperanza')
     })
