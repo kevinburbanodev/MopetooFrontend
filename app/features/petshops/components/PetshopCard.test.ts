@@ -11,7 +11,7 @@
 //     javascript: rejected; absent logo_url shows 🏪 fallback.
 //   - Verified badge (verified) and Plan badge (plan !== '')
 //     conditionally rendered.
-//   - Phone: composed from phone_country_code + phone.
+//   - Phone: composed from country.phone_code + phone.
 //   - WhatsApp: href only when whatsapp_link is safe https/http.
 //   - Email: mailto: href only when safeEmail passes regex.
 //   - Website: href only when https:/http: — javascript: is blocked.
@@ -47,9 +47,10 @@ function makePetshop(overrides: Partial<Petshop> = {}): Petshop {
     email: 'info@mascotasfelices.com',
     description: 'Una tienda completa para mascotas',
     logo_url: 'https://example.com/tienda.jpg',
-    country: 'Colombia',
-    city: 'Bogotá',
-    phone_country_code: '+57',
+    country_id: 1,
+    country: { id: 1, name: 'Colombia', code: 'CO', phone_code: '+57' },
+    city_id: 1,
+    city: { id: 1, name: 'Bogotá', country_id: 1 },
     phone: '300 123 4567',
     whatsapp_link: 'https://wa.me/573001234567',
     website: 'https://mascotasfelices.com',
@@ -237,7 +238,7 @@ describe('PetshopCard', () => {
 
   describe('contact links', () => {
     it('renders the phone link with tel: href using composed phone', async () => {
-      const petshop = makePetshop({ phone_country_code: '+57', phone: '300 123 4567' })
+      const petshop = makePetshop({ phone: '300 123 4567' })
       const wrapper = await mountSuspended(PetshopCard, {
         props: { petshop },
         global: { stubs: { NuxtLink: true } },

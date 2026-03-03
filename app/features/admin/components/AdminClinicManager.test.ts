@@ -34,7 +34,10 @@ function makeClinic(overrides: Partial<AdminClinic> = {}): AdminClinic {
   return {
     id: 1,
     name: 'Clínica Vet Norte',
-    city: 'Cali',
+    country_id: 1,
+    country: { id: 1, name: 'Colombia', code: 'CO', phone_code: '+57' },
+    city_id: 1,
+    city: { id: 1, name: 'Cali', country_id: 1 },
     email: 'info@clinica.com',
     is_verified: false,
     is_active: true,
@@ -145,7 +148,7 @@ describe('AdminClinicManager', () => {
   describe('clinic rows', () => {
     beforeEach(() => {
       mockAdminStore.clinics = [
-        makeClinic({ id: 1, name: 'Clínica Norte', city: 'Bogotá', is_verified: true, is_active: true }),
+        makeClinic({ id: 1, name: 'Clínica Norte', city_id: 2, city: { id: 2, name: 'Bogotá', country_id: 1 }, is_verified: true, is_active: true }),
       ]
       mockAdminStore.totalClinics = 1
     })

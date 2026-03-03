@@ -199,7 +199,7 @@ onMounted(async () => {
               <tr v-for="user in adminStore.users" :key="user.id">
                 <td class="fw-semibold">{{ user.name }} {{ user.last_name }}</td>
                 <td class="text-muted small">{{ user.email }}</td>
-                <td class="text-muted small">{{ user.city }}</td>
+                <td class="text-muted small">{{ user.city?.name }}</td>
                 <td class="text-center">
                   <span
                     v-if="user.is_pro"

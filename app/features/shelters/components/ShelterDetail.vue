@@ -66,10 +66,10 @@ const safeWebsite = computed<string | null>(() =>
 )
 
 /**
- * WhatsApp URL combining phone_country_code + phone → digits for wa.me.
+ * WhatsApp URL combining country.phone_code + phone → digits for wa.me.
  */
 const whatsappUrl = computed<string | null>(() => {
-  const code = shelter.value?.phone_country_code
+  const code = shelter.value?.country?.phone_code
   const phone = shelter.value?.phone
   if (!code || !phone) return null
   const digits = (code + phone).replace(/[^\d]/g, '')
@@ -191,7 +191,7 @@ onUnmounted(() => {
               </div>
               <p class="text-muted mb-0">
                 <span aria-hidden="true">📍</span>
-                {{ shelter.city }}, {{ shelter.country }}
+                {{ shelter.city?.name }}, {{ shelter.country?.name }}
               </p>
             </div>
           </div>

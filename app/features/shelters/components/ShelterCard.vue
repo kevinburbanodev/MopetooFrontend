@@ -89,7 +89,7 @@ const descriptionExcerpt = computed(() => {
       <!-- City + country -->
       <p class="text-muted small mb-0 shelter-card__location">
         <span aria-hidden="true">📍</span>
-        {{ shelter.city }}, {{ shelter.country }}
+        {{ shelter.city?.name }}, {{ shelter.country?.name }}
       </p>
 
       <!-- Description excerpt -->

@@ -30,10 +30,10 @@ function makeAdoptionListing(overrides: Partial<AdoptionListing> = {}): Adoption
     gender: 'male',
     photo_url: 'https://example.com/max.jpg',
     story: 'Un perro muy cariñoso',
-    city: 'Bogotá',
-    country: 'Colombia',
+    city_id: 1,
+    country_id: 1,
     status: 'available',
-    shelter: { id: 1, name: 'Refugio Esperanza', city: 'Bogotá', email: 'contacto@refugio.com', phone: '+57 300 1234567' },
+    shelter: { id: 1, name: 'Refugio Esperanza', city_id: 1, email: 'contacto@refugio.com', phone: '+57 300 1234567' },
     created_at: '2024-01-01T00:00:00Z',
     updated_at: '2024-01-01T00:00:00Z',
     ...overrides,
@@ -49,9 +49,10 @@ const shelterA: Shelter = {
   organization_name: 'Refugio Esperanza',
   email: 'contacto@refugio.com',
   description: 'Un refugio de prueba',
-  country: 'Colombia',
-  city: 'Bogotá',
-  phone_country_code: '+57',
+  country_id: 1,
+  country: { id: 1, name: 'Colombia', code: 'CO', phone_code: '+57' },
+  city_id: 1,
+  city: { id: 1, name: 'Bogotá', country_id: 1 },
   phone: '3001234567',
   verified: true,
   is_active: true,
@@ -262,7 +263,7 @@ describe('useSheltersStore', () => {
       store.setSelectedListing(listingA)
       expect(store.selectedListing?.name).toBe('Max')
       expect(store.selectedListing?.status).toBe('available')
-      expect(store.selectedListing?.city).toBe('Bogotá')
+      expect(store.selectedListing?.city_id).toBe(1)
     })
   })
 

@@ -143,7 +143,7 @@ onMounted(async () => {
             <template v-else-if="adminStore.shelters.length > 0">
               <tr v-for="shelter in adminStore.shelters" :key="shelter.id">
                 <td class="fw-semibold">{{ shelter.name }}</td>
-                <td class="text-muted small">{{ shelter.city }}</td>
+                <td class="text-muted small">{{ shelter.city?.name }}</td>
                 <td class="text-muted small">
                   <div v-if="shelter.email">{{ shelter.email }}</div>
                   <div v-if="shelter.phone">{{ shelter.phone }}</div>

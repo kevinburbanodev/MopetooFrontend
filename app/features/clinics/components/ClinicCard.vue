@@ -155,7 +155,7 @@ const hiddenSpecialtyCount = computed(() =>
       <!-- City + country -->
       <p class="text-muted small mb-0 clinic-card__location">
         <span aria-hidden="true">📍</span>
-        {{ clinic.city }}, {{ clinic.country }}
+        {{ clinic.city?.name }}, {{ clinic.country?.name }}
       </p>
 
       <!-- Specialty chips — max 3 + overflow badge -->

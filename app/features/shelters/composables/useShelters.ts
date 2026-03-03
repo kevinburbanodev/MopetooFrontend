@@ -27,12 +27,12 @@ export function useShelters() {
    * Fetch all adoption listings (public endpoint, with shelter embedded).
    * Handles both `{ adoption_listings: AdoptionListing[] }` and bare array shapes.
    */
-  async function fetchAdoptionListings(country?: string): Promise<void> {
+  async function fetchAdoptionListings(countryId?: number): Promise<void> {
     sheltersStore.setLoading(true)
     error.value = null
     try {
-      const path = country
-        ? `/adoption-listings?country=${encodeURIComponent(country)}`
+      const path = countryId
+        ? `/adoption-listings?country_id=${countryId}`
         : '/adoption-listings'
       const response = await get<{ adoption_listings?: AdoptionListing[] } | AdoptionListing[]>(
         path,

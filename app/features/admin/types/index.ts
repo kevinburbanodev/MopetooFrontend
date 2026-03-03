@@ -4,6 +4,8 @@
 // RF-1000 to RF-1009
 // ============================================================
 
+import type { Country, City } from '../../shared/types/api.types'
+
 // ── Users ──────────────────────────────────────────────────
 
 /** Admin view of a registered user. */
@@ -12,8 +14,10 @@ export interface AdminUser {
   name: string
   last_name: string
   email: string
-  country: string
-  city: string
+  country_id: number
+  country?: Country
+  city_id: number
+  city?: City
   phone?: string
   profile_picture_url?: string
   is_pro: boolean
@@ -28,7 +32,7 @@ export interface AdminUserFilters {
   search?: string
   plan?: string
   active?: boolean
-  country?: string
+  country_id?: number
   page?: number
   limit?: number
 }
@@ -46,8 +50,10 @@ export interface AdminUsersResponse {
 export interface AdminShelter {
   id: number
   name: string
-  city: string
-  country?: string
+  country_id: number
+  country?: Country
+  city_id: number
+  city?: City
   email?: string
   phone?: string
   is_verified: boolean
@@ -69,7 +75,10 @@ export interface AdminSheltersResponse {
 export interface AdminPetshop {
   id: number
   name: string
-  city: string
+  country_id: number
+  country?: Country
+  city_id: number
+  city?: City
   email?: string
   phone?: string
   is_active: boolean
@@ -90,7 +99,10 @@ export interface AdminPetshopsResponse {
 export interface AdminClinic {
   id: number
   name: string
-  city: string
+  country_id: number
+  country?: Country
+  city_id: number
+  city?: City
   email?: string
   phone?: string
   is_verified: boolean

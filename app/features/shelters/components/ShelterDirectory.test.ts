@@ -21,9 +21,10 @@ function makeShelter(overrides: Partial<Shelter> = {}): Shelter {
     organization_name: 'Refugio Esperanza',
     email: 'contacto@refugio.com',
     description: 'Un refugio dedicado a rescatar animales.',
-    country: 'Colombia',
-    city: 'Bogotá',
-    phone_country_code: '+57',
+    country_id: 1,
+    country: { id: 1, name: 'Colombia', code: 'CO', phone_code: '+57' },
+    city_id: 1,
+    city: { id: 1, name: 'Bogotá', country_id: 1 },
     phone: '3001234567',
     logo_url: 'https://example.com/logo.jpg',
     verified: true,
@@ -34,9 +35,9 @@ function makeShelter(overrides: Partial<Shelter> = {}): Shelter {
   }
 }
 
-const shelterA = makeShelter({ id: 1, organization_name: 'Refugio Esperanza', city: 'Bogotá' })
-const shelterB = makeShelter({ id: 2, organization_name: 'Patitas Felices', city: 'Medellín', description: 'Salvamos gatitos' })
-const shelterC = makeShelter({ id: 3, organization_name: 'Hogar Animal', city: 'Cali' })
+const shelterA = makeShelter({ id: 1, organization_name: 'Refugio Esperanza', city_id: 1, city: { id: 1, name: 'Bogotá', country_id: 1 } })
+const shelterB = makeShelter({ id: 2, organization_name: 'Patitas Felices', city_id: 2, city: { id: 2, name: 'Medellín', country_id: 1 }, description: 'Salvamos gatitos' })
+const shelterC = makeShelter({ id: 3, organization_name: 'Hogar Animal', city_id: 3, city: { id: 3, name: 'Cali', country_id: 1 } })
 
 // ── useShelters mock ──────────────────────────────────────────
 

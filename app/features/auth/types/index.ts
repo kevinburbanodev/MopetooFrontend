@@ -3,6 +3,8 @@
 // Aligned with Mopetoo backend API (Go + Gin)
 // ============================================================
 
+import type { Country, City } from '../../shared/types/api.types'
+
 // ── Entity type discriminator ──────────────────────────────
 export type EntityType = 'user' | 'shelter' | 'store' | 'clinic'
 
@@ -12,9 +14,10 @@ export interface User {
   name: string
   last_name: string
   email: string
-  country: string
-  city: string
-  phone_country_code: string
+  country_id: number
+  country?: Country
+  city_id: number
+  city?: City
   phone: string
   profile_picture_url?: string
   birth_date?: string
@@ -30,9 +33,10 @@ export interface AuthShelter {
   organization_name: string
   email: string
   description: string
-  country: string
-  city: string
-  phone_country_code: string
+  country_id: number
+  country?: Country
+  city_id: number
+  city?: City
   phone: string
   logo_url?: string
   website?: string
@@ -49,9 +53,10 @@ export interface AuthStore {
   email: string
   description?: string
   logo_url?: string
-  country: string
-  city: string
-  phone_country_code: string
+  country_id: number
+  country?: Country
+  city_id: number
+  city?: City
   phone: string
   whatsapp_link?: string
   website?: string
@@ -67,11 +72,12 @@ export interface AuthClinic {
   id: number
   name: string
   email: string
-  phone_country_code: string
   phone: string
   address?: string
-  city: string
-  country: string
+  country_id: number
+  country?: Country
+  city_id: number
+  city?: City
   description?: string
   specialties: string[]
   services: string[]
@@ -120,9 +126,8 @@ export interface RegisterPayload {
   last_name: string
   email: string
   password: string
-  country: string
-  city: string
-  phone_country_code: string
+  country_id: number
+  city_id: number
   phone: string
   birth_date?: string
 }
@@ -132,9 +137,8 @@ export interface RegisterShelterPayload {
   email: string
   password: string
   description: string
-  country: string
-  city: string
-  phone_country_code: string
+  country_id: number
+  city_id: number
   phone: string
 }
 
@@ -143,9 +147,8 @@ export interface RegisterStorePayload {
   email: string
   password: string
   description: string
-  country: string
-  city: string
-  phone_country_code: string
+  country_id: number
+  city_id: number
   phone: string
 }
 
@@ -153,11 +156,10 @@ export interface RegisterClinicPayload {
   name: string
   email: string
   password: string
-  phone_country_code: string
   phone: string
   address: string
-  city: string
-  country: string
+  country_id: number
+  city_id: number
   description: string
 }
 
@@ -167,9 +169,8 @@ export interface UpdateProfileDTO {
   name?: string
   last_name?: string
   email?: string
-  country?: string
-  city?: string
-  phone_country_code?: string
+  country_id?: number
+  city_id?: number
   phone?: string
   birth_date?: string
   current_password?: string

@@ -31,7 +31,7 @@ export function useClinics() {
     try {
       // Build query string from non-empty filter values
       const params = new URLSearchParams()
-      if (filters?.city) params.set('city', filters.city)
+      if (filters?.city) params.set('city_id', filters.city)
       if (filters?.specialty) params.set('specialty', filters.specialty)
       const qs = params.toString()
       const path = qs ? `/clinics?${qs}` : '/clinics'

@@ -54,7 +54,7 @@ export function useAdmin() {
       if (filters?.search) params.set('search', filters.search)
       if (filters?.plan) params.set('plan', filters.plan)
       if (filters?.active !== undefined) params.set('active', String(filters.active))
-      if (filters?.country) params.set('country', filters.country)
+      if (filters?.country_id) params.set('country_id', String(filters.country_id))
       if (filters?.page) params.set('page', String(filters.page))
       if (filters?.limit) params.set('limit', String(filters.limit))
       const qs = params.toString()

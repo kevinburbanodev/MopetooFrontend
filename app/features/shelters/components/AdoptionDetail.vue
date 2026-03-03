@@ -277,10 +277,10 @@ onMounted(async () => {
                     {{ listing.weight }} kg
                   </dd>
                 </div>
-                <div class="adoption-detail__row border-top pt-2">
-                  <dt class="adoption-detail__label text-muted small">Ubicación</dt>
+                <div v-if="listing.shelter?.name" class="adoption-detail__row border-top pt-2">
+                  <dt class="adoption-detail__label text-muted small">Refugio</dt>
                   <dd class="adoption-detail__value fw-semibold mb-0">
-                    {{ listing.city }}<template v-if="listing.country">, {{ listing.country }}</template>
+                    {{ listing.shelter.name }}
                   </dd>
                 </div>
               </dl>
@@ -305,9 +305,7 @@ onMounted(async () => {
               {{ listing.shelter.name }}
             </NuxtLink>
           </h5>
-          <p v-if="listing.shelter.city" class="text-muted small mb-2">
-            <span aria-hidden="true">📍</span> {{ listing.shelter.city }}
-          </p>
+          <!-- Location omitted — shelter summary only includes city_id -->
           <p v-if="safeShelterPhone" class="mb-2 d-flex align-items-center gap-2">
             <span>
               <span aria-hidden="true">📞</span>

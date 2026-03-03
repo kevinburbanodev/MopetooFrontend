@@ -25,9 +25,10 @@ function makePetshop(overrides: Partial<Petshop> = {}): Petshop {
     email: 'info@mascotasfelices.com',
     description: 'Una tienda completa para todas las mascotas',
     logo_url: 'https://example.com/tienda.jpg',
-    country: 'Colombia',
-    city: 'Bogotá',
-    phone_country_code: '+57',
+    country_id: 1,
+    country: { id: 1, name: 'Colombia', code: 'CO', phone_code: '+57' },
+    city_id: 1,
+    city: { id: 1, name: 'Bogotá', country_id: 1 },
     phone: '300 123 4567',
     whatsapp_link: 'https://wa.me/573001234567',
     website: 'https://mascotasfelices.com',
@@ -56,9 +57,9 @@ function makeProduct(overrides: Partial<StoreProduct> = {}): StoreProduct {
   }
 }
 
-const shopA = makePetshop({ id: 1, name: 'Mascotas Felices', city: 'Bogotá', plan: '' })
-const shopB = makePetshop({ id: 2, name: 'PetWorld', city: 'Medellín', plan: 'featured' })
-const shopC = makePetshop({ id: 3, name: 'Mundo Animal', city: 'Cali', plan: 'free', verified: false })
+const shopA = makePetshop({ id: 1, name: 'Mascotas Felices', city_id: 1, city: { id: 1, name: 'Bogotá', country_id: 1 }, plan: '' })
+const shopB = makePetshop({ id: 2, name: 'PetWorld', city_id: 2, city: { id: 2, name: 'Medellín', country_id: 1 }, plan: 'featured' })
+const shopC = makePetshop({ id: 3, name: 'Mundo Animal', city_id: 3, city: { id: 3, name: 'Cali', country_id: 1 }, plan: 'free', verified: false })
 
 const productA = makeProduct({ id: 1, name: 'Alimento Premium' })
 const productB = makeProduct({ id: 2, name: 'Collar LED', category: 'accesorios' })

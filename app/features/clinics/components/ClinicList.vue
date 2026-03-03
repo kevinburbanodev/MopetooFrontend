@@ -15,8 +15,8 @@ const selectedCity = ref('')
 // Derive unique city options from loaded data for the city select
 const cityOptions = computed<string[]>(() => {
   const cities = clinicsStore.clinics
-    .map(c => c.city)
-    .filter(c => c && c.trim() !== '')
+    .map(c => c.city?.name)
+    .filter((c): c is string => !!c && c.trim() !== '')
   return [...new Set(cities)].sort()
 })
 
@@ -46,7 +46,7 @@ const filteredClinics = computed(() => {
     result = result.filter(c =>
       c.name.toLowerCase().includes(q)
       || (c.description ?? '').toLowerCase().includes(q)
-      || c.city.toLowerCase().includes(q),
+      || (c.city?.name ?? '').toLowerCase().includes(q),
     )
   }
 
@@ -76,7 +76,10 @@ const SKELETON_COUNT = 6
 watch([selectedSpecialty, selectedCity], () => {
   const filters: Record<string, string> = {}
   if (selectedSpecialty.value) filters.specialty = selectedSpecialty.value
-  if (selectedCity.value) filters.city = selectedCity.value
+  if (selectedCity.value) {
+    const match = clinicsStore.clinics.find(c => c.city?.name === selectedCity.value)
+    if (match) filters.city = String(match.city_id)
+  }
   fetchClinics(Object.keys(filters).length > 0 ? filters : undefined)
 })
 

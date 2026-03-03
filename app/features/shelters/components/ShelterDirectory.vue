@@ -12,10 +12,13 @@ const selectedCity = ref('')
 
 /** Unique cities derived from the current shelters for the filter dropdown */
 const cityOptions = computed(() => {
-  const cities = new Set(sheltersStore.shelters.map(s => s.city))
+  const cityNames = sheltersStore.shelters
+    .map(s => s.city?.name)
+    .filter((c): c is string => !!c)
+  const unique = [...new Set(cityNames)].sort()
   return [
     { value: '', label: 'Todas las ciudades' },
-    ...[...cities].sort().map(c => ({ value: c, label: c })),
+    ...unique.map(c => ({ value: c, label: c })),
   ]
 })
 
@@ -23,14 +26,14 @@ const filteredShelters = computed(() => {
   let result = sheltersStore.shelters
 
   if (selectedCity.value) {
-    result = result.filter(s => s.city === selectedCity.value)
+    result = result.filter(s => s.city?.name === selectedCity.value)
   }
 
   const q = searchQuery.value.trim().toLowerCase()
   if (q) {
     result = result.filter(s =>
       s.organization_name.toLowerCase().includes(q)
-      || s.city.toLowerCase().includes(q)
+      || (s.city?.name ?? '').toLowerCase().includes(q)
       || (s.description ?? '').toLowerCase().includes(q),
     )
   }

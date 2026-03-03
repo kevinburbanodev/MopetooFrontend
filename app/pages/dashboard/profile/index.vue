@@ -61,17 +61,17 @@ useSeoMeta({
             <dl class="row g-3 mb-0">
               <div class="col-sm-6">
                 <dt class="small text-muted fw-semibold">País</dt>
-                <dd class="mb-0">{{ user.country || '—' }}</dd>
+                <dd class="mb-0">{{ user.country?.name || '—' }}</dd>
               </div>
               <div class="col-sm-6">
                 <dt class="small text-muted fw-semibold">Ciudad</dt>
-                <dd class="mb-0">{{ user.city || '—' }}</dd>
+                <dd class="mb-0">{{ user.city?.name || '—' }}</dd>
               </div>
               <div class="col-sm-6">
                 <dt class="small text-muted fw-semibold">Teléfono</dt>
                 <dd class="mb-0">
                   <template v-if="user.phone">
-                    {{ user.phone_country_code }} {{ user.phone }}
+                    {{ user.country?.phone_code }} {{ user.phone }}
                   </template>
                   <template v-else>—</template>
                 </dd>

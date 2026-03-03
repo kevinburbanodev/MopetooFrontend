@@ -98,8 +98,8 @@ const locationText = computed(() => {
   if (!clinic.value) return ''
   const parts: string[] = []
   if (clinic.value.address) parts.push(clinic.value.address)
-  parts.push(clinic.value.city)
-  parts.push(clinic.value.country)
+  if (clinic.value.city?.name) parts.push(clinic.value.city.name)
+  if (clinic.value.country?.name) parts.push(clinic.value.country.name)
   return parts.join(', ')
 })
 

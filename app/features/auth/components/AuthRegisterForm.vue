@@ -11,9 +11,8 @@ const form = reactive<RegisterPayload>({
   last_name: '',
   email: '',
   password: '',
-  country: '',
-  city: '',
-  phone_country_code: '+57',
+  country_id: 0,
+  city_id: 0,
   phone: '',
 })
 
@@ -21,6 +20,7 @@ const confirmPassword = ref('')
 const photoFile = ref<File | null>(null)
 const photoPreviewUrl = ref<string | null>(null)
 const submitted = ref(false)
+const phoneCode = ref('+57')
 
 // ── Location dropdowns ───────────────────────────────────
 const {
@@ -29,21 +29,21 @@ const {
 } = useLocations()
 
 const countryOptions = computed(() =>
-  countries.value.map(c => ({ value: c.name, label: c.name })),
+  countries.value.map(c => ({ value: c.id, label: c.name })),
 )
 const cityOptions = computed(() =>
-  cities.value.map(c => ({ value: c.name, label: c.name })),
+  cities.value.map(c => ({ value: c.id, label: c.name })),
 )
 
 onMounted(() => fetchCountries())
 
-watch(() => form.country, (newCountry) => {
-  form.city = ''
+watch(() => form.country_id, (newCountryId) => {
+  form.city_id = 0
   clearCities()
-  if (!newCountry) return
-  const country = countries.value.find(c => c.name === newCountry)
+  if (!newCountryId) return
+  const country = countries.value.find(c => c.id === newCountryId)
   if (country) {
-    form.phone_country_code = country.phone_code
+    phoneCode.value = country.phone_code
     fetchCitiesByCountry(country.id)
   }
 })
@@ -56,8 +56,8 @@ const passwordInvalid = computed(() => submitted.value && form.password.length <
 const confirmInvalid = computed(
   () => submitted.value && confirmPassword.value !== form.password,
 )
-const countryInvalid = computed(() => submitted.value && !form.country.trim())
-const cityInvalid = computed(() => submitted.value && !form.city.trim())
+const countryInvalid = computed(() => submitted.value && !form.country_id)
+const cityInvalid = computed(() => submitted.value && !form.city_id)
 const phoneInvalid = computed(() => submitted.value && !form.phone.trim())
 
 const isFormValid = computed(
@@ -305,7 +305,7 @@ const subtitles: Record<EntityType, string> = {
                 <div class="col-sm-6">
                   <label for="register-country" class="form-label fw-semibold">País</label>
                   <SearchableSelect
-                    v-model="form.country"
+                    v-model="form.country_id"
                     :options="countryOptions"
                     placeholder="Seleccionar país..."
                     :loading="loadingCountries"
@@ -322,11 +322,11 @@ const subtitles: Record<EntityType, string> = {
                 <div class="col-sm-6">
                   <label for="register-city" class="form-label fw-semibold">Ciudad</label>
                   <SearchableSelect
-                    v-model="form.city"
+                    v-model="form.city_id"
                     :options="cityOptions"
                     placeholder="Seleccionar ciudad..."
                     :loading="loadingCities"
-                    :disabled="!form.country"
+                    :disabled="!form.country_id"
                     :is-invalid="cityInvalid"
                     input-id="register-city"
                   />
@@ -347,12 +347,13 @@ const subtitles: Record<EntityType, string> = {
                     <label for="register-phone-code" class="visually-hidden">Código de país</label>
                     <input
                       id="register-phone-code"
-                      v-model="form.phone_country_code"
+                      v-model="phoneCode"
                       type="text"
                       class="form-control phone-code-input border-0 p-0 bg-transparent"
                       placeholder="+57"
                       autocomplete="tel-country-code"
                       aria-label="Código de país"
+                      readonly
                     />
                   </span>
                   <input

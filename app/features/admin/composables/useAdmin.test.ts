@@ -39,7 +39,9 @@ vi.mock('../../shared/composables/useApi', () => ({
 function makeUser(overrides: Partial<AdminUser> = {}): AdminUser {
   return {
     id: 1, name: 'Juan', last_name: 'Pérez', email: 'juan@example.com',
-    country: 'Colombia', city: 'Bogotá', is_pro: false, is_admin: false,
+    country_id: 1, country: { id: 1, name: 'Colombia', code: 'CO', phone_code: '+57' },
+    city_id: 1, city: { id: 1, name: 'Bogotá', country_id: 1 },
+    is_pro: false, is_admin: false,
     is_active: true, pets_count: 2,
     created_at: '2024-01-01T00:00:00Z', updated_at: '2024-01-01T00:00:00Z',
     ...overrides,
@@ -48,7 +50,8 @@ function makeUser(overrides: Partial<AdminUser> = {}): AdminUser {
 
 function makeShelter(overrides: Partial<AdminShelter> = {}): AdminShelter {
   return {
-    id: 1, name: 'Refugio Los Amigos', city: 'Bogotá',
+    id: 1, name: 'Refugio Los Amigos',
+    city_id: 1, city: { id: 1, name: 'Bogotá', country_id: 1 },
     is_verified: false, is_active: true, pets_count: 5,
     created_at: '2024-01-01T00:00:00Z', ...overrides,
   }
@@ -56,7 +59,8 @@ function makeShelter(overrides: Partial<AdminShelter> = {}): AdminShelter {
 
 function makePetshop(overrides: Partial<AdminPetshop> = {}): AdminPetshop {
   return {
-    id: 1, name: 'Tienda Mascota Feliz', city: 'Medellín',
+    id: 1, name: 'Tienda Mascota Feliz',
+    city_id: 2, city: { id: 2, name: 'Medellín', country_id: 1 },
     is_active: true, plan: 'free', created_at: '2024-01-01T00:00:00Z',
     ...overrides,
   }
@@ -64,7 +68,8 @@ function makePetshop(overrides: Partial<AdminPetshop> = {}): AdminPetshop {
 
 function makeClinic(overrides: Partial<AdminClinic> = {}): AdminClinic {
   return {
-    id: 1, name: 'Clínica Vet Norte', city: 'Cali',
+    id: 1, name: 'Clínica Vet Norte',
+    city_id: 3, city: { id: 3, name: 'Cali', country_id: 1 },
     is_verified: false, is_active: true, plan: 'free',
     specialties: ['Cirugía'], created_at: '2024-01-01T00:00:00Z',
     ...overrides,
@@ -141,11 +146,11 @@ describe('useAdmin', () => {
       expect(mockGet).toHaveBeenCalledWith('/api/admin/users?active=true')
     })
 
-    it('appends country filter to query string', async () => {
+    it('appends country_id filter to query string', async () => {
       mockGet.mockResolvedValueOnce({ users: [], total: 0 })
       const { useAdmin } = await import('./useAdmin')
-      await useAdmin().fetchUsers({ country: 'Colombia' })
-      expect(mockGet).toHaveBeenCalledWith('/api/admin/users?country=Colombia')
+      await useAdmin().fetchUsers({ country_id: 1 })
+      expect(mockGet).toHaveBeenCalledWith('/api/admin/users?country_id=1')
     })
 
     it('appends page and limit to query string', async () => {

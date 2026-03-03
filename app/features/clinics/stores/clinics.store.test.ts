@@ -25,8 +25,10 @@ function makeClinic(overrides: Partial<Clinic> = {}): Clinic {
     email: 'info@clinicaandes.com',
     phone: '+57 300 987 6543',
     address: 'Calle 72 #15-30',
-    city: 'Bogotá',
-    country: 'Colombia',
+    city_id: 1,
+    city: { id: 1, name: 'Bogotá', country_id: 1 },
+    country_id: 1,
+    country: { id: 1, name: 'Colombia', code: 'CO', phone_code: '+57' },
     description: 'Atención veterinaria integral para toda tu familia',
     specialties: ['Cirugía', 'Dermatología'],
     services: ['Consulta general', 'Vacunación'],
@@ -41,9 +43,9 @@ function makeClinic(overrides: Partial<Clinic> = {}): Clinic {
   }
 }
 
-const clinicA = makeClinic({ id: 1, name: 'Los Andes Vet', city: 'Bogotá', plan: 'free' })
-const clinicB = makeClinic({ id: 2, name: 'Clínica Animal Sur', city: 'Medellín', plan: 'pro' })
-const clinicC = makeClinic({ id: 3, name: 'VetSalud', city: 'Cali', plan: 'premium', verified: false })
+const clinicA = makeClinic({ id: 1, name: 'Los Andes Vet', city_id: 1, city: { id: 1, name: 'Bogotá', country_id: 1 }, plan: 'free' })
+const clinicB = makeClinic({ id: 2, name: 'Clínica Animal Sur', city_id: 2, city: { id: 2, name: 'Medellín', country_id: 1 }, plan: 'pro' })
+const clinicC = makeClinic({ id: 3, name: 'VetSalud', city_id: 3, city: { id: 3, name: 'Cali', country_id: 1 }, plan: 'premium', verified: false })
 
 // ── Suite ─────────────────────────────────────────────────────
 
@@ -268,7 +270,7 @@ describe('useClinicsStore', () => {
       expect(store.selectedClinic?.verified).toBe(true)
       expect(store.selectedClinic?.specialties).toEqual(['Cirugía', 'Dermatología'])
       expect(store.selectedClinic?.services).toEqual(['Consulta general', 'Vacunación'])
-      expect(store.selectedClinic?.country).toBe('Colombia')
+      expect(store.selectedClinic?.country?.name).toBe('Colombia')
     })
 
     it('does not affect the clinics array', () => {

@@ -4,6 +4,8 @@
 // RF-900 to RF-909
 // ============================================================
 
+import type { Country, City } from '../../shared/types/api.types'
+
 /**
  * model.Clinic — aligned with the Go backend.
  * Public endpoints: GET /clinics, GET /clinics/:id
@@ -14,8 +16,10 @@ export interface Clinic {
   email: string
   phone: string
   address?: string
-  city: string
-  country: string
+  country_id: number
+  country?: Country
+  city_id: number
+  city?: City
   description?: string
   specialties: string[]
   services: string[]

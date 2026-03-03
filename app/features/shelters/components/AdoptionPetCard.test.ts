@@ -36,10 +36,10 @@ function makeAdoptionListing(overrides: Partial<AdoptionListing> = {}): Adoption
     gender: 'male',
     photo_url: 'https://example.com/max.jpg',
     story: 'Un perro muy cariñoso',
-    city: 'Bogotá',
-    country: 'Colombia',
+    country_id: 1,
+    city_id: 1,
     status: 'available',
-    shelter: { id: 1, name: 'Refugio Esperanza', city: 'Bogotá', email: 'contacto@refugio.com', phone: '+57 300 1234567' },
+    shelter: { id: 1, name: 'Refugio Esperanza', city_id: 1, email: 'contacto@refugio.com', phone: '+57 300 1234567' },
     created_at: '2024-01-01T00:00:00Z',
     updated_at: '2024-01-01T00:00:00Z',
     ...overrides,
@@ -252,22 +252,18 @@ describe('AdoptionPetCard', () => {
   })
 
   // ── City/country display ───────────────────────────────────
+  // AdoptionListing only has city_id/country_id (no embedded names),
+  // so the card no longer displays location text.
 
   describe('city/country display', () => {
-    it('renders the city name', async () => {
+    it('does NOT render city/country text (listing only has IDs)', async () => {
       const wrapper = await mountSuspended(AdoptionPetCard, {
         props: { listing: defaultListing },
         global: { stubs: { NuxtLink: true } },
       })
-      expect(wrapper.text()).toContain('Bogotá')
-    })
-
-    it('renders the country after the city', async () => {
-      const wrapper = await mountSuspended(AdoptionPetCard, {
-        props: { listing: defaultListing },
-        global: { stubs: { NuxtLink: true } },
-      })
-      expect(wrapper.text()).toContain('Colombia')
+      // The component doesn't display location names since the DTO only has IDs
+      expect(wrapper.text()).not.toContain('Bogotá')
+      expect(wrapper.text()).not.toContain('Colombia')
     })
   })
 

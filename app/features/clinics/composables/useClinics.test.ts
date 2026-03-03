@@ -38,8 +38,10 @@ function makeClinic(overrides: Partial<Clinic> = {}): Clinic {
     email: 'info@clinicaandes.com',
     phone: '+57 300 987 6543',
     address: 'Calle 72 #15-30',
-    city: 'Bogotá',
-    country: 'Colombia',
+    city_id: 1,
+    city: { id: 1, name: 'Bogotá', country_id: 1 },
+    country_id: 1,
+    country: { id: 1, name: 'Colombia', code: 'CO', phone_code: '+57' },
     description: 'Atención veterinaria integral para toda tu familia',
     specialties: ['Cirugía', 'Dermatología'],
     services: ['Consulta general', 'Vacunación'],
@@ -55,7 +57,7 @@ function makeClinic(overrides: Partial<Clinic> = {}): Clinic {
 }
 
 const clinicA = makeClinic({ id: 1, name: 'Los Andes Vet' })
-const clinicB = makeClinic({ id: 2, name: 'Clínica Animal Sur', city: 'Medellín', plan: 'pro' })
+const clinicB = makeClinic({ id: 2, name: 'Clínica Animal Sur', city_id: 2, city: { id: 2, name: 'Medellín', country_id: 1 }, plan: 'pro' })
 
 // ── Suite ─────────────────────────────────────────────────────
 
@@ -205,9 +207,9 @@ describe('useClinics', () => {
       const { useClinics } = await import('./useClinics')
       const { fetchClinics } = useClinics()
 
-      await fetchClinics({ city: 'Bogotá' })
+      await fetchClinics({ city: '1' })
 
-      expect(mockGet).toHaveBeenCalledWith('/clinics?city=Bogot%C3%A1')
+      expect(mockGet).toHaveBeenCalledWith('/clinics?city_id=1')
     })
 
     it('appends specialty filter as a query string parameter', async () => {
@@ -235,11 +237,11 @@ describe('useClinics', () => {
       const { useClinics } = await import('./useClinics')
       const { fetchClinics } = useClinics()
 
-      await fetchClinics({ city: 'Bogotá', specialty: 'Cirugía' })
+      await fetchClinics({ city: '1', specialty: 'Cirugía' })
 
       const calledPath: string = mockGet.mock.calls[0][0]
       expect(calledPath).toContain('/clinics?')
-      expect(calledPath).toContain('city=')
+      expect(calledPath).toContain('city_id=1')
       expect(calledPath).toContain('specialty=')
     })
 

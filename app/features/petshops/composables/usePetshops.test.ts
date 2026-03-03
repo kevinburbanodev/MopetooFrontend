@@ -41,9 +41,10 @@ function makePetshop(overrides: Partial<Petshop> = {}): Petshop {
     email: 'info@mascotasfelices.com',
     description: 'Una tienda completa para todas las mascotas',
     logo_url: 'https://example.com/tienda.jpg',
-    country: 'Colombia',
-    city: 'Bogotá',
-    phone_country_code: '+57',
+    country_id: 1,
+    country: { id: 1, name: 'Colombia', code: 'CO', phone_code: '+57' },
+    city_id: 1,
+    city: { id: 1, name: 'Bogotá', country_id: 1 },
     phone: '300 123 4567',
     whatsapp_link: 'https://wa.me/573001234567',
     website: 'https://mascotasfelices.com',
@@ -73,7 +74,7 @@ function makeProduct(overrides: Partial<StoreProduct> = {}): StoreProduct {
 }
 
 const shopA = makePetshop({ id: 1, name: 'Mascotas Felices' })
-const shopB = makePetshop({ id: 2, name: 'PetWorld', city: 'Medellín', plan: 'premium' })
+const shopB = makePetshop({ id: 2, name: 'PetWorld', city_id: 2, city: { id: 2, name: 'Medellín', country_id: 1 }, plan: 'premium' })
 const productA = makeProduct({ id: 1, name: 'Alimento Premium' })
 const productB = makeProduct({ id: 2, name: 'Collar LED', category: 'accesorios' })
 
@@ -227,9 +228,9 @@ describe('usePetshops', () => {
       const { usePetshops } = await import('./usePetshops')
       const { fetchPetshops } = usePetshops()
 
-      await fetchPetshops({ city: 'Bogotá' })
+      await fetchPetshops({ city: '1' })
 
-      expect(mockGet).toHaveBeenCalledWith('/api/stores?city=Bogot%C3%A1')
+      expect(mockGet).toHaveBeenCalledWith('/api/stores?city_id=1')
     })
 
     it('appends category filter as a query string parameter', async () => {
@@ -258,11 +259,11 @@ describe('usePetshops', () => {
       const { usePetshops } = await import('./usePetshops')
       const { fetchPetshops } = usePetshops()
 
-      await fetchPetshops({ city: 'Bogotá', category: 'alimento' })
+      await fetchPetshops({ city: '1', category: 'alimento' })
 
       const calledPath: string = mockGet.mock.calls[0][0]
       expect(calledPath).toContain('/api/stores?')
-      expect(calledPath).toContain('city=Bogot%C3%A1')
+      expect(calledPath).toContain('city_id=1')
       expect(calledPath).toContain('category=alimento')
     })
 

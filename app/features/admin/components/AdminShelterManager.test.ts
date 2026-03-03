@@ -30,7 +30,10 @@ function makeShelter(overrides: Partial<AdminShelter> = {}): AdminShelter {
   return {
     id: 1,
     name: 'Refugio Los Amigos',
-    city: 'Bogotá',
+    country_id: 1,
+    country: { id: 1, name: 'Colombia', code: 'CO', phone_code: '+57' },
+    city_id: 1,
+    city: { id: 1, name: 'Bogotá', country_id: 1 },
     email: 'info@refugio.com',
     is_verified: false,
     is_active: true,
@@ -137,7 +140,7 @@ describe('AdminShelterManager', () => {
   describe('shelter rows', () => {
     beforeEach(() => {
       mockAdminStore.shelters = [
-        makeShelter({ id: 1, name: 'Refugio Norte', city: 'Medellín', is_verified: true, is_active: true }),
+        makeShelter({ id: 1, name: 'Refugio Norte', city_id: 2, city: { id: 2, name: 'Medellín', country_id: 1 }, is_verified: true, is_active: true }),
       ]
       mockAdminStore.totalShelters = 1
     })

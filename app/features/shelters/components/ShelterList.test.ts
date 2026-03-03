@@ -21,26 +21,26 @@ function makeAdoptionListing(overrides: Partial<AdoptionListing> = {}): Adoption
     id: 1,
     shelter_id: 1,
     name: 'Max',
-    species: 'dog',
+    species: 'perro',
     breed: 'Labrador',
     age: 2,
     weight: 25.5,
     gender: 'male',
     photo_url: 'https://example.com/max.jpg',
     story: 'Un perro muy cariñoso',
-    city: 'Bogotá',
-    country: 'Colombia',
+    country_id: 1,
+    city_id: 1,
     status: 'available',
-    shelter: { id: 1, name: 'Refugio Esperanza', city: 'Bogotá', email: 'contacto@refugio.com', phone: '+57 300 1234567' },
+    shelter: { id: 1, name: 'Refugio Esperanza', city_id: 1, email: 'contacto@refugio.com', phone: '+57 300 1234567' },
     created_at: '2024-01-01T00:00:00Z',
     updated_at: '2024-01-01T00:00:00Z',
     ...overrides,
   }
 }
 
-const listingA = makeAdoptionListing({ id: 1, name: 'Max', species: 'dog', city: 'Bogotá' })
-const listingB = makeAdoptionListing({ id: 2, name: 'Luna', species: 'cat', city: 'Medellín' })
-const listingC = makeAdoptionListing({ id: 3, name: 'Toby', species: 'dog', city: 'Cali' })
+const listingA = makeAdoptionListing({ id: 1, name: 'Max', species: 'perro', city_id: 1 })
+const listingB = makeAdoptionListing({ id: 2, name: 'Luna', species: 'gato', city_id: 2 })
+const listingC = makeAdoptionListing({ id: 3, name: 'Toby', species: 'perro', city_id: 3 })
 
 // ── useShelters mock ──────────────────────────────────────────
 
@@ -201,14 +201,14 @@ describe('ShelterList', () => {
       expect(wrapper.findAll('.listing-card-stub')).toHaveLength(1)
     })
 
-    it('filters listings by city (case-insensitive)', async () => {
+    it('filters listings by species name (case-insensitive)', async () => {
       mockAdoptionListings.value = [listingA, listingB, listingC]
       const wrapper = await mountSuspended(ShelterList, {
         global: { stubs: { NuxtLink: true, AdoptionPetCard: { template: '<div class="listing-card-stub" />' } } },
       })
 
       const searchInput = wrapper.find('input[type="search"]')
-      await searchInput.setValue('medellín')
+      await searchInput.setValue('gato')
 
       expect(wrapper.findAll('.listing-card-stub')).toHaveLength(1)
     })
@@ -240,37 +240,37 @@ describe('ShelterList', () => {
 
   describe('species filter', () => {
     it('filters listings to only those matching the selected species', async () => {
-      mockAdoptionListings.value = [listingA, listingB, listingC] // A=dog, B=cat, C=dog
+      mockAdoptionListings.value = [listingA, listingB, listingC] // A=perro, B=gato, C=perro
       const wrapper = await mountSuspended(ShelterList, {
         global: { stubs: { NuxtLink: true, AdoptionPetCard: { template: '<div class="listing-card-stub" />' } } },
       })
 
       const speciesSelect = wrapper.find('#listing-species')
-      await speciesSelect.setValue('cat')
+      await speciesSelect.setValue('gato')
 
       expect(wrapper.findAll('.listing-card-stub')).toHaveLength(1)
     })
 
-    it('filters to dogs when "dog" is selected', async () => {
+    it('filters to perros when "perro" is selected', async () => {
       mockAdoptionListings.value = [listingA, listingB, listingC]
       const wrapper = await mountSuspended(ShelterList, {
         global: { stubs: { NuxtLink: true, AdoptionPetCard: { template: '<div class="listing-card-stub" />' } } },
       })
 
-      await wrapper.find('#listing-species').setValue('dog')
+      await wrapper.find('#listing-species').setValue('perro')
 
       expect(wrapper.findAll('.listing-card-stub')).toHaveLength(2)
     })
 
     it('filters case-insensitively when backend returns uppercase species', async () => {
-      const upperDog = makeAdoptionListing({ id: 10, name: 'Rex', species: 'Dog', city: 'Bogotá' })
-      const upperCat = makeAdoptionListing({ id: 11, name: 'Michi', species: 'Cat', city: 'Cali' })
-      mockAdoptionListings.value = [upperDog, upperCat, listingA] // upperDog=Dog, upperCat=Cat, listingA=dog
+      const upperPerro = makeAdoptionListing({ id: 10, name: 'Rex', species: 'Perro', city_id: 1 })
+      const upperGato = makeAdoptionListing({ id: 11, name: 'Michi', species: 'Gato', city_id: 3 })
+      mockAdoptionListings.value = [upperPerro, upperGato, listingA] // upperPerro=Perro, upperGato=Gato, listingA=perro
       const wrapper = await mountSuspended(ShelterList, {
         global: { stubs: { NuxtLink: true, AdoptionPetCard: { template: '<div class="listing-card-stub" />' } } },
       })
 
-      await wrapper.find('#listing-species').setValue('dog')
+      await wrapper.find('#listing-species').setValue('perro')
 
       expect(wrapper.findAll('.listing-card-stub')).toHaveLength(2)
     })
@@ -330,7 +330,7 @@ describe('ShelterList', () => {
         global: { stubs: { NuxtLink: true, AdoptionPetCard: true } },
       })
 
-      await wrapper.find('#listing-species').setValue('cat')
+      await wrapper.find('#listing-species').setValue('gato')
 
       expect(wrapper.text()).toContain('1 mascota encontrada')
     })

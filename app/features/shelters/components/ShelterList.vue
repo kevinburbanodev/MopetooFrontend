@@ -31,7 +31,7 @@ const SPECIES_OPTIONS = [
 
 /** Cities from the API for the user's country */
 const cityOptions = computed(() =>
-  cities.value.map(c => ({ value: c.name, label: c.name })),
+  cities.value.map(c => ({ value: String(c.id), label: c.name })),
 )
 
 const filteredListings = computed(() => {
@@ -42,15 +42,15 @@ const filteredListings = computed(() => {
   }
 
   if (selectedCity.value) {
-    result = result.filter(l => l.city === selectedCity.value)
+    const cityId = Number(selectedCity.value)
+    result = result.filter(l => l.city_id === cityId)
   }
 
   const q = searchQuery.value.trim().toLowerCase()
   if (q) {
     result = result.filter(l =>
       l.name.toLowerCase().includes(q)
-      || l.species.toLowerCase().includes(q)
-      || l.city.toLowerCase().includes(q),
+      || l.species.toLowerCase().includes(q),
     )
   }
 
@@ -74,14 +74,11 @@ onMounted(async () => {
   await fetchCountries()
 
   // Determine user's country for server-side filtering
-  const userCountry = authStore.currentEntity?.country ?? ''
+  const userCountryId = authStore.currentEntity?.country_id ?? 0
 
-  if (userCountry) {
-    const country = countries.value.find(c => c.name === userCountry)
-    if (country) {
-      await fetchCitiesByCountry(country.id)
-    }
-    await fetchAdoptionListings(userCountry)
+  if (userCountryId) {
+    await fetchCitiesByCountry(userCountryId)
+    await fetchAdoptionListings(userCountryId)
   }
   else {
     await fetchAdoptionListings()

@@ -18,8 +18,8 @@ const selectedCity = ref('')
 // Derive unique city options from loaded data for the city select
 const cityOptions = computed<string[]>(() => {
   const cities = petshopsStore.petshops
-    .map(p => p.city)
-    .filter(c => c && c.trim() !== '')
+    .map(p => p.city?.name)
+    .filter((c): c is string => !!c && c.trim() !== '')
   return [...new Set(cities)].sort()
 })
 
@@ -38,7 +38,7 @@ const filteredPetshops = computed(() => {
     result = result.filter(p =>
       p.name.toLowerCase().includes(q)
       || p.description.toLowerCase().includes(q)
-      || p.city.toLowerCase().includes(q),
+      || (p.city?.name ?? '').toLowerCase().includes(q),
     )
   }
 
@@ -66,12 +66,14 @@ const SKELETON_COUNT = 6
 
 // Re-fetch from server when category or city changes
 watch([selectedCategory, selectedCity], () => {
-  const filters: Record<string, string> = {}
-  if (selectedCategory.value) filters.city = selectedCity.value || undefined as unknown as string
-  if (selectedCity.value) filters.city = selectedCity.value
+  let cityId: string | undefined
+  if (selectedCity.value) {
+    const match = petshopsStore.petshops.find(p => p.city?.name === selectedCity.value)
+    if (match) cityId = String(match.city_id)
+  }
 
   fetchPetshops({
-    city: selectedCity.value || undefined,
+    city: cityId,
     category: selectedCategory.value || undefined,
   })
 })

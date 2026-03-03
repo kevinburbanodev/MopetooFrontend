@@ -23,6 +23,8 @@ export const PRODUCT_CATEGORIES: { value: StoreProductCategory; label: string }[
   { value: 'otros', label: 'Otros' },
 ]
 
+import type { Country, City } from '../../shared/types/api.types'
+
 /**
  * model.Store — aligned with the Go backend.
  * Backend endpoint: GET /api/stores, GET /api/stores/:id
@@ -33,9 +35,10 @@ export interface Petshop {
   email: string
   description: string
   logo_url?: string
-  country: string
-  city: string
-  phone_country_code: string
+  country_id: number
+  country?: Country
+  city_id: number
+  city?: City
   phone: string
   whatsapp_link?: string
   website?: string

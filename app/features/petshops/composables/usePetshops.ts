@@ -25,7 +25,7 @@ export function usePetshops() {
     error.value = null
     try {
       const params = new URLSearchParams()
-      if (filters?.city) params.set('city', filters.city)
+      if (filters?.city) params.set('city_id', filters.city)
       if (filters?.category) params.set('category', filters.category)
       const qs = params.toString()
       const path = qs ? `/api/stores?${qs}` : '/api/stores'

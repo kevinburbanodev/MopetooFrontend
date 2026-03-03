@@ -174,7 +174,7 @@ onMounted(async () => {
             <template v-else-if="adminStore.clinics.length > 0">
               <tr v-for="clinic in adminStore.clinics" :key="clinic.id">
                 <td class="fw-semibold">{{ clinic.name }}</td>
-                <td class="text-muted small">{{ clinic.city }}</td>
+                <td class="text-muted small">{{ clinic.city?.name }}</td>
                 <td>
                   <div
                     v-if="clinic.specialties && clinic.specialties.length > 0"

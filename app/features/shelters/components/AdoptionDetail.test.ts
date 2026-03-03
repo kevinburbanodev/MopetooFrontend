@@ -47,10 +47,10 @@ function makeAdoptionListing(overrides: Partial<AdoptionListing> = {}): Adoption
     gender: 'male',
     photo_url: 'https://example.com/max.jpg',
     story: 'Un perro muy cariñoso que busca hogar.',
-    city: 'Bogotá',
-    country: 'Colombia',
+    city_id: 1,
+    country_id: 1,
     status: 'available',
-    shelter: { id: 1, name: 'Refugio Esperanza', city: 'Bogotá', email: 'contacto@refugio.com', phone: '+57 300 1234567' },
+    shelter: { id: 1, name: 'Refugio Esperanza', city_id: 1, email: 'contacto@refugio.com', phone: '+57 300 1234567' },
     created_at: '2024-01-01T00:00:00Z',
     updated_at: '2024-01-01T00:00:00Z',
     ...overrides,
@@ -154,14 +154,13 @@ describe('AdoptionDetail', () => {
       expect(wrapper.text()).toContain('Un perro muy cariñoso que busca hogar.')
     })
 
-    it('renders the city and country', async () => {
+    it('renders the shelter name in the info section', async () => {
       mockSelectedListing.value = availableListing
       const wrapper = await mountSuspended(AdoptionDetail, {
         props: { listingId: '1' },
         global: { stubs: { NuxtLink: true } },
       })
-      expect(wrapper.text()).toContain('Bogotá')
-      expect(wrapper.text()).toContain('Colombia')
+      expect(wrapper.text()).toContain('Refugio Esperanza')
     })
 
     it('renders the age in years', async () => {
@@ -196,14 +195,15 @@ describe('AdoptionDetail', () => {
       expect(wrapper.text()).toContain('Refugio Esperanza')
     })
 
-    it('renders the shelter city when shelter.city is present', async () => {
+    it('does not render a location line in the shelter card (city_id only, no display)', async () => {
       mockSelectedListing.value = makeAdoptionListing()
       const wrapper = await mountSuspended(AdoptionDetail, {
         props: { listingId: '1' },
         global: { stubs: { NuxtLink: true } },
       })
       const shelterCard = wrapper.find('.adoption-detail__shelter-card')
-      expect(shelterCard.text()).toContain('Bogotá')
+      // Shelter summary only has city_id — no city name is displayed
+      expect(shelterCard.text()).not.toContain('Bogotá')
     })
 
     it('renders a tel: link when shelter.phone is a valid phone', async () => {

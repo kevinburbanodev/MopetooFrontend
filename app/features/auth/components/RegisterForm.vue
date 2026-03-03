@@ -11,11 +11,12 @@ const form = reactive<RegisterPayload>({
   last_name: '',
   email: '',
   password: '',
-  country: '',
-  city: '',
-  phone_country_code: '+57',
+  country_id: 0,
+  city_id: 0,
   phone: '',
 })
+
+const phoneCode = ref('+57')
 </script>
 
 <template>
@@ -93,10 +94,10 @@ const form = reactive<RegisterPayload>({
                 <label for="country" class="form-label fw-semibold">País</label>
                 <input
                   id="country"
-                  v-model="form.country"
-                  type="text"
+                  v-model="form.country_id"
+                  type="number"
                   class="form-control"
-                  placeholder="Colombia"
+                  placeholder="1"
                   required
                 />
               </div>
@@ -104,10 +105,10 @@ const form = reactive<RegisterPayload>({
                 <label for="city" class="form-label fw-semibold">Ciudad</label>
                 <input
                   id="city"
-                  v-model="form.city"
-                  type="text"
+                  v-model="form.city_id"
+                  type="number"
                   class="form-control"
-                  placeholder="Bogotá"
+                  placeholder="1"
                   required
                 />
               </div>
@@ -118,12 +119,12 @@ const form = reactive<RegisterPayload>({
               <label class="form-label fw-semibold">Teléfono</label>
               <div class="input-group">
                 <input
-                  v-model="form.phone_country_code"
+                  v-model="phoneCode"
                   type="text"
                   class="form-control"
                   style="max-width: 80px"
                   placeholder="+57"
-                  required
+                  readonly
                 />
                 <input
                   v-model="form.phone"

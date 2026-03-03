@@ -29,7 +29,10 @@ function makePetshop(overrides: Partial<AdminPetshop> = {}): AdminPetshop {
   return {
     id: 1,
     name: 'Tienda Mascota Feliz',
-    city: 'Medellín',
+    country_id: 1,
+    country: { id: 1, name: 'Colombia', code: 'CO', phone_code: '+57' },
+    city_id: 2,
+    city: { id: 2, name: 'Medellín', country_id: 1 },
     email: 'info@tienda.com',
     is_active: true,
     plan: 'free',
@@ -135,7 +138,7 @@ describe('AdminStoreManager', () => {
   describe('petshop rows', () => {
     beforeEach(() => {
       mockAdminStore.petshops = [
-        makePetshop({ id: 1, name: 'Tienda Norte', city: 'Bogotá', plan: 'free', is_active: true }),
+        makePetshop({ id: 1, name: 'Tienda Norte', city_id: 1, city: { id: 1, name: 'Bogotá', country_id: 1 }, plan: 'free', is_active: true }),
       ]
       mockAdminStore.totalPetshops = 1
     })

@@ -12,13 +12,14 @@ const form = reactive<UpdateProfileDTO>({
   name: user.value?.name ?? '',
   last_name: user.value?.last_name ?? '',
   email: user.value?.email ?? '',
-  country: user.value?.country ?? '',
-  city: user.value?.city ?? '',
-  phone_country_code: user.value?.phone_country_code ?? '+57',
+  country_id: user.value?.country_id ?? 0,
+  city_id: user.value?.city_id ?? 0,
   phone: user.value?.phone ?? '',
   current_password: '',
   new_password: '',
 })
+
+const phoneCode = ref(user.value?.country?.phone_code ?? '+57')
 
 const confirmNewPassword = ref('')
 const pendingPhoto = ref<File | null>(null)
@@ -32,33 +33,33 @@ const {
 } = useLocations()
 
 const countryOptions = computed(() =>
-  countries.value.map(c => ({ value: c.name, label: c.name })),
+  countries.value.map(c => ({ value: c.id, label: c.name })),
 )
 const cityOptions = computed(() =>
-  cities.value.map(c => ({ value: c.name, label: c.name })),
+  cities.value.map(c => ({ value: c.id, label: c.name })),
 )
 
 // Pre-populate: load countries, then find user's country and load its cities
 onMounted(async () => {
   await fetchCountries()
-  if (form.country) {
-    const country = countries.value.find(c => c.name === form.country)
+  if (form.country_id) {
+    const country = countries.value.find(c => c.id === form.country_id)
     if (country) {
-      form.phone_country_code = country.phone_code
+      phoneCode.value = country.phone_code
       await fetchCitiesByCountry(country.id)
     }
   }
 })
 
-watch(() => form.country, (newCountry, oldCountry) => {
+watch(() => form.country_id, (newCountryId, oldCountryId) => {
   // Skip initial watch trigger — onMounted handles pre-population
-  if (!oldCountry && newCountry === user.value?.country) return
-  form.city = ''
+  if (!oldCountryId && newCountryId === user.value?.country_id) return
+  form.city_id = 0
   clearCities()
-  if (!newCountry) return
-  const country = countries.value.find(c => c.name === newCountry)
+  if (!newCountryId) return
+  const country = countries.value.find(c => c.id === newCountryId)
   if (country) {
-    form.phone_country_code = country.phone_code
+    phoneCode.value = country.phone_code
     fetchCitiesByCountry(country.id)
   }
 })
@@ -114,9 +115,8 @@ async function handleSubmit(): Promise<void> {
     name: form.name,
     last_name: form.last_name,
     email: form.email,
-    country: form.country,
-    city: form.city,
-    phone_country_code: form.phone_country_code,
+    country_id: form.country_id,
+    city_id: form.city_id,
     phone: form.phone,
   }
   if (isChangingPassword.value) {
@@ -240,24 +240,24 @@ async function handleSubmit(): Promise<void> {
         <div class="col-sm-6">
           <label for="profile-country" class="form-label fw-semibold">País</label>
           <SearchableSelect
-            :model-value="form.country ?? ''"
+            :model-value="form.country_id ?? 0"
             :options="countryOptions"
             placeholder="Seleccionar país..."
             :loading="loadingCountries"
             input-id="profile-country"
-            @update:model-value="form.country = $event"
+            @update:model-value="form.country_id = $event"
           />
         </div>
         <div class="col-sm-6">
           <label for="profile-city" class="form-label fw-semibold">Ciudad</label>
           <SearchableSelect
-            :model-value="form.city ?? ''"
+            :model-value="form.city_id ?? 0"
             :options="cityOptions"
             placeholder="Seleccionar ciudad..."
             :loading="loadingCities"
-            :disabled="!form.country"
+            :disabled="!form.country_id"
             input-id="profile-city"
-            @update:model-value="form.city = $event"
+            @update:model-value="form.city_id = $event"
           />
         </div>
       </div>
@@ -270,11 +270,12 @@ async function handleSubmit(): Promise<void> {
             <label for="profile-phone-code" class="visually-hidden">Código de país</label>
             <input
               id="profile-phone-code"
-              v-model="form.phone_country_code"
+              v-model="phoneCode"
               type="text"
               class="form-control border-0 p-0 bg-transparent phone-code-input"
               autocomplete="tel-country-code"
               aria-label="Código de país"
+              readonly
             />
           </span>
           <input

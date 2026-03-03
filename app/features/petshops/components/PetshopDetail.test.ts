@@ -20,7 +20,7 @@
 // Key behaviours tested:
 //   - Loading skeleton rendered while isLoading is true and no petshop.
 //   - Petshop profile rendered when selectedPetshop is set.
-//   - Contact: composed phone (phone_country_code + phone), email, website, WhatsApp.
+//   - Contact: composed phone (country.phone_code + phone), email, website, WhatsApp.
 //   - Security: javascript: website blocked; invalid phone blocked.
 //   - Products section with product cards.
 //   - Back navigation link.
@@ -50,9 +50,10 @@ function makePetshop(overrides: Partial<Petshop> = {}): Petshop {
     email: 'info@mascotasfelices.com',
     description: 'Una tienda completa para mascotas',
     logo_url: 'https://example.com/tienda.jpg',
-    country: 'Colombia',
-    city: 'Bogotá',
-    phone_country_code: '+57',
+    country_id: 1,
+    country: { id: 1, name: 'Colombia', code: 'CO', phone_code: '+57' },
+    city_id: 1,
+    city: { id: 1, name: 'Bogotá', country_id: 1 },
     phone: '300 123 4567',
     whatsapp_link: 'https://wa.me/573001234567',
     website: 'https://mascotasfelices.com',
@@ -238,7 +239,7 @@ describe('PetshopDetail', () => {
     })
 
     it('renders the city and country', async () => {
-      mockSelectedPetshop.value = makePetshop({ city: 'Medellín', country: 'Colombia' })
+      mockSelectedPetshop.value = makePetshop({ city_id: 2, city: { id: 2, name: 'Medellín', country_id: 1 } })
       const wrapper = await mountDetail('1')
       expect(wrapper.text()).toContain('Medellín, Colombia')
     })
@@ -272,7 +273,7 @@ describe('PetshopDetail', () => {
 
   describe('contact section', () => {
     it('renders the composed phone link with tel: href', async () => {
-      mockSelectedPetshop.value = makePetshop({ phone_country_code: '+57', phone: '300 123 4567' })
+      mockSelectedPetshop.value = makePetshop({ phone: '300 123 4567' })
       const wrapper = await mountDetail('1')
       const phoneLink = wrapper.find('a[href^="tel:"]')
       expect(phoneLink.exists()).toBe(true)

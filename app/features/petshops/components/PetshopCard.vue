@@ -43,11 +43,11 @@ watch(() => props.petshop.logo_url, () => {
 
 // ── Contact safety guards ─────────────────────────────────
 
-/** Composed phone: phone_country_code + phone */
+/** Composed phone: country.phone_code + phone */
 const composedPhone = computed<string | null>(() => {
   const phone = props.petshop.phone
   if (!phone) return null
-  const code = props.petshop.phone_country_code || ''
+  const code = props.petshop.country?.phone_code || ''
   const full = code ? `${code} ${phone}` : phone
   return /^[+\d\s\-().]{4,30}$/.test(full) ? full : null
 })
@@ -144,7 +144,7 @@ const safeWhatsappUrl = computed<string | null>(() => {
       <!-- City + country -->
       <p class="text-muted small mb-0 petshop-card__location">
         <span aria-hidden="true">📍</span>
-        {{ petshop.city }}, {{ petshop.country }}
+        {{ petshop.city?.name }}, {{ petshop.country?.name }}
       </p>
 
       <!-- Contact row: phone, email, website, whatsapp icons -->

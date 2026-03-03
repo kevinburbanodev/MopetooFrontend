@@ -50,11 +50,11 @@ const safeWebsiteUrl = computed<string | null>(() => {
   }
 })
 
-/** Composed phone: phone_country_code + phone */
+/** Composed phone: country.phone_code + phone */
 const composedPhone = computed<string | null>(() => {
   const phone = petshop.value?.phone
   if (!phone) return null
-  const code = petshop.value?.phone_country_code || ''
+  const code = petshop.value?.country?.phone_code || ''
   const full = code ? `${code} ${phone}` : phone
   return /^[+\d\s\-().]{4,30}$/.test(full) ? full : null
 })
@@ -224,7 +224,7 @@ onUnmounted(() => {
           <!-- City + country -->
           <p class="text-muted mb-3">
             <span aria-hidden="true">📍</span>
-            {{ petshop.city }}, {{ petshop.country }}
+            {{ petshop.city?.name }}, {{ petshop.country?.name }}
           </p>
 
           <!-- Description -->

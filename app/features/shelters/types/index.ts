@@ -11,15 +11,18 @@
 //   POST /api/adoption-listings/:id/requests → protected
 // ============================================================
 
+import type { Country, City } from '../../shared/types/api.types'
+
 /** Full shelter model — matches backend Shelter struct */
 export interface Shelter {
   id: number
   organization_name: string
   email: string
   description?: string
-  country: string
-  city: string
-  phone_country_code: string
+  country_id: number
+  country?: Country
+  city_id: number
+  city?: City
   phone: string
   address?: string
   logo_url?: string
@@ -34,7 +37,7 @@ export interface Shelter {
 export interface ShelterInfo {
   id: number
   name: string
-  city?: string
+  city_id?: number
   email?: string
   phone?: string
 }
@@ -50,8 +53,8 @@ export interface AdoptionListing {
   gender: string
   photo_url: string
   story?: string
-  city: string
-  country: string
+  country_id?: number
+  city_id?: number
   status: 'available' | 'pending' | 'adopted'
   shelter?: ShelterInfo
   created_at: string
