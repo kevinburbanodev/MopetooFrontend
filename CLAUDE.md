@@ -46,7 +46,7 @@ Each domain feature is self-contained under `app/features/<feature>/`:
 app/features/
 ├── shared/          # Cross-feature kernel (useApi, useExportPDF, useLocations, AppNavbar, SearchableSelect, api.types)
 ├── home/            # Landing page slice
-├── auth/            # Login, register, password reset
+├── auth/            # Login, register, password reset, email verification
 ├── pets/            # Pet profile CRUD
 ├── reminders/       # Reminder CRUD
 ├── medical/         # Medical record CRUD
@@ -112,7 +112,7 @@ Token is persisted to `localStorage` under key `mopetoo_token`. The auth store e
 `useApi()` (from `features/shared/composables/useApi.ts`) is the single HTTP wrapper. It reads the JWT from `localStorage` and prepends `runtimeConfig.public.apiBase` to every request. For multipart uploads (pet photos), `usePets.ts` calls `$fetch` directly with `FormData`.
 
 **Backend API** (Go + Gin):
-- Public endpoints: `POST /users`, `POST /login`, `POST /forgot-password`, `POST /reset-password`, `GET /countries`, `GET /countries/:id/cities`, `GET /adoption-listings` (supports `?country=` filter)
+- Public endpoints: `POST /users`, `POST /login`, `POST /forgot-password`, `POST /reset-password`, `POST /verify-email`, `POST /resend-verification`, `GET /countries`, `GET /countries/:id/cities`, `GET /adoption-listings` (supports `?country=` filter)
 - Protected endpoints: all under `/api/*` — require `Authorization: Bearer <token>`
 - Pet create/update uses `multipart/form-data` (photo field)
 
@@ -174,7 +174,7 @@ Sub-agents are invoked automatically via the Task tool. Each has persistent memo
 #### `nuxt-security-champion` — Security reviewer
 
 **Invoke proactively (without being explicitly asked) after writing:**
-- Any auth flow: login, register, logout, token refresh, password reset
+- Any auth flow: login, register, logout, token refresh, password reset, email verification
 - Any composable or component that handles user input, tokens, cookies, or environment variables
 - Any `v-html` usage — must verify DOMPurify sanitization before delivery
 - Third-party script integrations (analytics, chat, payment widgets)

@@ -177,6 +177,18 @@ export interface UpdateProfileDTO {
   new_password?: string
 }
 
+// ── Email verification ───────────────────────────────────
+export interface VerifyEmailPayload {
+  email: string
+  code: string
+  entity_type: EntityType
+}
+
+export interface ResendVerificationPayload {
+  email: string
+  entity_type: EntityType
+}
+
 // ── Password recovery ──────────────────────────────────────
 export interface ForgotPasswordPayload {
   email: string

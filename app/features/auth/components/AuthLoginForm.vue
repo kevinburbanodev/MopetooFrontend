@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { EntityType } from '../types'
 
-const { login, pending, error } = useAuth()
+const { login, pending, error, verificationPending } = useAuth()
 
 const entityType = ref<EntityType>('user')
 const email = ref('')
@@ -28,7 +28,11 @@ async function handleSubmit(): Promise<void> {
 </script>
 
 <template>
-  <div class="row justify-content-center">
+  <!-- Email verification form (shown after 403 email_not_verified) -->
+  <AuthVerifyEmailForm v-if="verificationPending" />
+
+  <!-- Login form -->
+  <div v-else class="row justify-content-center">
     <div class="col-12 col-sm-10 col-md-8 col-lg-5">
       <div class="card shadow border-0 login-card">
         <div class="card-body p-4 p-md-5">

@@ -22,6 +22,7 @@ import type {
   AuthShelter,
   AuthStore as AuthStoreType,
   AuthClinic,
+  VerifyEmailPayload,
 } from '../types'
 import { extractErrorMessage } from '../../shared/utils/extractErrorMessage'
 
@@ -34,6 +35,11 @@ export function useAuth() {
 
   const pending = ref(false)
   const error = ref<string | null>(null)
+
+  // ── Email verification state ──────────────────────────────
+  const verificationPending = ref(false)
+  const verificationEmail = ref<string | null>(null)
+  const verificationEntityType = ref<EntityType | null>(null)
 
   // ── Public API ──────────────────────────────────────────────
 
@@ -53,11 +59,75 @@ export function useAuth() {
       await router.push('/dashboard')
     }
     catch (err: unknown) {
+      // Intercept 403 email_not_verified
+      const status = extractStatus(err)
+      const errorData = extractErrorData(err)
+      if (status === 403 && errorData?.error === 'email_not_verified' && errorData?.email) {
+        verificationPending.value = true
+        verificationEmail.value = errorData.email as string
+        verificationEntityType.value = entityType
+        error.value = null
+        return
+      }
       error.value = extractErrorMessage(err)
     }
     finally {
       pending.value = false
     }
+  }
+
+  async function verifyEmail(code: string): Promise<void> {
+    if (!verificationEmail.value || !verificationEntityType.value) return
+    pending.value = true
+    error.value = null
+    try {
+      const payload: VerifyEmailPayload = {
+        email: verificationEmail.value,
+        code,
+        entity_type: verificationEntityType.value,
+      }
+      const response = await post<
+        LoginResponse | ShelterLoginResponse | StoreLoginResponse | ClinicLoginResponse
+      >('/verify-email', payload)
+      authStore.setSession(response, verificationEntityType.value)
+      verificationPending.value = false
+      verificationEmail.value = null
+      verificationEntityType.value = null
+      await router.push('/dashboard')
+    }
+    catch (err: unknown) {
+      error.value = extractErrorMessage(err)
+    }
+    finally {
+      pending.value = false
+    }
+  }
+
+  async function resendVerificationCode(): Promise<{ success: boolean }> {
+    if (!verificationEmail.value || !verificationEntityType.value) return { success: false }
+    pending.value = true
+    error.value = null
+    try {
+      await post<void>('/resend-verification', {
+        email: verificationEmail.value,
+        entity_type: verificationEntityType.value,
+      })
+      return { success: true }
+    }
+    catch (err: unknown) {
+      error.value = extractErrorMessage(err)
+      return { success: false }
+    }
+    finally {
+      pending.value = false
+    }
+  }
+
+  function cancelVerification(): void {
+    verificationPending.value = false
+    verificationEmail.value = null
+    verificationEntityType.value = null
+    error.value = null
   }
 
   async function register(data: RegisterPayload, photo?: File): Promise<void> {
@@ -71,7 +141,7 @@ export function useAuth() {
         method: 'POST',
         body: formData,
       })
-      // After registration log the user in automatically
+      // After registration, attempt login which will trigger verification flow
       await login(data.email, data.password, 'user')
     }
     catch (err: unknown) {
@@ -250,6 +320,9 @@ export function useAuth() {
   return {
     pending,
     error,
+    verificationPending,
+    verificationEmail,
+    verificationEntityType,
     login,
     register,
     registerShelter,
@@ -261,6 +334,9 @@ export function useAuth() {
     fetchCurrentUser,
     updateProfile,
     deleteAccount,
+    verifyEmail,
+    resendVerificationCode,
+    cancelVerification,
   }
 }
 
@@ -338,6 +414,16 @@ function buildProfileFormData(data: UpdateProfileDTO, photo: File): FormData {
   if (data.new_password !== undefined) fd.append('new_password', data.new_password)
   fd.append('profile_picture', photo)
   return fd
+}
+
+function extractErrorData(err: unknown): Record<string, unknown> | null {
+  if (typeof err === 'object' && err !== null && 'data' in err) {
+    const data = (err as { data: unknown }).data
+    if (typeof data === 'object' && data !== null) {
+      return data as Record<string, unknown>
+    }
+  }
+  return null
 }
 
 function extractStatus(err: unknown): number | null {
