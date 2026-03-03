@@ -84,6 +84,15 @@ const safeWhatsappUrl = computed<string | null>(() => {
   }
 })
 
+/**
+ * Google Maps embed URL using the petshop address.
+ */
+const mapsEmbedUrl = computed<string | null>(() => {
+  const address = petshop.value?.address
+  if (!address) return null
+  return `https://maps.google.com/maps?q=${encodeURIComponent(address)}&output=embed`
+})
+
 // ── Photo error handling ───────────────────────────────────
 const imgError = ref(false)
 const showPhoto = computed(() => !!safeLogoUrl.value && !imgError.value)
@@ -224,7 +233,7 @@ onUnmounted(() => {
           <!-- City + country -->
           <p class="text-muted mb-3">
             <span aria-hidden="true">📍</span>
-            {{ petshop.city?.name }}, {{ petshop.country?.name }}
+            {{ petshop.address ? `${petshop.address}, ` : '' }}{{ petshop.city?.name }}, {{ petshop.country?.name }}
           </p>
 
           <!-- Description -->
@@ -302,6 +311,32 @@ onUnmounted(() => {
               >
                 <span aria-hidden="true">🌐</span> {{ petshop.website }}
               </a>
+            </div>
+          </div>
+
+          <!-- Location / Google Maps -->
+          <div v-if="petshop.address" class="mt-4">
+            <h2
+              class="h6 fw-bold text-muted text-uppercase mb-3"
+              style="letter-spacing: 0.05em;"
+            >
+              Ubicación
+            </h2>
+            <p class="mb-2">
+              <span aria-hidden="true">📍</span> {{ petshop.address }}
+            </p>
+            <div class="petshop-detail__map-wrap">
+              <iframe
+                v-if="mapsEmbedUrl"
+                :src="mapsEmbedUrl"
+                width="100%"
+                height="300"
+                style="border: 0; border-radius: var(--bs-border-radius-lg);"
+                allowfullscreen
+                loading="lazy"
+                referrerpolicy="no-referrer-when-downgrade"
+                :title="`Mapa de ${petshop.name}`"
+              />
             </div>
           </div>
         </div>

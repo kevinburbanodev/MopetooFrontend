@@ -103,6 +103,15 @@ const locationText = computed(() => {
   return parts.join(', ')
 })
 
+/**
+ * Google Maps embed URL using the clinic address.
+ */
+const mapsEmbedUrl = computed<string | null>(() => {
+  const address = clinic.value?.address
+  if (!address) return null
+  return `https://maps.google.com/maps?q=${encodeURIComponent(address)}&output=embed`
+})
+
 // ── Lifecycle ─────────────────────────────────────────────
 
 onMounted(async () => {
@@ -332,6 +341,32 @@ onUnmounted(() => {
               >
                 <span aria-hidden="true">🐦</span> Twitter
               </a>
+            </div>
+          </div>
+
+          <!-- Location / Google Maps -->
+          <div v-if="clinic.address" class="mt-4">
+            <h2
+              class="h6 fw-bold text-muted text-uppercase mb-3"
+              style="letter-spacing: 0.05em;"
+            >
+              Ubicación
+            </h2>
+            <p class="mb-2">
+              <span aria-hidden="true">📍</span> {{ clinic.address }}
+            </p>
+            <div class="clinic-detail__map-wrap">
+              <iframe
+                v-if="mapsEmbedUrl"
+                :src="mapsEmbedUrl"
+                width="100%"
+                height="300"
+                style="border: 0; border-radius: var(--bs-border-radius-lg);"
+                allowfullscreen
+                loading="lazy"
+                referrerpolicy="no-referrer-when-downgrade"
+                :title="`Mapa de ${clinic.name}`"
+              />
             </div>
           </div>
         </div>

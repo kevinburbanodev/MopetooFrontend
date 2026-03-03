@@ -40,6 +40,7 @@ export interface Petshop {
   city_id: number
   city?: City
   phone: string
+  address?: string
   whatsapp_link?: string
   website?: string
   verified: boolean
