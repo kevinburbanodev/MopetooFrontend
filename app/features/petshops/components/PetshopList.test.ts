@@ -62,8 +62,8 @@ function makePetshop(overrides: Partial<Petshop> = {}): Petshop {
 }
 
 const shopA = makePetshop({ id: 1, name: 'Mascotas Felices', city_id: 1, city: { id: 1, name: 'Bogotá', country_id: 1 }, plan: '' })
-const shopB = makePetshop({ id: 2, name: 'PetWorld', city_id: 2, city: { id: 2, name: 'Medellín', country_id: 1 }, plan: 'premium', description: 'Tienda de accesorios premium' })
-const shopC = makePetshop({ id: 3, name: 'Mundo Animal', city_id: 3, city: { id: 3, name: 'Cali', country_id: 1 }, plan: 'basic' })
+const shopB = makePetshop({ id: 2, name: 'PetWorld', city_id: 2, city: { id: 2, name: 'Medellín', country_id: 1 }, plan: 'featured', description: 'Tienda de accesorios premium' })
+const shopC = makePetshop({ id: 3, name: 'Mundo Animal', city_id: 3, city: { id: 3, name: 'Cali', country_id: 1 }, plan: 'free' })
 
 // ── usePetshops mock ──────────────────────────────────────────
 // Module-level reactive refs control the mock state per test.
@@ -84,7 +84,7 @@ vi.mock('../composables/usePetshops', () => ({
       get isLoading() { return mockIsLoading.value },
       // getPremiumPetshops — replicate the plan-based getter
       get getPremiumPetshops() {
-        return mockPetshops.value.filter(p => p.plan !== '')
+        return mockPetshops.value.filter(p => p.plan === 'featured')
       },
     },
   }),

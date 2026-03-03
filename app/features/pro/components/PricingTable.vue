@@ -17,9 +17,9 @@ const authStore = useAuthStore()
 
 // Hardcoded free tier features — not managed via API
 const FREE_FEATURES = [
-  'Hasta 3 mascotas',
-  'Recordatorios básicos',
-  'Historial médico',
+  'Hasta 2 mascotas',
+  '5 recordatorios por mascota',
+  '10 registros médicos por mascota',
   'Adopciones',
 ] as const
 

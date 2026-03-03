@@ -34,10 +34,10 @@ export const PRO_PLANS: ProPlanDef[] = [
     currency: 'COP',
     features: [
       'Mascotas ilimitadas',
-      'Exportar perfil en PDF',
       'Recordatorios ilimitados',
-      'Historial médico completo',
-      'Soporte prioritario',
+      'Registros médicos ilimitados',
+      'Exportar PDF',
+      'Sin publicidad',
     ],
   },
   {
@@ -48,10 +48,10 @@ export const PRO_PLANS: ProPlanDef[] = [
     currency: 'COP',
     features: [
       'Mascotas ilimitadas',
-      'Exportar perfil en PDF',
       'Recordatorios ilimitados',
-      'Historial médico completo',
-      'Soporte prioritario',
+      'Registros médicos ilimitados',
+      'Exportar PDF',
+      'Sin publicidad',
       '2 meses gratis',
     ],
     is_popular: true,

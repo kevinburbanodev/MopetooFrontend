@@ -125,8 +125,8 @@ describe('PricingTable', () => {
     it('renders features for the monthly plan', async () => {
       const wrapper = await mountTable()
       expect(wrapper.text()).toContain('Mascotas ilimitadas')
-      expect(wrapper.text()).toContain('Exportar perfil en PDF')
-      expect(wrapper.text()).toContain('Soporte prioritario')
+      expect(wrapper.text()).toContain('Exportar PDF')
+      expect(wrapper.text()).toContain('Sin publicidad')
     })
 
     it('renders the extra annual plan feature ("2 meses gratis")', async () => {

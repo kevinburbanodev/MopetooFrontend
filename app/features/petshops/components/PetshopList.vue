@@ -53,7 +53,7 @@ const showPremiumSection = computed(() =>
 // Regular (non-premium) petshops for the main grid when no filters active
 const regularPetshops = computed(() => {
   if (hasActiveFilters.value) return filteredPetshops.value
-  return filteredPetshops.value.filter(p => p.plan === '')
+  return filteredPetshops.value.filter(p => p.plan !== 'featured')
 })
 
 function clearFilters(): void {
