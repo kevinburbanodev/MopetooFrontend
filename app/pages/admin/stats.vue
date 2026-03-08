@@ -11,6 +11,7 @@
 
 definePageMeta({
   name: 'admin-stats',
+  layout: 'admin',
   middleware: 'admin',
 })
 
@@ -27,20 +28,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="container py-4">
-    <div class="d-flex align-items-center gap-3 mb-5">
-      <NuxtLink
-        to="/admin"
-        class="btn btn-sm btn-link p-0 text-muted text-decoration-none"
-        aria-label="Volver al panel"
-      >
-        &larr; Panel
-      </NuxtLink>
-      <h1 class="h3 fw-bold mb-0">
-        <span aria-hidden="true">📊</span> Estadísticas del Sistema
-      </h1>
-    </div>
-
+  <div>
     <!-- Overview KPI cards (self-fetching) -->
     <div class="mb-5">
       <StatsOverview />
@@ -49,7 +37,7 @@ onMounted(async () => {
     <!-- Revenue chart + table side by side -->
     <div class="row g-4 mb-5">
       <div class="col-12 col-lg-6">
-        <div class="card border-0 shadow-sm p-4 h-100">
+        <div class="admin-glass p-4 h-100">
           <StatsChart
             :data="statsStore.revenueData"
             :is-loading="revenueLoading"
@@ -57,7 +45,7 @@ onMounted(async () => {
         </div>
       </div>
       <div class="col-12 col-lg-6">
-        <div class="card border-0 shadow-sm p-4 h-100">
+        <div class="admin-glass p-4 h-100">
           <RevenueReport
             :data="statsStore.revenueData"
             :stats="statsStore.revenueStats"

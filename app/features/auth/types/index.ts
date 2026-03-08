@@ -120,49 +120,6 @@ export interface ClinicLoginResponse {
   clinic: AuthClinic
 }
 
-// ── Registration payloads ──────────────────────────────────
-export interface RegisterPayload {
-  name: string
-  last_name: string
-  email: string
-  password: string
-  country_id: number
-  city_id: number
-  phone: string
-  birth_date?: string
-}
-
-export interface RegisterShelterPayload {
-  organization_name: string
-  email: string
-  password: string
-  description: string
-  country_id: number
-  city_id: number
-  phone: string
-}
-
-export interface RegisterStorePayload {
-  name: string
-  email: string
-  password: string
-  description: string
-  country_id: number
-  city_id: number
-  phone: string
-}
-
-export interface RegisterClinicPayload {
-  name: string
-  email: string
-  password: string
-  phone: string
-  address: string
-  country_id: number
-  city_id: number
-  description: string
-}
-
 // ── Profile update ─────────────────────────────────────────
 // Used for PATCH /api/{entity-type}/:id — all fields optional
 export interface UpdateProfileDTO {

@@ -1,14 +1,13 @@
 // ============================================================
-// guest middleware — applied to public auth pages (/login,
-// /register, /forgot-password).
-// Redirects already-authenticated users to /dashboard so they
-// never see the login/register forms while logged in.
+// guest middleware — applied to the login page.
+// Redirects already-authenticated users to /admin so they
+// never see the login form while logged in.
 // ============================================================
 
 export default defineNuxtRouteMiddleware(() => {
   const authStore = useAuthStore()
 
   if (authStore.isAuthenticated) {
-    return navigateTo('/dashboard')
+    return navigateTo('/admin')
   }
 })

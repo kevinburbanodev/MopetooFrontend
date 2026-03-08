@@ -19,24 +19,22 @@ npm run test:coverage    # Single run with coverage report
 **Test stack:** Vitest + `@nuxt/test-utils` + `@pinia/testing`
 **Config:** `vitest.config.ts` at project root (environment: `nuxt`, `globals: true`, `env.NUXT_PUBLIC_API_BASE` set to avoid `useRuntimeConfig` mock pitfalls)
 **Colocation rule:** test files live next to the source file inside the feature slice.
-**Status:**
-- Auth feature slice (RF-001–RF-009): 90 tests (store 42, composable 40, auth middleware 4, guest middleware 4) ✅ — multi-entity updateProfile/deleteAccount, JWT user_id number
-- Pets feature slice (RF-100–RF-109): 255 tests (store 40, usePets 64, usePetAge 8, PetAvatar 22, PetCard 24, PetList 19, PetForm 48, PetDetail 30) ✅ — createPet photo required, pending ref removed
-- Reminders feature slice (RF-200–RF-209): 228 tests (store 53, useReminders 57, ReminderCard 25, ReminderList 38, ReminderForm 55) ✅ — IDs normalized to string
-- Medical feature slice (RF-300–RF-309): 273 tests (store 44, useMedical 65, MedicalRecordCard 38, MedicalHistory 31, MedicalRecordForm 86) ✅
-- Export/PDF slice (RF-400–RF-409): 25 tests (useExportPDF 25) ✅ — maintenance header detection added; exportProfilePDF tests in usePets, exportRemindersPDF tests in useReminders
-- Shelters slice (RF-500–RF-509): 157 tests (store 35, useShelters 35, ShelterList 22, AdoptionPetCard 25, AdoptionDetail 40) ✅ — shelter name links to /shelters/:id in AdoptionDetail, WhatsApp buttons on phone numbers, Google Maps iframe in ShelterDetail (address field), "Inicio" removed from authenticated navbar
-- Blog slice (RF-600–RF-609): 147 tests (store 34, useBlog 26, BlogCategoryFilter 20, BlogCard 16, BlogList 27, BlogArticle 24) ✅ — synced with backend model.BlogPost
-- Petshops slice (RF-700–RF-709): 203 tests (store 49, usePetshops 45, PetshopCard 29, PetshopList 38, PetshopDetail 42) ✅ — getPremiumPetshops filters plan === 'featured'; plan typed as union; Google Maps iframe in PetshopDetail (address field)
-- Pro/Monetización slice (RF-800–RF-809): 157 tests (store 24, usePro 38, ProBanner 23, PricingTable 16, ProUpgradeModal 19, DonationForm 37) ✅ — donate(shelterId: number); SubscribeRequest removed
-- Clinics slice (RF-900–RF-909): 186 tests (store 43, useClinics 36, ClinicCard 36, ClinicList 30, ClinicDetail 41) ✅ — synced with backend model.Clinic, Google Maps iframe in ClinicDetail (address field)
-- Admin slice (RF-1000–RF-1009): 330 tests (store 60, useAdmin 85, AdminDashboard 28, AdminUserManager 34, AdminShelterManager 27, AdminStoreManager 27, AdminClinicManager 34, AdminTransactionLog 28, admin middleware 7) ✅ — synced with backend PATCH endpoints (no PUT/DELETE)
-- Stats slice (RF-1100–RF-1109): 117 tests (store 31, useStats 25, StatsOverview 26, StatsChart 14, RevenueReport 21) ✅ — synced with backend nested StatsOverview + RevenueStats; ActivityLog removed (fabricated endpoint)
-- Maintenance slice (RF-1200–RF-1209): 187 tests (store 33, useMaintenance 47, MaintenancePage 18, MaintenanceToggle 65, maintenance middleware 24) ✅ — synced with backend activate/deactivate PATCH endpoints
+**Status (v2 — reduced scope: Landing + Blog + Pet Public Profile + Admin):**
+- Auth feature slice: tests updated — removed register/forgot/reset tests, login redirects to `/admin`, logout to `/`, auth middleware rewritten for `/admin/**` only, guest middleware updated
+- Blog slice (RF-600–RF-609): 147 tests ✅ — blog article page now uses `useAsyncData` for SSR (was client-side `onMounted`)
+- Pet-profile slice: new — public pet profile for QR scanning (SSR), `usePetProfile` composable, `PetProfileCard` component
+- Admin slice (RF-1000–RF-1009): expanded — `AdminVerificationManager`, `AdminEventStats`, verification requests page
+- Stats slice (RF-1100–RF-1109): 117 tests ✅
+- Maintenance slice (RF-1200–RF-1209): 187 tests ✅
+- Home slice: landing page updated — `/register` links changed to `#download`, new `DownloadSection` component with app store badges
+
+**Removed slices (moved to Flutter mobile app):** pets, reminders, medical, export/PDF, shelters, petshops, pro, clinics — test suites for these no longer exist.
 
 ## Architecture
 
 **Nuxt 4** app with `app/` as the source root (`srcDir`). All application code lives under `app/`.
+
+**Scope (v2):** The web frontend handles Landing + Blog SEO + Pet Public Profile (QR/SSR) + Admin Panel only. The Flutter mobile app handles the full user experience (pet CRUD, reminders, medical records, subscriptions, clinic/store/shelter navigation).
 
 ### Feature-Based Vertical Slice
 
@@ -44,18 +42,12 @@ Each domain feature is self-contained under `app/features/<feature>/`:
 
 ```
 app/features/
-├── shared/          # Cross-feature kernel (useApi, useExportPDF, useLocations, AppNavbar, SearchableSelect, api.types)
-├── home/            # Landing page slice
-├── auth/            # Login, register, password reset, email verification
-├── pets/            # Pet profile CRUD
-├── reminders/       # Reminder CRUD
-├── medical/         # Medical record CRUD
-├── shelters/        # Adoption listings directory & detail (public + auth)
-├── blog/            # Blog editorial (public: listing + article detail)
-├── petshops/        # Pet-friendly stores directory (public: listing + detail)
-├── pro/             # Monetización: PRO subscriptions, pricing table, donations (RF-800–RF-809)
-├── clinics/         # Veterinary clinics directory (public: listing + detail) (RF-900–RF-909)
-├── admin/           # Admin panel: stats, user/shelter/store/clinic management, transactions (RF-1000–RF-1009)
+├── shared/          # Cross-feature kernel (useApi, AppNavbar, api.types)
+├── home/            # Landing page (public, DownloadSection with app store badges)
+├── auth/            # Admin-only login + email verification
+├── pet-profile/     # Public pet profile for QR scanning (SSR, usePetProfile, PetProfileCard)
+├── blog/            # Blog editorial (public: listing + article detail, SSR/SEO)
+├── admin/           # Admin panel: stats, user/shelter/store/clinic management, transactions, verification (RF-1000–RF-1009)
 ├── stats/           # Statistics & metrics: KPI overview (nested), revenue chart/table (RF-1100–RF-1109)
 └── maintenance/     # Maintenance mode: toggle (admin), page, x-maintenance header detection (RF-1200–RF-1209)
 ```
@@ -71,6 +63,24 @@ Every slice follows the same internal structure:
 
 **`app/pages/` are thin wrappers only** — they set `<head>` metadata and render the feature component. All logic lives in the feature slice.
 
+**Pages (v2):**
+- `/` — Landing page (public, no middleware)
+- `/login` — Admin-only login
+- `/blog/**` — Blog listing + article detail (SSR/SEO)
+- `/pet/[slug]` — Pet public profile (SSR for QR scanning)
+- `/admin` — Admin dashboard
+- `/admin/users` — User management
+- `/admin/shelters` — Shelter management
+- `/admin/stores` — Store management
+- `/admin/clinics` — Clinic management
+- `/admin/stats` — Statistics & metrics
+- `/admin/verifications` — Verification requests
+- `/admin/donations` — Donation log (Wompi)
+- `/admin/events` — Shelter event monitor
+- `/maintenance` — Maintenance page
+
+**Removed pages:** `/dashboard/**`, `/pricing`, `/clinics/**`, `/stores/**`, `/shelters/**`, `/shelter/**`, `/register`, `/forgot-password`, `/reset-password/**`
+
 ### Auto-imports (nuxt.config.ts)
 
 Nuxt is configured to auto-import:
@@ -78,43 +88,42 @@ Nuxt is configured to auto-import:
 - **Composables**: `features/*/composables` and `features/shared/composables`
 - **Stores**: `features/*/stores`
 
-This means `useApi()`, `useAuth()`, `useAuthStore()`, `useLocations()`, `SearchableSelect`, etc. are available in any `.vue` file or composable without importing.
-
-**Shared composable `useLocations()`:** fetches `GET /countries` and `GET /countries/:id/cities` from the public API. Returns `countries`, `cities` refs, loading states, `fetchCountries()`, `fetchCitiesByCountry(id)`, `clearCities()`. Countries are cached (only fetched once). Used by all 5 registration/profile forms and the adoption listings filter.
-
-**Shared component `SearchableSelect`:** accessible dropdown with text search (accent-insensitive via NFD normalization), keyboard navigation (Arrow/Enter/Escape), click-outside-to-close. Props: `modelValue`, `options: {value, label}[]`, `placeholder?`, `disabled?`, `loading?`, `inputId?`, `isInvalid?`. Uses Bootstrap 5 classes. Replaces plain `<input type="text">` for country/city fields across all registration forms.
+This means `useApi()`, `useAuth()`, `useAuthStore()`, etc. are available in any `.vue` file or composable without importing.
 
 ### State Management (Pinia)
 
 | Store | State |
 |---|---|
-| `useAuthStore` | `currentUser`, `token`, `isAuthenticated`, `isPro` |
-| `usePetsStore` | `pets[]`, `selectedPet`, `isLoading` |
-| `useRemindersStore` | `reminders[]`, `selectedReminder`, `isLoading` |
-| `useMedicalStore` | `records[]`, `selectedRecord`, `isLoading` |
-| `useSheltersStore` | `adoptionListings[]`, `selectedListing`, `isLoading`, `hasAdoptionListings`, `getAvailableListings` |
+| `useAuthStore` | `currentUser`, `token`, `isAuthenticated` |
 | `useBlogStore` | `posts[]`, `selectedPost`, `isLoading`, `hasPosts`, `getPostBySlug` |
-| `usePetshopsStore` | `petshops[]`, `selectedPetshop`, `storeProducts[]`, `isLoading`, `hasPetshops`, `getPremiumPetshops` |
-| `useProStore` | `subscription`, `isLoading`, `isSubscribed` |
-| `useClinicsStore` | `clinics[]`, `selectedClinic`, `isLoading`, `hasClinics`, `getPremiumClinics` |
-| `useAdminStore` | `users[]`, `selectedUser`, `shelters[]`, `petshops[]`, `clinics[]`, `transactions[]`, `donations[]`, `isLoading`, total-count refs (Users/Shelters/Petshops/Clinics/Transactions/Donations), `hasUsers` |
+| `useAdminStore` | `users[]`, `selectedUser`, `shelters[]`, `petshops[]`, `clinics[]`, `transactions[]`, `donations[]`, `isLoading`, total-count refs, `hasUsers` |
 | `useStatsStore` | `overview`, `revenueData[]`, `revenueStats`, `isLoading`, `hasOverview`, `hasRevenueData`, `hasRevenueStats` |
 | `useMaintenanceStore` | `status` (MaintenanceStatus \| null), `isLoading`, `isEnabled` (computed from `status.is_active`), `hasStatus` (computed) |
 
+**Removed stores (v2):** `petsStore`, `remindersStore`, `medicalStore`, `sheltersStore`, `proStore`, `petshopsStore`, `clinicsStore` — moved to Flutter.
+
 Token is persisted to `localStorage` under key `mopetoo_token`. The auth store exposes `setSession()`, `clearSession()`, and `restoreFromStorage()`.
 
-**Cross-store cleanup rule:** `clearSession()` in `auth.store.ts` MUST clear every user-specific store. Currently clears `petsStore`, `remindersStore`, `medicalStore`, `sheltersStore`, `proStore`, `adminStore`, and `statsStore`. When adding new feature slices with user-specific data, add their store reset calls to `clearSession()` to prevent data leakage on shared devices.
+**Cross-store cleanup rule:** `clearSession()` in `auth.store.ts` MUST clear every user-specific store. Currently clears `adminStore` and `statsStore`. When adding new feature slices with user-specific data, add their store reset calls to `clearSession()` to prevent data leakage on shared devices.
 
 **Exception — `useMaintenanceStore` is NOT in `clearSession()`:** Maintenance status is a global platform flag (not user-specific). It persists across sessions intentionally so the app can redirect to `/maintenance` without an extra API call after logout/login.
 
+### Auth Changes (v2)
+
+- Login redirects to `/admin` (not `/dashboard`)
+- Logout redirects to `/` (not `/login`)
+- Guest middleware redirects authenticated users to `/admin` (not `/dashboard`)
+- Auth middleware protects only `/admin/**` routes, redirects unauthenticated users to `/`
+- Removed: `register()`, `registerShelter()`, `registerStore()`, `registerClinic()`, `forgotPassword()`, `resetPassword()`
+- Auth slice now only handles: login (admin) + email verification
+
 ### HTTP Client
 
-`useApi()` (from `features/shared/composables/useApi.ts`) is the single HTTP wrapper. It reads the JWT from `localStorage` and prepends `runtimeConfig.public.apiBase` to every request. For multipart uploads (pet photos), `usePets.ts` calls `$fetch` directly with `FormData`.
+`useApi()` (from `features/shared/composables/useApi.ts`) is the single HTTP wrapper. It reads the JWT from `localStorage` and prepends `runtimeConfig.public.apiBase` to every request.
 
 **Backend API** (Go + Gin):
-- Public endpoints: `POST /users`, `POST /login`, `POST /forgot-password`, `POST /reset-password`, `POST /verify-email`, `POST /resend-verification`, `GET /countries`, `GET /countries/:id/cities`, `GET /adoption-listings` (supports `?country=` filter)
+- Public endpoints: `POST /login`, `POST /verify-email`, `POST /resend-verification`, `GET /blog/posts`, `GET /blog/posts/:slug`, `GET /pets/:slug/public`
 - Protected endpoints: all under `/api/*` — require `Authorization: Bearer <token>`
-- Pet create/update uses `multipart/form-data` (photo field)
 
 To configure the backend URL, add to `nuxt.config.ts`:
 ```ts
@@ -132,7 +141,14 @@ Entry point: `app/assets/scss/main.scss`
 - `silenceDeprecations` in `nuxt.config.ts` suppresses Bootstrap 5's internal Sass deprecation warnings (expected until Bootstrap 6).
 - Bootstrap JS is loaded client-side via `app/plugins/bootstrap.client.ts`.
 
+### Route Rules (v2)
+
+- `/pet/**` — 15 min ISR cache for QR scan performance
+- Removed stale rules: `/shelter/**`, `/stores/**`, `/clinics/**`
+
 ### Adding a new feature
+
+**Scope reminder (v2):** This web frontend is limited to Landing, Blog SEO, Pet Public Profile (QR/SSR), and Admin Panel. User-facing features (pet CRUD, reminders, medical records, subscriptions, clinic/store/shelter navigation) belong in the Flutter mobile app.
 
 1. Create `app/features/<name>/{components,composables,stores,types}/`
 2. Add domain types to `types/index.ts`
@@ -220,58 +236,33 @@ Any change to token storage or auth flow warrants a security review.
 
 **Test colocation rule:** Test files must live next to the code they test inside the feature slice (e.g., `features/auth/composables/useAuth.test.ts`). Never in a top-level `/tests` folder.
 
-**Current project state:** Vitest is configured with `happy-dom`. Fully tested slices:
-- **Auth (RF-001–RF-009):** `auth.store.test.ts` (41), `useAuth.test.ts` (36), `auth.test.ts` (4), `guest.test.ts` (4)
-- **Pets (RF-100–RF-109):** `pets.store.test.ts` (44), `usePets.test.ts` (51), `usePetAge.test.ts` (17), `PetAvatar.test.ts` (21), `PetCard.test.ts` (22), `PetList.test.ts` (16), `PetForm.test.ts` (32), `PetDetail.test.ts` (29)
+**Current project state:** Vitest is configured with `happy-dom`. Test suites for removed slices (pets, reminders, medical, shelters, petshops, pro, clinics) no longer exist. Remaining tested slices:
+- **Auth:** tests updated — removed register/forgot/reset tests, updated redirect paths (`/admin` not `/dashboard`), auth middleware rewritten, guest middleware updated
+- **Blog:** tests intact
+- **Admin:** tests expanded (added `AdminVerificationManager`, `AdminEventStats`)
+- **Stats / Maintenance:** tests intact
 
-**Mocking notes for pro slice:**
-- `usePro` composable: mock via `vi.mock('../composables/usePro', () => ({ usePro: () => ({ ... }) }))` with reactive refs for `error`, `proStore.*`
-- Bootstrap `Modal` JS: stub with `vi.mock('bootstrap', () => ({ Modal: vi.fn(() => ({ show: vi.fn(), hide: vi.fn() })) }))` in `ProUpgradeModal` tests
-- Plans are constants (`PRO_PLANS` in `types/index.ts`) — no fetch, no loading, no empty state tests needed
-- `subscribe(plan: PlanValue)` replaces `createCheckoutSession()` — calls `POST /api/users/${userId}/subscribe`, redirects via hidden form POST to PayU
-- PayU form redirect testing: `vi.spyOn(HTMLFormElement.prototype, 'submit').mockImplementation(mockFormSubmit)` to verify form submission without navigation
-- `DonationForm` auth gate: form is wrapped in `<ClientOnly>` — mount first with `isAuthenticated: true` in `createTestingPinia`, then `await nextTick()` to see form render
-- `DonationForm` redirect state: `isRedirecting` ref replaces inline success state — shows "Redirigiendo al pago..." + spinner after successful donate
-- Security fix: `donate()` in `usePro.ts` validates `shelterId` is a positive integer before API call — test 0, negative, and non-integer IDs return null with error
-- `subscribe()` validates HTTPS on `checkout_url` — test `http://` URLs return null with security error
-
-**Mocking notes for pets and reminders slices:**
+**General mocking notes:**
 - `useApi` is a project composable — mock via `vi.mock('../../shared/composables/useApi', ...)`, NOT `mockNuxtImport`
-- `useExportPDF` is a project composable — mock via `vi.mock('../../shared/composables/useExportPDF', ...)`, NOT `mockNuxtImport`
 - `useRuntimeConfig` is fed via `vitest.config.ts` `env.NUXT_PUBLIC_API_BASE` (not mocked) to avoid Vue Router init errors
-- `URL.createObjectURL` / `URL.revokeObjectURL` must be spied on via `vi.spyOn(URL, 'createObjectURL')` — do NOT replace the entire `URL` global or Nuxt internals break
 - `NuxtLink` should be stubbed via `global.stubs: { NuxtLink: true }` in component tests
-- Resetting select filters to null: use clearFilters button click, not `setValue(null)` (happy-dom limitation)
-- `Pet.id` is `string`; `Reminder.id` and `Reminder.pet_id` are `string` (normalized from backend `number` via `normalizeReminder()`)
-- `AdoptionDetail` adoption form is wrapped in `<ClientOnly>` — in tests, set `isAuthenticated: true` via `createTestingPinia` and verify the form renders after client hydration
-- `AdoptionPetCard` link format is `/shelter/adoptions/${listing.id}` (no shelterId query param)
 - **Auth store reset across tests (critical):** `setActivePinia(createPinia())` in `beforeEach` does NOT reset the Nuxt test env's auth store. Explicitly reset with: `const { useAuthStore } = await import('../../auth/stores/auth.store'); useAuthStore().token = null`
 - **Mount-first, then set token:** Setting `useAuthStore().token` BEFORE `mountSuspended` does NOT work. Mount first, then set token, then `await nextTick()` to trigger re-render of auth-conditional DOM
 - **Form submit in happy-dom:** `wrapper.find('button[type="submit"]').trigger('click')` does NOT propagate to `@submit.prevent`. Use `await wrapper.find('form').trigger('submit')` instead
-- **NuxtLink href assertions:** `{ NuxtLink: false }` or `{ NuxtLink: true }` stubs do not produce plain `<a href>`. Use a custom stub: `{ NuxtLink: { template: '<a :href="to"><slot /></a>', props: ['to'] } }`
+- **NuxtLink href assertions:** Use a custom stub: `{ NuxtLink: { template: '<a :href="to"><slot /></a>', props: ['to'] } }`
 
 **Mocking notes for admin slice:**
-- `useAdmin` composable: mock at module level with `reactive()` for store state and `ref()` for error — canonical pattern from clinics/petshops slices
+- `useAdmin` composable: mock at module level with `reactive()` for store state and `ref()` for error
 - `admin.ts` middleware test: same `vi.hoisted()` + `mockNuxtImport('navigateTo', ...)` + `vi.resetModules()` pattern as `auth.test.ts`
-- **AdminDashboard uses `useStats`**: mock `../../stats/composables/useStats` (not `useAdmin`) for KPIs. Overview is nested: `overview.users.total`, `overview.content.total_pets`, `overview.revenue_cop.in_period`, etc. Stub `MaintenanceToggle` component.
-- **No DELETE/PUT endpoints in backend**: All mutations use specific PATCH endpoints (grant-pro, revoke-pro, grant-admin, revoke-admin, activate, deactivate, verify, plan). No 2-step delete confirmation.
-- Toggle PRO: click "Dar PRO" → `grantPro(id, 'pro_monthly')`; click "Quitar PRO" → `revokePro(id)`. Admin: `grantAdmin(id)` / `revokeAdmin(id)`. Activate/Deactivate: `activateUser(id)` / `deactivateUser(id)`.
-- Self-protection guard: "Quitar Admin" and "Desactivar" buttons are disabled when `user.id === authStore.currentUser.id`. Set `currentEntity: { id: 99, is_admin: true }` in `createTestingPinia` and use `user.id = 99` to verify `disabled` attribute.
-- KPI card skeleton: 8 skeleton cards with `aria-busy="true"` visible when `statsStore.isLoading=true` and `!statsStore.hasOverview`.
-- Transaction status badges: `approved` → `.bg-success`; `pending` → `.bg-warning`; `declined` → `.bg-danger`; `error` → `.bg-secondary`. No type column (transactions and donations are separate endpoints).
-- Store plan badges: `featured` → `.bg-warning`; `free` → `.bg-secondary`. Clinic plan: `pro` → `.bg-info`; `free` → `.bg-secondary`.
+- **AdminDashboard uses `useStats`**: mock `../../stats/composables/useStats` (not `useAdmin`) for KPIs. Stub `MaintenanceToggle` component.
+- **No DELETE/PUT endpoints in backend**: All mutations use specific PATCH endpoints (grant-pro, revoke-pro, grant-admin, revoke-admin, activate, deactivate, verify, plan).
 - All entity IDs are `number` (not string). All pagination uses `limit` (not `per_page`).
 
 **Mocking notes for maintenance slice:**
-- `useMaintenance` composable: mock at module level with reactive refs (`mockFetchStatus`, `mockActivateMaintenance`, `mockDeactivateMaintenance`, `mockError = ref(null)`, `mockMaintenanceStore = reactive({...})`) — same canonical pattern as stats/clinics slices
+- `useMaintenance` composable: mock at module level with reactive refs — same canonical pattern as stats slices
 - `maintenance.ts` middleware: same `vi.hoisted()` + `mockNuxtImport('navigateTo', ...)` + `vi.resetModules()` pattern as `admin.test.ts`
 - **Critical**: `maintenanceStore.isEnabled` is a computed from `status.is_active` (NOT `is_enabled`). In `createTestingPinia`, set `maintenance: { status: { is_active: true } }` to control the state
 - Middleware also reads `useAuthStore` — both stores must be set in `initialState` when testing the middleware: `{ auth: { token, currentUser }, maintenance: { status } }`
-- `fetchStatus()` fails **silently** (no `error.value` set) — test that `error.value` stays `null` after API rejection
-- `activateMaintenance(request)` takes `{ message, estimated_return? }` and calls `PATCH /api/admin/maintenance/activate`. `deactivateMaintenance()` calls `PATCH /api/admin/maintenance/deactivate` with no body. Both surface errors.
-- Maintenance status fields: `is_active` (not `is_enabled`), `activated_at` (not `updated_at`), `activated_by_admin_id` (number, not `updated_by` string), `estimated_return` (ISO-8601 optional)
-- `MaintenancePage` is a pure presentational component — no composable mock needed; use `mountSuspended` with NuxtLink stub
-- `MaintenanceToggle` calls `fetchStatus()` on mount — ensure `mockFetchStatus` is a `vi.fn()` that resolves immediately to prevent accidental store mutations. Toggle shows activation form (message input + estimated return input) when confirming enable.
 
 Invoke this agent for any new feature slice tests.
 

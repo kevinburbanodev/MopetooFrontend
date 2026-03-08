@@ -1,18 +1,8 @@
 // ============================================================
 // auth.test.ts — Route middleware: auth
 //
-// The middleware reads useAuthStore().isAuthenticated and calls
-// navigateTo('/login') when the user has no session.
-//
-// Testing strategy:
-//   - useAuthStore is provided by createTestingPinia with controlled
-//     initial state so we can test both authenticated and
-//     unauthenticated branches without touching real localStorage.
-//   - navigateTo is mocked via mockNuxtImport — we assert the return
-//     value of the middleware because Nuxt route middleware returns the
-//     result of navigateTo() to signal a redirect.
-//   - defineNuxtRouteMiddleware is mocked so the middleware factory
-//     executes synchronously in tests without a real Nuxt context.
+// The middleware protects /admin/** routes only. Redirects to /
+// when the user has no active session. Non-admin routes pass through.
 // ============================================================
 
 import { describe, it, expect, beforeEach, vi } from 'vitest'
@@ -22,13 +12,9 @@ import { mockNuxtImport } from '@nuxt/test-utils/runtime'
 
 // ── Nuxt auto-import mocks ───────────────────────────────────
 
-// navigateTo must be mocked BEFORE importing the middleware so the
-// module-level reference inside the middleware captures the mock.
 const navigateToMock = vi.hoisted(() => vi.fn((path: string) => ({ path })))
 mockNuxtImport('navigateTo', () => navigateToMock)
 
-// defineNuxtRouteMiddleware passes the handler through unchanged in
-// tests — we only care about the handler's return value, not the wrapper.
 mockNuxtImport(
   'defineNuxtRouteMiddleware',
   () => (handler: Function) => handler,
@@ -37,9 +23,6 @@ mockNuxtImport(
 // ── Suite ────────────────────────────────────────────────────
 
 describe('auth middleware', () => {
-  // The middleware factory is re-imported inside each test via a dynamic
-  // import after pinia is set up so the store is available in the module scope.
-
   beforeEach(() => {
     navigateToMock.mockClear()
     vi.resetModules()
@@ -56,17 +39,16 @@ describe('auth middleware', () => {
       )
     })
 
-    it('does not call navigateTo', async () => {
+    it('does not redirect on /admin routes', async () => {
       const middleware = (await import('./auth')).default as Function
-      // Middleware receives (to, from) — pass stubs; only isAuthenticated matters
-      middleware({}, {})
+      middleware({ path: '/admin' }, {})
 
       expect(navigateToMock).not.toHaveBeenCalled()
     })
 
-    it('returns undefined (pass-through)', async () => {
+    it('returns undefined (pass-through) for /admin', async () => {
       const middleware = (await import('./auth')).default as Function
-      const result = middleware({}, {})
+      const result = middleware({ path: '/admin/users' }, {})
 
       expect(result).toBeUndefined()
     })
@@ -83,19 +65,25 @@ describe('auth middleware', () => {
       )
     })
 
-    it('calls navigateTo with /login', async () => {
+    it('redirects /admin routes to /', async () => {
       const middleware = (await import('./auth')).default as Function
-      middleware({}, {})
+      middleware({ path: '/admin' }, {})
 
-      expect(navigateToMock).toHaveBeenCalledWith('/login')
+      expect(navigateToMock).toHaveBeenCalledWith('/')
     })
 
-    it('returns the result of navigateTo (redirect signal)', async () => {
+    it('returns the redirect signal for /admin routes', async () => {
       const middleware = (await import('./auth')).default as Function
-      const result = middleware({}, {})
+      const result = middleware({ path: '/admin/users' }, {})
 
-      // The return value IS the return from navigateTo — Nuxt uses it to redirect
-      expect(result).toEqual({ path: '/login' })
+      expect(result).toEqual({ path: '/' })
+    })
+
+    it('does NOT redirect non-admin routes', async () => {
+      const middleware = (await import('./auth')).default as Function
+      middleware({ path: '/blog' }, {})
+
+      expect(navigateToMock).not.toHaveBeenCalled()
     })
   })
 })

@@ -89,7 +89,7 @@ onMounted(async () => {
     <div class="d-flex align-items-center justify-content-between mb-4">
       <div>
         <h2 class="h5 fw-bold mb-1">
-          <span aria-hidden="true">💳</span> Registro de Transacciones
+          <span class="material-symbols-outlined" style="font-size: 1.1rem;" aria-hidden="true">receipt_long</span> Registro de Transacciones
         </h2>
         <p class="text-muted small mb-0">
           Suscripciones PRO y donaciones registradas en la plataforma.
@@ -110,7 +110,7 @@ onMounted(async () => {
       class="alert alert-danger d-flex align-items-center gap-2 mb-4"
       role="alert"
     >
-      <span aria-hidden="true">⚠</span>
+      <span class="material-symbols-outlined" style="font-size: 1.1rem;" aria-hidden="true">warning</span>
       {{ error }}
     </div>
 
@@ -168,7 +168,7 @@ onMounted(async () => {
             <!-- Empty state -->
             <tr v-else>
               <td colspan="6" class="text-center py-5 text-muted">
-                <div class="fs-2 mb-2" aria-hidden="true">💳</div>
+                <span class="material-symbols-outlined" style="font-size: 2rem;" aria-hidden="true">receipt_long</span>
                 No hay transacciones registradas aún.
               </td>
             </tr>

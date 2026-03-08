@@ -1,452 +1,119 @@
 <template>
-  <section ref="sectionRef" class="donate" :class="{ 'is-visible': isVisible }">
-    <div class="donate__grain" aria-hidden="true" />
+  <section class="donations-stitch landing-section">
+    <div class="container text-center position-relative">
+      <h2 class="donations-stitch__title">Tu ayuda transforma vidas</h2>
+      <p class="donations-stitch__quote">
+        "A traves de Mopetoo, hemos facilitado mas de 500 adopciones en el ultimo ano.
+        Cada donacion llega directamente a quienes mas lo necesitan."
+      </p>
 
-    <div class="container">
-      <div class="row align-items-center g-5">
-
-        <!-- ── Left: copy ─────────────────────────────────────── -->
-        <div class="col-12 col-lg-6 donate__copy">
-          <span class="donate__eyebrow">
-            <span class="donate__heart" aria-hidden="true">❤️</span>
-            Donaciones
-          </span>
-
-          <h2 class="donate__headline">
-            Apoya a quienes<br />
-            <em>más lo necesitan</em>
-          </h2>
-
-          <p class="donate__lead">
-            Cada refugio cuida a decenas de mascotas que buscan un hogar. Con
-            tu donación directa, ayudas a cubrir alimentación, atención
-            veterinaria y los cuidados que más necesitan.
-          </p>
-
-          <ul class="donate__points">
-            <li v-for="point in points" :key="point" class="donate__point">
-              <span class="donate__point-dot" aria-hidden="true" />
-              {{ point }}
-            </li>
-          </ul>
-
-          <div class="donate__actions">
-            <NuxtLink to="/shelter" class="donate__btn donate__btn--primary">
-              Conoce nuestros refugios
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                <path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" />
-              </svg>
-            </NuxtLink>
-            <NuxtLink to="/register" class="donate__btn donate__btn--ghost">
-              Registrarme para donar
-            </NuxtLink>
-          </div>
-        </div>
-
-        <!-- ── Right: donation flow mockup ────────────────────── -->
-        <div class="col-12 col-lg-6 d-flex justify-content-center donate__visual">
-          <div class="donate__mockup">
-
-            <!-- Shelter card -->
-            <div class="donate__shelter-card">
-              <div class="donate__shelter-avatar">🏠</div>
-              <div class="donate__shelter-info">
-                <div class="donate__shelter-name">Refugio Patitas Felices</div>
-                <div class="donate__shelter-meta">Bogotá · 42 mascotas en cuidado</div>
-              </div>
-            </div>
-
-            <!-- Donation amount -->
-            <div class="donate__amount-row">
-              <div class="donate__amount-label">Tu donación</div>
-              <div class="donate__amount-value">$ 25.000 <span>COP</span></div>
-            </div>
-
-            <!-- Progress -->
-            <div class="donate__progress-wrap">
-              <div class="donate__progress-bar">
-                <div class="donate__progress-fill" aria-hidden="true" />
-              </div>
-              <div class="donate__progress-text">73% de la meta mensual</div>
-            </div>
-
-            <!-- Impact -->
-            <div class="donate__impact">
-              <div v-for="impact in impacts" :key="impact.label" class="donate__impact-item">
-                <span class="donate__impact-icon">{{ impact.icon }}</span>
-                <span class="donate__impact-text">{{ impact.label }}</span>
-              </div>
-            </div>
-
-            <!-- Floating heart -->
-            <div class="donate__float-heart" aria-hidden="true">💚</div>
-
-          </div>
-        </div>
+      <div class="donations-stitch__logos">
+        <img
+          alt="Nequi"
+          class="donations-stitch__logo"
+          src="https://lh3.googleusercontent.com/aida-public/AB6AXuBW47h6n3sCcyUsFruoi77m9dloN8zj2FT2nyVHwAxCYNSFkAjfzipRQcr1vK7H_CuzthYc9NHr6a6O2rfrKE42lTsNJyFdgi7wf_uA6iPJoK13WHMBfbDSxsgYftr_txJwQidG3pXEO3GWFJKM0lFoL-tuxbWvCe7r9kyPklGvzgYxGuYfsMMGD4M0QbHlTS3CcOOpLJ_XexlGnFZhJ3NKNzl28P6F0tWbjAbZ1b2ztj9igAd5yIsTWBvHMOTtt-WLTqsw5JK6-UF7"
+        />
+        <img
+          alt="Daviplata"
+          class="donations-stitch__logo"
+          src="https://lh3.googleusercontent.com/aida-public/AB6AXuDcG5kdSeUR_AJPUaQDPQyQOn9YdhEf-izXH3QKF53PQXtHK919GBxJTk0RN_RcB_4O910hYch-jBuxv4soxn17G-4RnyOR3MUQ8CukzSubeaVYfjNtd1HbrXWH-Pw_0xv3_-J4_KjBkA9uTGlZTW2kM73PXitgLctgCqBvNLJwCjcRyercH3-Smb0_nfCFH-Vjl6CtsZJMqQDKdxhxpeEX7vUmPRYrTVbOhzVARULdb-CA_QetdCLhsKo6-yP7xOARSPF8eUXPeRJr"
+        />
+        <img
+          alt="Wompi"
+          class="donations-stitch__logo"
+          src="https://lh3.googleusercontent.com/aida-public/AB6AXuD5wKcTOtn7X5-jjzHw52np6uNb13Ml1n4blieheAKuPffwnv-gU-n6oSLp5qZR69UxNzcZe4FpXdxlw741DETbLGXue94dOl7zeNSuxamK-xzB3G8yJEhi4rnb0Qg184rESqvheH3O3eel0KbTOtntogRdA-Og0r0P9e9ktqI0qGCgb_JKlQyXQxPhtVw9l-8iDieLQ5l4BsULPL5uMWcMf3nTY6vg3Kt3skeVh9HMj6dFsBHbAVh_A__RbC-4GIpTUMCQZAh0aTcW"
+        />
       </div>
+
+      <a href="#" class="donations-stitch__cta">
+        Quiero Apoyar un Refugio
+      </a>
+
+      <!-- Decorative paws -->
+      <div class="donations-stitch__paw donations-stitch__paw--top" aria-hidden="true">🐾</div>
+      <div class="donations-stitch__paw donations-stitch__paw--bottom" aria-hidden="true">🐾</div>
     </div>
   </section>
 </template>
 
-<script setup lang="ts">
-const points = [
-  '100% de tu donación llega directamente al refugio',
-  'Elige el refugio al que quieres apoyar',
-  'Transacciones seguras a través de la plataforma',
-]
-
-const impacts = [
-  { icon: '🍖', label: 'Alimentación' },
-  { icon: '💊', label: 'Medicinas' },
-  { icon: '🏥', label: 'Atención vet.' },
-]
-
-const sectionRef = ref<HTMLElement | null>(null)
-const isVisible = ref(false)
-
-onMounted(() => {
-  if (!import.meta.client || !sectionRef.value) return
-  const observer = new IntersectionObserver(
-    ([entry]) => {
-      if (entry.isIntersecting) {
-        isVisible.value = true
-        observer.disconnect()
-      }
-    },
-    { threshold: 0.1 },
-  )
-  observer.observe(sectionRef.value)
-})
-</script>
-
 <style scoped>
-.donate {
-  --green: #4caf82;
-  --green-dark: #3a9166;
-  --forest: #1e2a38;
-  --font-display: 'Fraunces', Georgia, serif;
-  --font-body: 'DM Sans', system-ui, sans-serif;
-
+.donations-stitch {
+  background: #ecfdf5;
   position: relative;
-  padding: 6rem 0;
-  background: var(--forest);
   overflow: hidden;
-  font-family: var(--font-body);
 }
 
-/* Subtle noise texture overlay */
-.donate__grain {
-  position: absolute;
-  inset: 0;
-  background-image: radial-gradient(rgba(76, 175, 130, 0.05) 1px, transparent 1px);
-  background-size: 32px 32px;
-  pointer-events: none;
-}
-
-/* ── Copy ──────────────────────────────────────────────────────── */
-.donate__copy {
-  position: relative;
-  z-index: 1;
-  opacity: 0;
-  transform: translateX(-28px);
-  transition: opacity 0.6s ease, transform 0.6s ease;
-}
-
-.is-visible .donate__copy {
-  opacity: 1;
-  transform: translateX(0);
-}
-
-.donate__eyebrow {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 0.8125rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.07em;
-  color: rgba(255, 255, 255, 0.7);
-  background: rgba(255, 255, 255, 0.1);
-  padding: 6px 16px 6px 10px;
-  border-radius: 100px;
+.donations-stitch__title {
+  font-size: clamp(1.75rem, 3vw, 2.5rem);
+  font-weight: 800;
+  color: #111827;
   margin-bottom: 1.5rem;
 }
 
-.donate__heart {
-  font-size: 0.9rem;
-}
-
-.donate__headline {
-  font-family: var(--font-display);
-  font-size: clamp(2rem, 4vw, 3rem);
-  font-weight: 700;
-  color: #fff;
-  line-height: 1.1;
-  margin-bottom: 1.25rem;
-  letter-spacing: -0.01em;
-}
-
-.donate__headline em {
+.donations-stitch__quote {
+  font-size: 1.125rem;
+  color: #374151;
+  line-height: 1.7;
   font-style: italic;
-  color: var(--green);
+  max-width: 680px;
+  margin: 0 auto 2.5rem;
 }
 
-.donate__lead {
-  font-size: 1rem;
-  color: rgba(255, 255, 255, 0.6);
-  line-height: 1.72;
-  max-width: 48ch;
-  margin-bottom: 2rem;
-}
-
-/* ── Points ────────────────────────────────────────────────────── */
-.donate__points {
-  list-style: none;
-  padding: 0;
-  margin: 0 0 2.25rem;
+.donations-stitch__logos {
   display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.donate__point {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  font-size: 0.9375rem;
-  color: rgba(255, 255, 255, 0.8);
-}
-
-.donate__point-dot {
-  width: 8px;
-  height: 8px;
-  background: var(--green);
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
-/* ── Actions ───────────────────────────────────────────────────── */
-.donate__actions {
-  display: flex;
-  gap: 12px;
   flex-wrap: wrap;
-}
-
-.donate__btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 14px 28px;
-  border-radius: 100px;
-  font-family: var(--font-body);
-  font-size: 0.9375rem;
-  font-weight: 600;
-  text-decoration: none;
-  transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
-  border: 2px solid transparent;
-}
-
-.donate__btn--primary {
-  background: var(--green);
-  color: #fff;
-  box-shadow: 0 4px 24px rgba(76, 175, 130, 0.35);
-}
-
-.donate__btn--primary:hover {
-  background: var(--green-dark);
-  color: #fff;
-  transform: translateY(-2px);
-  box-shadow: 0 8px 36px rgba(76, 175, 130, 0.5);
-}
-
-.donate__btn--ghost {
-  background: transparent;
-  color: rgba(255, 255, 255, 0.65);
-  border-color: rgba(255, 255, 255, 0.2);
-}
-
-.donate__btn--ghost:hover {
-  color: #fff;
-  border-color: rgba(255, 255, 255, 0.55);
-  transform: translateY(-2px);
-}
-
-/* ── Mockup (right) ────────────────────────────────────────────── */
-.donate__visual {
-  position: relative;
-  z-index: 1;
-  opacity: 0;
-  transform: translateX(28px);
-  transition: opacity 0.6s 0.15s ease, transform 0.6s 0.15s ease;
-}
-
-.is-visible .donate__visual {
-  opacity: 1;
-  transform: translateX(0);
-}
-
-.donate__mockup {
-  position: relative;
-  width: 100%;
-  max-width: 380px;
-  background: #fff;
-  border-radius: 24px;
-  padding: 1.75rem;
-  box-shadow: 0 28px 72px rgba(0, 0, 0, 0.22);
-}
-
-/* Shelter card in mockup */
-.donate__shelter-card {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding-bottom: 1.25rem;
-  border-bottom: 1px solid #f2f2f2;
-  margin-bottom: 1.25rem;
-}
-
-.donate__shelter-avatar {
-  width: 48px;
-  height: 48px;
-  background: #fef3e2;
-  border-radius: 14px;
-  display: flex;
-  align-items: center;
   justify-content: center;
-  font-size: 1.5rem;
-  flex-shrink: 0;
-}
-
-.donate__shelter-info {
-  flex: 1;
-  min-width: 0;
-}
-
-.donate__shelter-name {
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: 1rem;
-  color: var(--forest);
-  line-height: 1.2;
-}
-
-.donate__shelter-meta {
-  font-size: 0.8125rem;
-  color: #9aabb8;
-  margin-top: 2px;
-}
-
-/* Amount row */
-.donate__amount-row {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  margin-bottom: 1.25rem;
-}
-
-.donate__amount-label {
-  font-size: 0.8125rem;
-  font-weight: 500;
-  color: #9aabb8;
-}
-
-.donate__amount-value {
-  font-family: var(--font-display);
-  font-size: 1.625rem;
-  font-weight: 700;
-  color: var(--green);
-}
-
-.donate__amount-value span {
-  font-size: 0.75rem;
-  font-weight: 500;
-  color: #9aabb8;
-  margin-left: 2px;
-}
-
-/* Progress bar */
-.donate__progress-wrap {
-  margin-bottom: 1.25rem;
-}
-
-.donate__progress-bar {
-  width: 100%;
-  height: 8px;
-  background: #f0f0f0;
-  border-radius: 100px;
-  overflow: hidden;
-  margin-bottom: 6px;
-}
-
-.donate__progress-fill {
-  width: 73%;
-  height: 100%;
-  background: linear-gradient(90deg, var(--green), #6bcea0);
-  border-radius: 100px;
-  animation: progressGrow 1.2s 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
-}
-
-.donate__progress-text {
-  font-size: 0.75rem;
-  color: #b0bec9;
-}
-
-/* Impact row */
-.donate__impact {
-  display: flex;
-  gap: 0;
-  padding-top: 1rem;
-  border-top: 1px solid #f2f2f2;
-}
-
-.donate__impact-item {
-  flex: 1;
-  text-align: center;
-  display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 4px;
+  gap: 2rem;
+  margin-bottom: 2.5rem;
+  opacity: 0.7;
+  filter: grayscale(1);
+  transition: filter 0.3s ease, opacity 0.3s ease;
 }
 
-.donate__impact-item + .donate__impact-item {
-  border-left: 1px solid #f2f2f2;
+.donations-stitch__logos:hover {
+  filter: grayscale(0);
+  opacity: 1;
 }
 
-.donate__impact-icon {
-  font-size: 1.25rem;
+.donations-stitch__logo {
+  height: 2rem;
 }
 
-.donate__impact-text {
-  font-size: 0.6875rem;
-  color: #9aabb8;
-  font-weight: 500;
+.donations-stitch__cta {
+  display: inline-block;
+  padding: 1rem 2.5rem;
+  background: #F97316;
+  color: #fff;
+  font-weight: 700;
+  font-size: 1.0625rem;
+  border-radius: 1rem;
+  text-decoration: none;
+  box-shadow: 0 8px 24px rgba(249, 115, 22, 0.2);
+  transition: background 0.2s ease, transform 0.2s ease;
 }
 
-/* Floating heart */
-.donate__float-heart {
+.donations-stitch__cta:hover {
+  background: #ea580c;
+  color: #fff;
+  transform: translateY(-2px);
+}
+
+.donations-stitch__paw {
   position: absolute;
-  top: -16px;
-  right: -12px;
-  font-size: 2rem;
-  animation: floatHeart 3.5s ease-in-out infinite;
-  filter: drop-shadow(0 4px 12px rgba(76, 175, 130, 0.3));
+  font-size: 3.5rem;
+  opacity: 0.1;
 }
 
-/* ── Keyframes ─────────────────────────────────────────────────── */
-@keyframes progressGrow {
-  from { width: 0; }
-  to   { width: 73%; }
+.donations-stitch__paw--top {
+  top: 2rem;
+  left: 2rem;
+  transform: rotate(12deg);
 }
 
-@keyframes floatHeart {
-  0%, 100% { transform: translateY(0) rotate(-4deg); }
-  50%       { transform: translateY(-10px) rotate(4deg); }
-}
-
-/* ── Responsive ────────────────────────────────────────────────── */
-@media (max-width: 575.98px) {
-  .donate__float-heart {
-    display: none;
-  }
+.donations-stitch__paw--bottom {
+  bottom: 2rem;
+  right: 2rem;
+  transform: rotate(-12deg);
 }
 </style>

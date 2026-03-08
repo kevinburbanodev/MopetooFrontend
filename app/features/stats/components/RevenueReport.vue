@@ -52,7 +52,7 @@ const totals = computed(() => ({
 <template>
   <section aria-label="Reporte de ingresos">
     <h2 class="h5 fw-bold mb-4">
-      <span aria-hidden="true">💰</span> Reporte de Ingresos
+      <span class="material-symbols-outlined" style="font-size: 1.25rem; vertical-align: text-bottom;" aria-hidden="true">account_balance</span> Reporte de Ingresos
     </h2>
 
     <div class="card border-0 shadow-sm">
@@ -103,7 +103,7 @@ const totals = computed(() => ({
                 colspan="3"
                 class="text-center py-5 text-muted"
               >
-                <div class="fs-2 mb-2" aria-hidden="true">💰</div>
+                <span class="material-symbols-outlined" style="font-size: 2rem;" aria-hidden="true">account_balance</span>
                 No hay datos de ingresos disponibles aún.
               </td>
             </tr>

@@ -28,25 +28,25 @@ interface KpiCard {
 }
 
 const kpiCards: KpiCard[] = [
-  { icon: '👥', label: 'Usuarios registrados', value: () => statsStore.overview?.users.total ?? 0, color: 'primary' },
-  { icon: '🐾', label: 'Mascotas registradas', value: () => statsStore.overview?.content.total_pets ?? 0, color: 'success' },
-  { icon: '🏠', label: 'Refugios activos', value: () => statsStore.overview?.shelters.active ?? 0, color: 'info' },
-  { icon: '🏥', label: 'Clínicas registradas', value: () => statsStore.overview?.clinics.total ?? 0, color: 'warning' },
-  { icon: '🛍️', label: 'Tiendas pet-friendly', value: () => statsStore.overview?.stores.total ?? 0, color: 'secondary' },
-  { icon: '🐶', label: 'Adopciones procesadas', value: () => statsStore.overview?.content.adopted_in_period ?? 0, color: 'success' },
-  { icon: '⭐', label: 'Suscripciones PRO', value: () => statsStore.overview?.users.pro_active ?? 0, color: 'warning' },
-  { icon: '💝', label: 'Donaciones realizadas', value: () => statsStore.overview?.donations_cop.total_count ?? 0, color: 'danger' },
+  { icon: 'group', label: 'Usuarios registrados', value: () => statsStore.overview?.users.total ?? 0, color: 'primary' },
+  { icon: 'pets', label: 'Mascotas registradas', value: () => statsStore.overview?.content.total_pets ?? 0, color: 'success' },
+  { icon: 'home_health', label: 'Refugios activos', value: () => statsStore.overview?.shelters.active ?? 0, color: 'info' },
+  { icon: 'medical_services', label: 'Clínicas registradas', value: () => statsStore.overview?.clinics.total ?? 0, color: 'warning' },
+  { icon: 'storefront', label: 'Tiendas pet-friendly', value: () => statsStore.overview?.stores.total ?? 0, color: 'secondary' },
+  { icon: 'volunteer_activism', label: 'Adopciones procesadas', value: () => statsStore.overview?.content.adopted_in_period ?? 0, color: 'success' },
+  { icon: 'star', label: 'Suscripciones PRO', value: () => statsStore.overview?.users.pro_active ?? 0, color: 'warning' },
+  { icon: 'favorite', label: 'Donaciones realizadas', value: () => statsStore.overview?.donations_cop.total_count ?? 0, color: 'danger' },
 ]
 
 const revenueCards = computed(() => [
   {
-    icon: '📅',
+    icon: 'date_range',
     label: 'Ingresos del periodo',
     value: formatCOP(statsStore.overview?.revenue_cop.in_period ?? 0),
     color: 'success',
   },
   {
-    icon: '💰',
+    icon: 'account_balance',
     label: 'Ingresos totales',
     value: formatCOP(statsStore.overview?.revenue_cop.total_accumulated ?? 0),
     color: 'primary',
@@ -63,7 +63,7 @@ onMounted(async () => {
 <template>
   <section aria-label="Resumen de estadísticas de la plataforma">
     <h2 class="h5 fw-bold mb-4">
-      <span aria-hidden="true">📊</span> Resumen General
+      <span class="material-symbols-outlined" style="font-size: 1.25rem; vertical-align: text-bottom;" aria-hidden="true">leaderboard</span> Resumen General
     </h2>
 
     <!-- Error alert -->
@@ -72,7 +72,7 @@ onMounted(async () => {
       class="alert alert-danger d-flex align-items-center gap-2 mb-4"
       role="alert"
     >
-      <span aria-hidden="true">⚠</span>
+      <span class="material-symbols-outlined" style="font-size: 1.1rem;" aria-hidden="true">warning</span>
       {{ error }}
       <button
         type="button"
@@ -124,19 +124,12 @@ onMounted(async () => {
           :key="card.label"
           class="col-6 col-md-3"
         >
-          <div
-            class="card border-0 shadow-sm h-100 text-center p-3"
-            style="border-top: 4px solid;"
-            :style="`border-top-color: var(--bs-${card.color})`"
-          >
-            <div class="fs-2 mb-1" aria-hidden="true">{{ card.icon }}</div>
-            <div
-              class="display-6 fw-bold"
-              :class="`text-${card.color}`"
-            >
+          <div class="admin-stat-card h-100">
+            <span class="material-symbols-outlined admin-stat-card__icon" aria-hidden="true">{{ card.icon }}</span>
+            <div class="admin-stat-card__value">
               {{ card.value().toLocaleString('es-CO') }}
             </div>
-            <div class="text-muted small mt-1 fw-semibold text-uppercase" style="letter-spacing: 0.04em;">
+            <div class="admin-stat-card__label">
               {{ card.label }}
             </div>
           </div>
@@ -150,15 +143,11 @@ onMounted(async () => {
           :key="card.label"
           class="col-12 col-md-6"
         >
-          <div
-            class="card border-0 shadow-sm p-4"
-            style="border-left: 4px solid;"
-            :style="`border-left-color: var(--bs-${card.color})`"
-          >
+          <div class="admin-stat-card p-4">
             <div class="d-flex align-items-center gap-3">
-              <div class="fs-1" aria-hidden="true">{{ card.icon }}</div>
+              <span class="material-symbols-outlined" style="font-size: 2rem; opacity: 0.6;" aria-hidden="true">{{ card.icon }}</span>
               <div>
-                <div class="text-muted small fw-semibold text-uppercase mb-1" style="letter-spacing: 0.04em;">
+                <div class="admin-stat-card__label mb-1">
                   {{ card.label }}
                 </div>
                 <div class="h4 fw-bold mb-0" :class="`text-${card.color}`">
@@ -176,7 +165,7 @@ onMounted(async () => {
       v-else-if="!statsStore.isLoading"
       class="text-center py-5"
     >
-      <div class="fs-1" aria-hidden="true">📊</div>
+      <span class="material-symbols-outlined" style="font-size: 2.5rem; opacity: 0.5;" aria-hidden="true">leaderboard</span>
       <h3 class="h5 fw-bold mt-4 mb-2">No se pudieron cargar las estadísticas</h3>
       <p class="text-muted mb-4">
         Verifica tu conexión e intenta de nuevo.

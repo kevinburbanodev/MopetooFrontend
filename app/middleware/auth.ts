@@ -1,14 +1,17 @@
 // ============================================================
-// auth middleware — protects all /dashboard/** routes.
-// Redirects to /login when the user has no active session.
+// auth middleware — protects /admin/** routes only.
+// Redirects to / when the user has no active session.
 // Applied via definePageMeta({ middleware: 'auth' }) on each
 // protected page; Nuxt resolves the name automatically.
 // ============================================================
 
-export default defineNuxtRouteMiddleware(() => {
+export default defineNuxtRouteMiddleware((to) => {
   const authStore = useAuthStore()
 
-  if (!authStore.isAuthenticated) {
-    return navigateTo('/login')
+  // Only protect /admin routes
+  if (to.path.startsWith('/admin')) {
+    if (!authStore.isAuthenticated) {
+      return navigateTo('/')
+    }
   }
 })

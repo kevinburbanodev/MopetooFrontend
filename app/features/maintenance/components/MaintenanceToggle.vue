@@ -101,7 +101,7 @@ onMounted(async () => {
   <div class="card border-0 shadow-sm">
     <!-- Card header -->
     <div class="card-header bg-transparent border-bottom d-flex align-items-center gap-2">
-      <span aria-hidden="true">⚙️</span>
+      <span class="material-symbols-outlined" style="font-size: 1.1rem;" aria-hidden="true">settings</span>
       <h2 class="h6 fw-bold mb-0">Estado del Sistema</h2>
     </div>
 
@@ -112,7 +112,7 @@ onMounted(async () => {
         class="alert alert-danger d-flex align-items-center gap-2 mb-3"
         role="alert"
       >
-        <span aria-hidden="true">⚠</span>
+        <span class="material-symbols-outlined" style="font-size: 1.1rem;" aria-hidden="true">warning</span>
         {{ error }}
       </div>
 
@@ -277,7 +277,7 @@ onMounted(async () => {
         v-else-if="!maintenanceStore.isLoading"
         class="text-muted small d-flex align-items-center gap-2"
       >
-        <span aria-hidden="true">ℹ️</span>
+        <span class="material-symbols-outlined" style="font-size: 1.1rem;" aria-hidden="true">info</span>
         No se pudo obtener el estado del sistema.
         <button
           type="button"

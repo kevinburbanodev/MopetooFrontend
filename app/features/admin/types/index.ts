@@ -181,6 +181,37 @@ export interface AdminDonationsResponse {
   limit: number
 }
 
+// ── Verification Requests ─────────────────────────────────
+
+export type VerificationRequestStatus = 'pending' | 'approved' | 'rejected'
+
+export interface VerificationRequest {
+  id: number
+  shelter_id: number
+  shelter_name?: string
+  status: VerificationRequestStatus
+  document_url?: string
+  admin_id?: number
+  rejection_reason?: string
+  created_at: string
+  updated_at: string
+}
+
+export interface VerificationRequestsResponse {
+  requests: VerificationRequest[]
+  total: number
+}
+
+// ── Event Stats ──────────────────────────────────────────
+
+export interface EventStats {
+  total_events: number
+  upcoming: number
+  active: number
+  finished: number
+  events_in_period: number
+}
+
 // ── Shared filter type ─────────────────────────────────────
 
 /** Generic pagination + search filters for admin list endpoints. */

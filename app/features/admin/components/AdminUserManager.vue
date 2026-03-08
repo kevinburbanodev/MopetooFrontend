@@ -101,7 +101,7 @@ onMounted(async () => {
       <div class="flex-grow-1" style="min-width: 200px; max-width: 360px;">
         <label for="user-search" class="visually-hidden">Buscar usuario</label>
         <div class="input-group">
-          <span class="input-group-text bg-transparent border-end-0" aria-hidden="true">🔍</span>
+          <span class="input-group-text bg-transparent border-end-0" aria-hidden="true"><span class="material-symbols-outlined" style="font-size: 1.1rem;">search</span></span>
           <input
             id="user-search"
             v-model="searchQuery"
@@ -157,7 +157,7 @@ onMounted(async () => {
       class="alert alert-danger d-flex align-items-center gap-2 mb-4"
       role="alert"
     >
-      <span aria-hidden="true">⚠</span>
+      <span class="material-symbols-outlined" style="font-size: 1.1rem;" aria-hidden="true">warning</span>
       {{ error }}
     </div>
 
@@ -292,7 +292,7 @@ onMounted(async () => {
             <!-- Empty state -->
             <tr v-else>
               <td colspan="9" class="text-center py-5 text-muted">
-                <div class="fs-2 mb-2" aria-hidden="true">👥</div>
+                <span class="material-symbols-outlined" style="font-size: 2rem;" aria-hidden="true">group</span>
                 No se encontraron usuarios con los filtros actuales.
               </td>
             </tr>

@@ -8,10 +8,6 @@
 
 import type {
   EntityType,
-  RegisterPayload,
-  RegisterShelterPayload,
-  RegisterStorePayload,
-  RegisterClinicPayload,
   UpdateProfileDTO,
   LoginResponse,
   ShelterLoginResponse,
@@ -56,7 +52,7 @@ export function useAuth() {
         LoginResponse | ShelterLoginResponse | StoreLoginResponse | ClinicLoginResponse
       >(endpoint, { email, password })
       authStore.setSession(response, entityType)
-      await router.push('/dashboard')
+      await router.push('/admin')
     }
     catch (err: unknown) {
       // Intercept 403 email_not_verified
@@ -93,7 +89,7 @@ export function useAuth() {
       verificationPending.value = false
       verificationEmail.value = null
       verificationEntityType.value = null
-      await router.push('/dashboard')
+      await router.push('/admin')
     }
     catch (err: unknown) {
       error.value = extractErrorMessage(err)
@@ -130,105 +126,9 @@ export function useAuth() {
     error.value = null
   }
 
-  async function register(data: RegisterPayload, photo?: File): Promise<void> {
-    pending.value = true
-    error.value = null
-    try {
-      // Always use multipart/form-data so the backend (which handles photo uploads)
-      // consistently receives form fields regardless of whether a photo is included.
-      const formData = buildRegisterFormData(data, photo)
-      await $fetch<void>(`${baseURL}/users`, {
-        method: 'POST',
-        body: formData,
-      })
-      // After registration, attempt login which will trigger verification flow
-      await login(data.email, data.password, 'user')
-    }
-    catch (err: unknown) {
-      error.value = extractErrorMessage(err)
-    }
-    finally {
-      pending.value = false
-    }
-  }
-
-  async function registerShelter(data: RegisterShelterPayload): Promise<void> {
-    pending.value = true
-    error.value = null
-    try {
-      await post<void>('/shelters/register', data)
-      await login(data.email, data.password, 'shelter')
-    }
-    catch (err: unknown) {
-      error.value = extractErrorMessage(err)
-    }
-    finally {
-      pending.value = false
-    }
-  }
-
-  async function registerStore(data: RegisterStorePayload): Promise<void> {
-    pending.value = true
-    error.value = null
-    try {
-      await post<void>('/stores/register', data)
-      await login(data.email, data.password, 'store')
-    }
-    catch (err: unknown) {
-      error.value = extractErrorMessage(err)
-    }
-    finally {
-      pending.value = false
-    }
-  }
-
-  async function registerClinic(data: RegisterClinicPayload): Promise<void> {
-    pending.value = true
-    error.value = null
-    try {
-      await post<void>('/clinics/register', data)
-      await login(data.email, data.password, 'clinic')
-    }
-    catch (err: unknown) {
-      error.value = extractErrorMessage(err)
-    }
-    finally {
-      pending.value = false
-    }
-  }
-
   function logout(): void {
     authStore.clearSession()
-    router.push('/login')
-  }
-
-  async function forgotPassword(email: string): Promise<void> {
-    pending.value = true
-    error.value = null
-    try {
-      await post<void>('/forgot-password', { email })
-    }
-    catch (err: unknown) {
-      error.value = extractErrorMessage(err)
-    }
-    finally {
-      pending.value = false
-    }
-  }
-
-  async function resetPassword(token: string, password: string): Promise<void> {
-    pending.value = true
-    error.value = null
-    try {
-      await post<void>('/reset-password', { token, password })
-      await router.push('/login')
-    }
-    catch (err: unknown) {
-      error.value = extractErrorMessage(err)
-    }
-    finally {
-      pending.value = false
-    }
+    router.push('/')
   }
 
   async function fetchCurrentUser(): Promise<void> {
@@ -324,13 +224,7 @@ export function useAuth() {
     verificationEmail,
     verificationEntityType,
     login,
-    register,
-    registerShelter,
-    registerStore,
-    registerClinic,
     logout,
-    forgotPassword,
-    resetPassword,
     fetchCurrentUser,
     updateProfile,
     deleteAccount,
@@ -385,20 +279,6 @@ function decodeEntityIdFromToken(): string | null {
   catch {
     return null
   }
-}
-
-function buildRegisterFormData(data: RegisterPayload, photo?: File): FormData {
-  const fd = new FormData()
-  fd.append('name', data.name)
-  fd.append('lastname', data.last_name)
-  fd.append('email', data.email)
-  fd.append('password', data.password)
-  fd.append('country_id', String(data.country_id))
-  fd.append('city_id', String(data.city_id))
-  fd.append('phone', data.phone)
-  if (data.birth_date) fd.append('birth_date', data.birth_date)
-  if (photo) fd.append('profile_picture', photo)
-  return fd
 }
 
 function buildProfileFormData(data: UpdateProfileDTO, photo: File): FormData {
