@@ -34,8 +34,9 @@ function makePetshop(overrides: Partial<AdminPetshop> = {}): AdminPetshop {
     city_id: 2,
     city: { id: 2, name: 'Medellín', country_id: 1 },
     email: 'info@tienda.com',
+    verified: false,
     is_active: true,
-    plan: 'free',
+    subscription_plan: 'free',
     created_at: '2024-01-01T00:00:00Z',
     ...overrides,
   }
@@ -47,6 +48,7 @@ const mockFetchPetshops = vi.fn()
 const mockActivateStore = vi.fn()
 const mockDeactivateStore = vi.fn()
 const mockSetStorePlan = vi.fn()
+const mockVerifyStore = vi.fn()
 const mockError = ref<string | null>(null)
 const mockAdminStore = reactive({
   petshops: [] as AdminPetshop[],
@@ -60,6 +62,7 @@ vi.mock('../composables/useAdmin', () => ({
     activateStore: mockActivateStore,
     deactivateStore: mockDeactivateStore,
     setStorePlan: mockSetStorePlan,
+    verifyStore: mockVerifyStore,
     error: mockError,
     adminStore: mockAdminStore,
   }),
@@ -138,7 +141,7 @@ describe('AdminStoreManager', () => {
   describe('petshop rows', () => {
     beforeEach(() => {
       mockAdminStore.petshops = [
-        makePetshop({ id: 1, name: 'Tienda Norte', city_id: 1, city: { id: 1, name: 'Bogotá', country_id: 1 }, plan: 'free', is_active: true }),
+        makePetshop({ id: 1, name: 'Tienda Norte', city_id: 1, city: { id: 1, name: 'Bogotá', country_id: 1 }, subscription_plan: 'free', is_active: true }),
       ]
       mockAdminStore.totalPetshops = 1
     })
@@ -163,7 +166,7 @@ describe('AdminStoreManager', () => {
 
   describe('plan column', () => {
     it('shows "Free" badge for stores with plan=free', async () => {
-      mockAdminStore.petshops = [makePetshop({ id: 1, plan: 'free' })]
+      mockAdminStore.petshops = [makePetshop({ id: 1, subscription_plan: 'free' })]
       mockAdminStore.totalPetshops = 1
       const wrapper = await mountManager()
       expect(wrapper.find('[aria-label="Plan: Free"]').exists()).toBe(true)
@@ -171,7 +174,7 @@ describe('AdminStoreManager', () => {
     })
 
     it('shows "Featured" badge for stores with plan=featured', async () => {
-      mockAdminStore.petshops = [makePetshop({ id: 1, plan: 'featured' })]
+      mockAdminStore.petshops = [makePetshop({ id: 1, subscription_plan: 'featured' })]
       mockAdminStore.totalPetshops = 1
       const wrapper = await mountManager()
       expect(wrapper.find('[aria-label="Plan: Featured"]').exists()).toBe(true)
@@ -210,7 +213,7 @@ describe('AdminStoreManager', () => {
 
     it('calls setStorePlan when plan is changed', async () => {
       mockSetStorePlan.mockResolvedValue(true)
-      mockAdminStore.petshops = [makePetshop({ id: 7, name: 'Tienda B', plan: 'free' })]
+      mockAdminStore.petshops = [makePetshop({ id: 7, name: 'Tienda B', subscription_plan: 'free' })]
       mockAdminStore.totalPetshops = 1
       const wrapper = await mountManager()
       const select = wrapper.find('select[aria-label="Cambiar plan de Tienda B"]')
@@ -259,9 +262,9 @@ describe('AdminStoreManager', () => {
     })
   })
 
-  // ── No delete, verify, or featured toggle ───────────────────
+  // ── No delete or featured toggle ───────────────────
 
-  describe('no delete, verify, or featured toggle', () => {
+  describe('no delete or featured toggle', () => {
     beforeEach(() => {
       mockAdminStore.petshops = [makePetshop()]
       mockAdminStore.totalPetshops = 1
@@ -272,14 +275,49 @@ describe('AdminStoreManager', () => {
       expect(wrapper.findAll('button').some(b => b.text() === 'Eliminar')).toBe(false)
     })
 
-    it('does not render any "Verificar" button', async () => {
-      const wrapper = await mountManager()
-      expect(wrapper.findAll('button').some(b => b.text() === 'Verificar')).toBe(false)
-    })
-
     it('does not render any "Destacar" button', async () => {
       const wrapper = await mountManager()
       expect(wrapper.findAll('button').some(b => b.text() === 'Destacar')).toBe(false)
+    })
+  })
+
+  // ── Verify store ─────────────────────────────────────────────
+
+  describe('verify store', () => {
+    it('shows "Verificar" button for unverified stores', async () => {
+      mockAdminStore.petshops = [makePetshop({ id: 1, verified: false })]
+      mockAdminStore.totalPetshops = 1
+      const wrapper = await mountManager()
+      const btn = wrapper.findAll('button').find(b => b.text() === 'Verificar')
+      expect(btn).toBeDefined()
+    })
+
+    it('shows "Revocar" button for verified stores', async () => {
+      mockAdminStore.petshops = [makePetshop({ id: 1, verified: true })]
+      mockAdminStore.totalPetshops = 1
+      const wrapper = await mountManager()
+      const btn = wrapper.findAll('button').find(b => b.text() === 'Revocar')
+      expect(btn).toBeDefined()
+    })
+
+    it('calls verifyStore(id, true) when "Verificar" is clicked', async () => {
+      mockVerifyStore.mockResolvedValue(true)
+      mockAdminStore.petshops = [makePetshop({ id: 5, verified: false })]
+      mockAdminStore.totalPetshops = 1
+      const wrapper = await mountManager()
+      const btn = wrapper.findAll('button').find(b => b.text() === 'Verificar')
+      await btn!.trigger('click')
+      expect(mockVerifyStore).toHaveBeenCalledWith(5, true)
+    })
+
+    it('calls verifyStore(id, false) when "Revocar" is clicked', async () => {
+      mockVerifyStore.mockResolvedValue(true)
+      mockAdminStore.petshops = [makePetshop({ id: 5, verified: true })]
+      mockAdminStore.totalPetshops = 1
+      const wrapper = await mountManager()
+      const btn = wrapper.findAll('button').find(b => b.text() === 'Revocar')
+      await btn!.trigger('click')
+      expect(mockVerifyStore).toHaveBeenCalledWith(5, false)
     })
   })
 

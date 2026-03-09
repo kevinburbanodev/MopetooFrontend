@@ -29,13 +29,13 @@ import type { AdminShelter } from '../types'
 function makeShelter(overrides: Partial<AdminShelter> = {}): AdminShelter {
   return {
     id: 1,
-    name: 'Refugio Los Amigos',
+    organization_name: 'Refugio Los Amigos',
     country_id: 1,
     country: { id: 1, name: 'Colombia', code: 'CO', phone_code: '+57' },
     city_id: 1,
     city: { id: 1, name: 'Bogotá', country_id: 1 },
     email: 'info@refugio.com',
-    is_verified: false,
+    verified: false,
     is_active: true,
     pets_count: 8,
     created_at: '2024-01-01T00:00:00Z',
@@ -140,7 +140,7 @@ describe('AdminShelterManager', () => {
   describe('shelter rows', () => {
     beforeEach(() => {
       mockAdminStore.shelters = [
-        makeShelter({ id: 1, name: 'Refugio Norte', city_id: 2, city: { id: 2, name: 'Medellín', country_id: 1 }, is_verified: true, is_active: true }),
+        makeShelter({ id: 1, organization_name: 'Refugio Norte', city_id: 2, city: { id: 2, name: 'Medellín', country_id: 1 }, verified: true, is_active: true }),
       ]
       mockAdminStore.totalShelters = 1
     })
@@ -161,7 +161,7 @@ describe('AdminShelterManager', () => {
     })
 
     it('shows "No" for unverified shelters', async () => {
-      mockAdminStore.shelters = [makeShelter({ id: 2, is_verified: false })]
+      mockAdminStore.shelters = [makeShelter({ id: 2, verified: false })]
       const wrapper = await mountManager()
       expect(wrapper.find('[aria-label="Refugio no verificado"]').exists()).toBe(true)
     })
@@ -193,30 +193,40 @@ describe('AdminShelterManager', () => {
   // ── Verify ───────────────────────────────────────────────────
 
   describe('verify shelter', () => {
-    it('shows "Verificar" button only for unverified shelters', async () => {
-      mockAdminStore.shelters = [makeShelter({ id: 1, is_verified: false })]
+    it('shows "Verificar" button for unverified shelters', async () => {
+      mockAdminStore.shelters = [makeShelter({ id: 1, verified: false })]
       mockAdminStore.totalShelters = 1
       const wrapper = await mountManager()
       const btn = wrapper.findAll('button').find(b => b.text() === 'Verificar')
       expect(btn).toBeDefined()
     })
 
-    it('does not show "Verificar" button for already verified shelters', async () => {
-      mockAdminStore.shelters = [makeShelter({ id: 1, is_verified: true })]
+    it('shows "Revocar" button for verified shelters', async () => {
+      mockAdminStore.shelters = [makeShelter({ id: 1, verified: true })]
       mockAdminStore.totalShelters = 1
       const wrapper = await mountManager()
-      const btn = wrapper.findAll('button').find(b => b.text() === 'Verificar')
-      expect(btn).toBeUndefined()
+      const btn = wrapper.findAll('button').find(b => b.text() === 'Revocar')
+      expect(btn).toBeDefined()
     })
 
-    it('calls verifyShelter with shelter id when "Verificar" is clicked', async () => {
+    it('calls verifyShelter(id, true) when "Verificar" is clicked', async () => {
       mockVerifyShelter.mockResolvedValue(true)
-      mockAdminStore.shelters = [makeShelter({ id: 5, is_verified: false })]
+      mockAdminStore.shelters = [makeShelter({ id: 5, verified: false })]
       mockAdminStore.totalShelters = 1
       const wrapper = await mountManager()
       const btn = wrapper.findAll('button').find(b => b.text() === 'Verificar')
       await btn!.trigger('click')
-      expect(mockVerifyShelter).toHaveBeenCalledWith(5)
+      expect(mockVerifyShelter).toHaveBeenCalledWith(5, true)
+    })
+
+    it('calls verifyShelter(id, false) when "Revocar" is clicked', async () => {
+      mockVerifyShelter.mockResolvedValue(true)
+      mockAdminStore.shelters = [makeShelter({ id: 5, verified: true })]
+      mockAdminStore.totalShelters = 1
+      const wrapper = await mountManager()
+      const btn = wrapper.findAll('button').find(b => b.text() === 'Revocar')
+      await btn!.trigger('click')
+      expect(mockVerifyShelter).toHaveBeenCalledWith(5, false)
     })
   })
 

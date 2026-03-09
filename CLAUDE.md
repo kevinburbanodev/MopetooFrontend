@@ -21,7 +21,7 @@ npm run test:coverage    # Single run with coverage report
 **Colocation rule:** test files live next to the source file inside the feature slice.
 **Status (v2 — reduced scope: Landing + Blog + Pet Public Profile + Admin):**
 - Auth feature slice: tests updated — removed register/forgot/reset tests, login redirects to `/admin`, logout to `/`, auth middleware rewritten for `/admin/**` only, guest middleware updated
-- Blog slice (RF-600–RF-609): 147 tests ✅ — blog article page now uses `useAsyncData` for SSR (was client-side `onMounted`)
+- Blog slice (RF-600–RF-609): 147 tests ✅ — blog article page uses `useAsyncData` for SSR; `BlogArticle` supports HTML (rich text, sanitized with DOMPurify) and plain text (legacy) content
 - Pet-profile slice: new — public pet profile for QR scanning (SSR), `usePetProfile` composable, `PetProfileCard` component
 - Admin slice (RF-1000–RF-1009): expanded — `AdminVerificationManager`, `AdminEventStats`, verification requests page
 - Stats slice (RF-1100–RF-1109): 117 tests ✅
@@ -47,7 +47,7 @@ app/features/
 ├── auth/            # Admin-only login + email verification
 ├── pet-profile/     # Public pet profile for QR scanning (SSR, usePetProfile, PetProfileCard)
 ├── blog/            # Blog editorial (public: listing + article detail, SSR/SEO)
-├── admin/           # Admin panel: stats, user/shelter/store/clinic management, transactions, verification (RF-1000–RF-1009)
+├── admin/           # Admin panel: stats, user/shelter/store/clinic management, transactions, verification, blog editor (RF-1000–RF-1009)
 ├── stats/           # Statistics & metrics: KPI overview (nested), revenue chart/table (RF-1100–RF-1109)
 └── maintenance/     # Maintenance mode: toggle (admin), page, x-maintenance header detection (RF-1200–RF-1209)
 ```
@@ -119,7 +119,7 @@ Token is persisted to `localStorage` under key `mopetoo_token`. The auth store e
 
 ### HTTP Client
 
-`useApi()` (from `features/shared/composables/useApi.ts`) is the single HTTP wrapper. It reads the JWT from `localStorage` and prepends `runtimeConfig.public.apiBase` to every request.
+`useApi()` (from `features/shared/composables/useApi.ts`) is the single HTTP wrapper. It reads the JWT from `localStorage` and prepends `runtimeConfig.public.apiBase` to every request. Methods: `get`, `post`, `put`, `patch`, `del`, `upload` (multipart/form-data — no `Content-Type` header, browser sets `multipart/form-data` automatically).
 
 **Backend API** (Go + Gin):
 - Public endpoints: `POST /login`, `POST /verify-email`, `POST /resend-verification`, `GET /blog/posts`, `GET /blog/posts/:slug`, `GET /pets/:slug/public`
@@ -140,6 +140,14 @@ Entry point: `app/assets/scss/main.scss`
 - `main.scss` uses `@import` (not `@use`) — Bootstrap 5 uses the legacy Sass `@import` API. **Never mix `@use` and `@import` in the same SCSS file.**
 - `silenceDeprecations` in `nuxt.config.ts` suppresses Bootstrap 5's internal Sass deprecation warnings (expected until Bootstrap 6).
 - Bootstrap JS is loaded client-side via `app/plugins/bootstrap.client.ts`.
+
+### Blog Admin (Rich Text Editor + Cover Image Upload)
+
+- **Editor:** TipTap (`@tiptap/vue-3` + `@tiptap/starter-kit` + `@tiptap/extension-link`) wrapped in `<ClientOnly>` for SSR safety. Component: `BlogEditor.vue`.
+- **Cover image upload:** `CoverImageUpload.vue` — client-side validation (JPEG/PNG/WebP, max 5MB), preview, emits `file-selected` event. Uses `useAdminBlog().uploadCoverImage()` which calls `POST /api/blog/posts/:id/cover-image`.
+- **Create/Edit flow:** two-step submit — first save post JSON, then upload cover image if selected.
+- **Public rendering:** `BlogArticle.vue` detects HTML content (`/<[a-z][\s\S]*>/i`) and renders with `v-html` after `DOMPurify.sanitize()` (`isomorphic-dompurify`). Legacy plain text articles still render with the paragraph/heading heuristic.
+- **Security:** HTML sanitized with a strict allowlist of tags (`h2`, `h3`, `p`, `strong`, `em`, `a`, `ul`, `ol`, `li`, `blockquote`, `hr`, `code`, `pre`) and attributes (`href`, `target`, `rel`, `id`, `class`).
 
 ### Route Rules (v2)
 

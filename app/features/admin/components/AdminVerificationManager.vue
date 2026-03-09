@@ -89,6 +89,7 @@ watch(statusFilter, loadRequests)
           <tr>
             <th>ID</th>
             <th>Refugio</th>
+            <th>Documento</th>
             <th>Estado</th>
             <th>Fecha</th>
             <th class="text-end">Acciones</th>
@@ -99,6 +100,18 @@ watch(statusFilter, loadRequests)
             <td class="text-muted small">{{ req.id }}</td>
             <td>
               <span class="fw-semibold">{{ req.shelter_name ?? `Refugio #${req.shelter_id}` }}</span>
+            </td>
+            <td>
+              <a
+                v-if="req.document_url"
+                :href="req.document_url"
+                target="_blank"
+                rel="noopener"
+                class="btn btn-outline-secondary btn-sm"
+              >
+                Ver documento
+              </a>
+              <span v-else class="text-muted small">—</span>
             </td>
             <td>
               <span class="badge" :class="statusBadge(req.status)">

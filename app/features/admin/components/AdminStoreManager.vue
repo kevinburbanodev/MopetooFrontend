@@ -5,7 +5,7 @@
 
 import type { AdminFilters } from '../types'
 
-const { fetchPetshops, activateStore, deactivateStore, setStorePlan, error, adminStore } = useAdmin()
+const { fetchPetshops, activateStore, deactivateStore, setStorePlan, verifyStore, error, adminStore } = useAdmin()
 
 // ── Filters ────────────────────────────────────────────────
 const searchQuery = ref('')
@@ -129,6 +129,7 @@ onMounted(async () => {
               <th scope="col">Ciudad</th>
               <th scope="col">Contacto</th>
               <th scope="col" class="text-center">Plan</th>
+              <th scope="col" class="text-center">Verificado</th>
               <th scope="col" class="text-center">Activo</th>
               <th scope="col">Registro</th>
               <th scope="col" class="text-end">Acciones</th>
@@ -141,6 +142,7 @@ onMounted(async () => {
                 <td><div class="skeleton-pulse rounded admin-table-skeleton__name" /></td>
                 <td><div class="skeleton-pulse rounded admin-table-skeleton__city" /></td>
                 <td><div class="skeleton-pulse rounded admin-table-skeleton__email" /></td>
+                <td class="text-center"><div class="skeleton-pulse rounded admin-table-skeleton__badge mx-auto" /></td>
                 <td class="text-center"><div class="skeleton-pulse rounded admin-table-skeleton__badge mx-auto" /></td>
                 <td class="text-center"><div class="skeleton-pulse rounded admin-table-skeleton__badge mx-auto" /></td>
                 <td><div class="skeleton-pulse rounded admin-table-skeleton__date" /></td>
@@ -161,10 +163,26 @@ onMounted(async () => {
                 <td class="text-center">
                   <span
                     class="badge"
-                    :class="planBadgeClass(store.plan)"
-                    :aria-label="`Plan: ${planLabel(store.plan)}`"
+                    :class="planBadgeClass(store.subscription_plan)"
+                    :aria-label="`Plan: ${planLabel(store.subscription_plan)}`"
                   >
-                    {{ planLabel(store.plan) }}
+                    {{ planLabel(store.subscription_plan) }}
+                  </span>
+                </td>
+                <td class="text-center">
+                  <span
+                    v-if="store.verified"
+                    class="badge bg-success"
+                    aria-label="Tienda verificada"
+                  >
+                    Verificado
+                  </span>
+                  <span
+                    v-else
+                    class="text-muted small"
+                    aria-label="Tienda no verificada"
+                  >
+                    No
                   </span>
                 </td>
                 <td class="text-center">
@@ -186,11 +204,21 @@ onMounted(async () => {
                 <td class="text-muted small">{{ formatDate(store.created_at) }}</td>
                 <td class="text-end">
                   <div class="d-flex justify-content-end gap-1 flex-wrap">
+                    <!-- Verificar / Revocar verificación -->
+                    <button
+                      type="button"
+                      class="btn btn-sm"
+                      :class="store.verified ? 'btn-outline-warning' : 'btn-outline-success'"
+                      :aria-label="store.verified ? `Revocar verificación de ${store.name}` : `Verificar ${store.name}`"
+                      @click="verifyStore(store.id, !store.verified)"
+                    >
+                      {{ store.verified ? 'Revocar' : 'Verificar' }}
+                    </button>
                     <!-- Plan selector -->
                     <select
                       class="form-select form-select-sm"
                       style="width: auto; min-width: 100px;"
-                      :value="store.plan"
+                      :value="store.subscription_plan"
                       :aria-label="`Cambiar plan de ${store.name}`"
                       @change="setStorePlan(store.id, ($event.target as HTMLSelectElement).value as 'free' | 'featured')"
                     >
@@ -214,7 +242,7 @@ onMounted(async () => {
 
             <!-- Empty state -->
             <tr v-else>
-              <td colspan="7" class="text-center py-5 text-muted">
+              <td colspan="8" class="text-center py-5 text-muted">
                 <span class="material-symbols-outlined" style="font-size: 2rem;" aria-hidden="true">storefront</span>
                 No se encontraron tiendas con los filtros actuales.
               </td>

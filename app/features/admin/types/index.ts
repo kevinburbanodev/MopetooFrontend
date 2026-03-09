@@ -12,7 +12,7 @@ import type { Country, City } from '../../shared/types/api.types'
 export interface AdminUser {
   id: number
   name: string
-  last_name: string
+  lastname: string
   email: string
   country_id: number
   country?: Country
@@ -49,14 +49,14 @@ export interface AdminUsersResponse {
 /** Admin view of a shelter entity. */
 export interface AdminShelter {
   id: number
-  name: string
+  organization_name: string
   country_id: number
   country?: Country
   city_id: number
   city?: City
   email?: string
   phone?: string
-  is_verified: boolean
+  verified: boolean
   is_active: boolean
   pets_count: number
   created_at: string
@@ -81,8 +81,9 @@ export interface AdminPetshop {
   city?: City
   email?: string
   phone?: string
+  verified: boolean
   is_active: boolean
-  plan: 'free' | 'featured'
+  subscription_plan: 'free' | 'featured'
   created_at: string
 }
 
@@ -105,9 +106,9 @@ export interface AdminClinic {
   city?: City
   email?: string
   phone?: string
-  is_verified: boolean
+  verified: boolean
   is_active: boolean
-  plan: 'free' | 'pro'
+  subscription_plan: 'free' | 'pro'
   specialties?: string[]
   created_at: string
 }
@@ -156,12 +157,20 @@ export interface AdminTransactionsResponse {
 /** Donation record (separate from subscription transactions). */
 export interface AdminDonation {
   id: number
-  user_id: number
+  donor_entity_type: string
+  donor_entity_id: number
   shelter_id: number
-  amount_cop: number
+  amount: number
+  platform_fee: number
+  shelter_amount: number
+  payout_status: string
+  payment_method: string
   status: TransactionStatus
-  reference: string
   created_at: string
+  donor_name: string
+  donor_email: string
+  donor_label: string
+  shelter_name: string
 }
 
 export interface AdminDonationFilters {

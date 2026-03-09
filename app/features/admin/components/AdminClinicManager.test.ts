@@ -39,9 +39,9 @@ function makeClinic(overrides: Partial<AdminClinic> = {}): AdminClinic {
     city_id: 1,
     city: { id: 1, name: 'Cali', country_id: 1 },
     email: 'info@clinica.com',
-    is_verified: false,
+    verified: false,
     is_active: true,
-    plan: 'free',
+    subscription_plan: 'free',
     specialties: ['Cirugía', 'Dermatología'],
     created_at: '2024-01-01T00:00:00Z',
     ...overrides,
@@ -148,7 +148,7 @@ describe('AdminClinicManager', () => {
   describe('clinic rows', () => {
     beforeEach(() => {
       mockAdminStore.clinics = [
-        makeClinic({ id: 1, name: 'Clínica Norte', city_id: 2, city: { id: 2, name: 'Bogotá', country_id: 1 }, is_verified: true, is_active: true }),
+        makeClinic({ id: 1, name: 'Clínica Norte', city_id: 2, city: { id: 2, name: 'Bogotá', country_id: 1 }, verified: true, is_active: true }),
       ]
       mockAdminStore.totalClinics = 1
     })
@@ -169,7 +169,7 @@ describe('AdminClinicManager', () => {
     })
 
     it('shows "No" label for unverified clinics', async () => {
-      mockAdminStore.clinics = [makeClinic({ id: 2, is_verified: false })]
+      mockAdminStore.clinics = [makeClinic({ id: 2, verified: false })]
       const wrapper = await mountManager()
       expect(wrapper.find('[aria-label="Clínica no verificada"]').exists()).toBe(true)
     })
@@ -179,7 +179,7 @@ describe('AdminClinicManager', () => {
 
   describe('plan column', () => {
     it('shows "Free" badge for clinics with plan=free', async () => {
-      mockAdminStore.clinics = [makeClinic({ id: 1, plan: 'free' })]
+      mockAdminStore.clinics = [makeClinic({ id: 1, subscription_plan: 'free' })]
       mockAdminStore.totalClinics = 1
       const wrapper = await mountManager()
       expect(wrapper.find('[aria-label="Plan: Free"]').exists()).toBe(true)
@@ -187,7 +187,7 @@ describe('AdminClinicManager', () => {
     })
 
     it('shows "Pro" badge for clinics with plan=pro', async () => {
-      mockAdminStore.clinics = [makeClinic({ id: 1, plan: 'pro' })]
+      mockAdminStore.clinics = [makeClinic({ id: 1, subscription_plan: 'pro' })]
       mockAdminStore.totalClinics = 1
       const wrapper = await mountManager()
       expect(wrapper.find('[aria-label="Plan: Pro"]').exists()).toBe(true)
@@ -249,30 +249,40 @@ describe('AdminClinicManager', () => {
   // ── Verify ───────────────────────────────────────────────────
 
   describe('verify clinic', () => {
-    it('shows "Verificar" button only for unverified clinics', async () => {
-      mockAdminStore.clinics = [makeClinic({ id: 1, is_verified: false })]
+    it('shows "Verificar" button for unverified clinics', async () => {
+      mockAdminStore.clinics = [makeClinic({ id: 1, verified: false })]
       mockAdminStore.totalClinics = 1
       const wrapper = await mountManager()
       const btn = wrapper.findAll('button').find(b => b.text() === 'Verificar')
       expect(btn).toBeDefined()
     })
 
-    it('does not show "Verificar" button for already verified clinics', async () => {
-      mockAdminStore.clinics = [makeClinic({ id: 1, is_verified: true })]
+    it('shows "Revocar" button for verified clinics', async () => {
+      mockAdminStore.clinics = [makeClinic({ id: 1, verified: true })]
       mockAdminStore.totalClinics = 1
       const wrapper = await mountManager()
-      const btn = wrapper.findAll('button').find(b => b.text() === 'Verificar')
-      expect(btn).toBeUndefined()
+      const btn = wrapper.findAll('button').find(b => b.text() === 'Revocar')
+      expect(btn).toBeDefined()
     })
 
-    it('calls verifyClinic with clinic id when "Verificar" is clicked', async () => {
+    it('calls verifyClinic(id, true) when "Verificar" is clicked', async () => {
       mockVerifyClinic.mockResolvedValue(true)
-      mockAdminStore.clinics = [makeClinic({ id: 5, is_verified: false })]
+      mockAdminStore.clinics = [makeClinic({ id: 5, verified: false })]
       mockAdminStore.totalClinics = 1
       const wrapper = await mountManager()
       const btn = wrapper.findAll('button').find(b => b.text() === 'Verificar')
       await btn!.trigger('click')
-      expect(mockVerifyClinic).toHaveBeenCalledWith(5)
+      expect(mockVerifyClinic).toHaveBeenCalledWith(5, true)
+    })
+
+    it('calls verifyClinic(id, false) when "Revocar" is clicked', async () => {
+      mockVerifyClinic.mockResolvedValue(true)
+      mockAdminStore.clinics = [makeClinic({ id: 5, verified: true })]
+      mockAdminStore.totalClinics = 1
+      const wrapper = await mountManager()
+      const btn = wrapper.findAll('button').find(b => b.text() === 'Revocar')
+      await btn!.trigger('click')
+      expect(mockVerifyClinic).toHaveBeenCalledWith(5, false)
     })
   })
 
@@ -289,7 +299,7 @@ describe('AdminClinicManager', () => {
 
     it('calls setClinicPlan when plan is changed', async () => {
       mockSetClinicPlan.mockResolvedValue(true)
-      mockAdminStore.clinics = [makeClinic({ id: 8, name: 'Clínica B', plan: 'free' })]
+      mockAdminStore.clinics = [makeClinic({ id: 8, name: 'Clínica B', subscription_plan: 'free' })]
       mockAdminStore.totalClinics = 1
       const wrapper = await mountManager()
       const select = wrapper.find('select[aria-label="Cambiar plan de Clínica B"]')

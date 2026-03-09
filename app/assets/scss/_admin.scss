@@ -531,6 +531,11 @@ $admin-sidebar-width: 16rem; // w-64
 
   .form-select {
     background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%2394a3b8' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e");
+
+    option {
+      background: #fff;
+      color: #212529;
+    }
   }
 
   .input-group-text {
@@ -597,6 +602,7 @@ $admin-sidebar-width: 16rem; // w-64
   // Override Bootstrap table classes
   .table {
     color: $admin-text;
+    --bs-table-color: #{$admin-text};
     --bs-table-bg: transparent;
     --bs-table-hover-bg: rgba(255, 255, 255, 0.03);
 

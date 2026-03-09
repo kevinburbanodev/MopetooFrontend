@@ -192,10 +192,11 @@ onMounted(async () => {
               <tr v-for="don in adminStore.donations" :key="don.id">
                 <td class="text-muted small font-monospace">{{ don.id }}</td>
                 <td class="small">
-                  <span class="text-muted">{{ don.donor_entity_type ?? 'user' }}</span>
-                  #{{ don.donor_entity_id ?? don.user_id }}
+                  <div class="fw-semibold">{{ don.donor_name }}</div>
+                  <div class="text-muted" style="font-size: 0.8em;">{{ don.donor_email }}</div>
+                  <span class="badge bg-light text-dark border" style="font-size: 0.7em;">{{ don.donor_label }}</span>
                 </td>
-                <td class="small">#{{ don.shelter_id }}</td>
+                <td class="small">{{ don.shelter_name }}</td>
                 <td class="text-end fw-semibold">{{ formatCOP(don.amount ?? don.amount_cop) }}</td>
                 <td class="text-end text-muted small">{{ don.platform_fee !== undefined ? formatCOP(don.platform_fee) : '—' }}</td>
                 <td class="text-end text-success small fw-semibold">{{ don.shelter_amount !== undefined ? formatCOP(don.shelter_amount) : '—' }}</td>

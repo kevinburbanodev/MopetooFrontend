@@ -34,7 +34,7 @@ const navItems = [
 ]
 
 const secondaryNavItems = [
-  { label: 'Blog', to: '/blog', icon: 'article' },
+  { label: 'Blog', to: '/admin/blog', icon: 'article' },
 ]
 
 // Page title derived from current route
@@ -51,7 +51,7 @@ const userInitials = computed(() => {
   const user = authStore.currentUser
   if (!user) return 'A'
   const first = user.name?.charAt(0) ?? ''
-  const last = user.last_name?.charAt(0) ?? ''
+  const last = user.lastname?.charAt(0) ?? ''
   return (first + last).toUpperCase() || 'A'
 })
 

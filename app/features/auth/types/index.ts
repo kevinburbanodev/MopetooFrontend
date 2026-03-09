@@ -12,7 +12,7 @@ export type EntityType = 'user' | 'shelter' | 'store' | 'clinic'
 export interface User {
   id: number
   name: string
-  last_name: string
+  lastname: string
   email: string
   country_id: number
   country?: Country

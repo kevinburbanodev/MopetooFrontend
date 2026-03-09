@@ -34,7 +34,7 @@ function makeUser(overrides: Partial<AdminUser> = {}): AdminUser {
   return {
     id: 1,
     name: 'Ana',
-    last_name: 'García',
+    lastname: 'García',
     email: 'ana@example.com',
     country_id: 1,
     country: { id: 1, name: 'Colombia', code: 'CO', phone_code: '+57' },
@@ -156,8 +156,8 @@ describe('AdminUserManager', () => {
   describe('user rows', () => {
     beforeEach(() => {
       mockAdminStore.users = [
-        makeUser({ id: 1, name: 'Ana', last_name: 'García', email: 'ana@example.com', city_id: 1, city: { id: 1, name: 'Bogotá', country_id: 1 }, is_pro: false, is_admin: false, is_active: true }),
-        makeUser({ id: 2, name: 'Carlos', last_name: 'López', email: 'carlos@example.com', city_id: 2, city: { id: 2, name: 'Medellín', country_id: 1 }, is_pro: true, is_admin: false, is_active: true }),
+        makeUser({ id: 1, name: 'Ana', lastname: 'García', email: 'ana@example.com', city_id: 1, city: { id: 1, name: 'Bogotá', country_id: 1 }, is_pro: false, is_admin: false, is_active: true }),
+        makeUser({ id: 2, name: 'Carlos', lastname: 'López', email: 'carlos@example.com', city_id: 2, city: { id: 2, name: 'Medellín', country_id: 1 }, is_pro: true, is_admin: false, is_active: true }),
       ]
       mockAdminStore.totalUsers = 2
     })

@@ -2,8 +2,10 @@
 // BlogArticle — Stitch-style full article view.
 // Reading progress bar, hero image, author info, social share,
 // intro paragraph with teal border, sidebar with TOC + CTA + related.
-// Content rendered as plain text (no v-html — XSS safe).
+// Supports both HTML (rich text) and plain text content.
+// HTML is sanitized with DOMPurify before v-html rendering.
 
+import DOMPurify from 'isomorphic-dompurify'
 import { BLOG_CATEGORIES } from '../types'
 
 const blogStore = useBlogStore()
@@ -64,6 +66,49 @@ const readTime = computed(() => {
   const words = post.value.content.split(/\s+/).length
   const minutes = Math.max(1, Math.ceil(words / 200))
   return `${minutes} min lectura`
+})
+
+// ── HTML content detection and sanitization ───────────────────
+const isHtmlContent = computed(() => {
+  if (!post.value) return false
+  return /<[a-z][\s\S]*>/i.test(post.value.content)
+})
+
+const ALLOWED_TAGS = [
+  'h2', 'h3', 'h4', 'p', 'br', 'strong', 'em', 'b', 'i', 'u',
+  'ul', 'ol', 'li', 'blockquote', 'a', 'hr', 'code', 'pre',
+]
+const ALLOWED_ATTR = ['href', 'target', 'rel', 'id', 'class']
+
+const sanitizedContent = computed(() => {
+  if (!post.value) return ''
+  return DOMPurify.sanitize(post.value.content, {
+    ALLOWED_TAGS,
+    ALLOWED_ATTR,
+  })
+})
+
+// ── TOC for HTML content — extract h2 tags ────────────────────
+const htmlTocItems = computed(() => {
+  if (!isHtmlContent.value || !sanitizedContent.value) return []
+  const items: { text: string; id: string }[] = []
+  const regex = /<h2[^>]*>(.*?)<\/h2>/gi
+  let match
+  let idx = 0
+  while ((match = regex.exec(sanitizedContent.value)) !== null) {
+    const text = match[1].replace(/<[^>]*>/g, '')
+    items.push({ text, id: `html-section-${idx++}` })
+  }
+  return items
+})
+
+// Inject IDs into sanitized HTML for TOC anchors
+const sanitizedContentWithIds = computed(() => {
+  if (!htmlTocItems.value.length) return sanitizedContent.value
+  let idx = 0
+  return sanitizedContent.value.replace(/<h2([^>]*)>/gi, () => {
+    return `<h2 id="html-section-${idx++}">`
+  })
 })
 
 // ── Content paragraphs with heading heuristic ─────────────────
@@ -278,26 +323,33 @@ function scrollToSection(id: string): void {
             </a>
           </div>
 
-          <!-- Intro paragraph — italic, teal left border -->
-          <div v-if="introParagraph" class="blog-article__intro mb-4">
-            <p>{{ introParagraph }}</p>
-          </div>
+          <!-- HTML content (rich text from editor) -->
+          <template v-if="isHtmlContent">
+            <!-- eslint-disable-next-line vue/no-v-html -->
+            <div class="blog-article__body blog-article__body--html" v-html="sanitizedContentWithIds" />
+          </template>
 
-          <!-- Article body -->
-          <div class="blog-article__body">
-            <template v-for="(block, index) in bodyBlocks" :key="index">
-              <h2
-                v-if="block.isHeading"
-                :id="block.id"
-                class="blog-article__heading"
-              >
-                {{ block.text }}
-              </h2>
-              <p v-else class="blog-article__paragraph">
-                {{ block.text }}
-              </p>
-            </template>
-          </div>
+          <!-- Plain text content (legacy articles) -->
+          <template v-else>
+            <div v-if="introParagraph" class="blog-article__intro mb-4">
+              <p>{{ introParagraph }}</p>
+            </div>
+
+            <div class="blog-article__body">
+              <template v-for="(block, index) in bodyBlocks" :key="index">
+                <h2
+                  v-if="block.isHeading"
+                  :id="block.id"
+                  class="blog-article__heading"
+                >
+                  {{ block.text }}
+                </h2>
+                <p v-else class="blog-article__paragraph">
+                  {{ block.text }}
+                </p>
+              </template>
+            </div>
+          </template>
 
           <!-- Back to blog CTA -->
           <div class="blog-article__cta mt-5 mb-4">
@@ -314,11 +366,11 @@ function scrollToSection(id: string): void {
         <aside class="col-lg-4 d-none d-lg-block">
           <div class="blog-sidebar">
             <!-- Table of Contents -->
-            <div v-if="tocItems.length > 0" class="blog-sidebar__card mb-4">
+            <div v-if="(isHtmlContent ? htmlTocItems : tocItems).length > 0" class="blog-sidebar__card mb-4">
               <h3 class="blog-sidebar__card-title">Contenido</h3>
               <nav aria-label="Tabla de contenido">
                 <ul class="blog-sidebar__toc">
-                  <li v-for="item in tocItems" :key="item.id">
+                  <li v-for="item in (isHtmlContent ? htmlTocItems : tocItems)" :key="item.id">
                     <button
                       type="button"
                       class="blog-sidebar__toc-link"
@@ -578,6 +630,88 @@ function scrollToSection(id: string): void {
 
     &:last-child {
       margin-bottom: 0;
+    }
+  }
+
+  // ── HTML rich content styles ────────────────────────────────
+  &__body--html {
+    :deep(h2) {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: #111827;
+      margin-top: 2rem;
+      margin-bottom: 1rem;
+      scroll-margin-top: 80px;
+    }
+
+    :deep(h3) {
+      font-size: 1.25rem;
+      font-weight: 600;
+      color: #111827;
+      margin-top: 1.5rem;
+      margin-bottom: 0.75rem;
+    }
+
+    :deep(p) {
+      margin-bottom: 1.25rem;
+
+      &:last-child {
+        margin-bottom: 0;
+      }
+    }
+
+    :deep(ul), :deep(ol) {
+      padding-left: 1.5rem;
+      margin-bottom: 1.25rem;
+    }
+
+    :deep(li) {
+      margin-bottom: 0.25rem;
+    }
+
+    :deep(blockquote) {
+      border-left: 4px solid #14b8a6;
+      padding-left: 1.25rem;
+      margin: 1.5rem 0;
+      color: #6b7280;
+      font-style: italic;
+    }
+
+    :deep(a) {
+      color: #0d6efd;
+      text-decoration: underline;
+
+      &:hover {
+        color: #0a58ca;
+      }
+    }
+
+    :deep(code) {
+      background: #f3f4f6;
+      padding: 0.15em 0.4em;
+      border-radius: 0.25rem;
+      font-size: 0.9em;
+    }
+
+    :deep(pre) {
+      background: #1f2937;
+      color: #e5e7eb;
+      padding: 1rem;
+      border-radius: 0.5rem;
+      overflow-x: auto;
+      margin-bottom: 1.25rem;
+
+      code {
+        background: none;
+        padding: 0;
+        color: inherit;
+      }
+    }
+
+    :deep(hr) {
+      border: none;
+      border-top: 2px solid #e5e7eb;
+      margin: 2rem 0;
     }
   }
 

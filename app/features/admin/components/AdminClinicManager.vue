@@ -141,6 +141,7 @@ onMounted(async () => {
           <thead class="table-light">
             <tr>
               <th scope="col">Nombre</th>
+              <th scope="col">Correo</th>
               <th scope="col">Ciudad</th>
               <th scope="col">Especialidades</th>
               <th scope="col" class="text-center">Verificado</th>
@@ -155,6 +156,7 @@ onMounted(async () => {
             <template v-if="adminStore.isLoading">
               <tr v-for="n in 5" :key="`skel-${n}`" aria-hidden="true">
                 <td><div class="skeleton-pulse rounded admin-table-skeleton__name" /></td>
+                <td><div class="skeleton-pulse rounded admin-table-skeleton__email" /></td>
                 <td><div class="skeleton-pulse rounded admin-table-skeleton__city" /></td>
                 <td>
                   <div class="d-flex gap-1">
@@ -174,6 +176,7 @@ onMounted(async () => {
             <template v-else-if="adminStore.clinics.length > 0">
               <tr v-for="clinic in adminStore.clinics" :key="clinic.id">
                 <td class="fw-semibold">{{ clinic.name }}</td>
+                <td class="text-muted small">{{ clinic.email }}</td>
                 <td class="text-muted small">{{ clinic.city?.name }}</td>
                 <td>
                   <div
@@ -200,7 +203,7 @@ onMounted(async () => {
                 </td>
                 <td class="text-center">
                   <span
-                    v-if="clinic.is_verified"
+                    v-if="clinic.verified"
                     class="badge bg-success"
                     aria-label="Clínica verificada"
                   >
@@ -217,10 +220,10 @@ onMounted(async () => {
                 <td class="text-center">
                   <span
                     class="badge"
-                    :class="planBadgeClass(clinic.plan)"
-                    :aria-label="`Plan: ${planLabel(clinic.plan)}`"
+                    :class="planBadgeClass(clinic.subscription_plan)"
+                    :aria-label="`Plan: ${planLabel(clinic.subscription_plan)}`"
                   >
-                    {{ planLabel(clinic.plan) }}
+                    {{ planLabel(clinic.subscription_plan) }}
                   </span>
                 </td>
                 <td class="text-center">
@@ -242,21 +245,21 @@ onMounted(async () => {
                 <td class="text-muted small">{{ formatDate(clinic.created_at) }}</td>
                 <td class="text-end">
                   <div class="d-flex justify-content-end gap-1 flex-wrap">
-                    <!-- Verificar (only shown when not verified) -->
+                    <!-- Verificar / Revocar verificación -->
                     <button
-                      v-if="!clinic.is_verified"
                       type="button"
-                      class="btn btn-sm btn-outline-success"
-                      :aria-label="`Verificar ${clinic.name}`"
-                      @click="verifyClinic(clinic.id)"
+                      class="btn btn-sm"
+                      :class="clinic.verified ? 'btn-outline-warning' : 'btn-outline-success'"
+                      :aria-label="clinic.verified ? `Revocar verificación de ${clinic.name}` : `Verificar ${clinic.name}`"
+                      @click="verifyClinic(clinic.id, !clinic.verified)"
                     >
-                      Verificar
+                      {{ clinic.verified ? 'Revocar' : 'Verificar' }}
                     </button>
                     <!-- Plan selector -->
                     <select
                       class="form-select form-select-sm"
                       style="width: auto; min-width: 90px;"
-                      :value="clinic.plan"
+                      :value="clinic.subscription_plan"
                       :aria-label="`Cambiar plan de ${clinic.name}`"
                       @change="setClinicPlan(clinic.id, ($event.target as HTMLSelectElement).value as 'free' | 'pro')"
                     >
@@ -280,7 +283,7 @@ onMounted(async () => {
 
             <!-- Empty state -->
             <tr v-else>
-              <td colspan="8" class="text-center py-5 text-muted">
+              <td colspan="9" class="text-center py-5 text-muted">
                 <span class="material-symbols-outlined" style="font-size: 2rem;" aria-hidden="true">medical_services</span>
                 No se encontraron clínicas con los filtros actuales.
               </td>
@@ -344,6 +347,7 @@ onMounted(async () => {
 
 .admin-table-skeleton {
   &__name { height: 0.875rem; width: 120px; }
+  &__email { height: 0.875rem; width: 140px; }
   &__city { height: 0.875rem; width: 80px; }
   &__spec { height: 1.25rem; width: 5rem; border-radius: var(--bs-border-radius-pill) !important; }
   &__badge { height: 1.25rem; width: 4rem; border-radius: var(--bs-border-radius-pill) !important; }

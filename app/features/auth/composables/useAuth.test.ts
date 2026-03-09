@@ -86,7 +86,7 @@ const FAKE_JWT = makeFakeJwt({
 const mockUser: User = {
   id: 1,
   name: 'Ana',
-  last_name: 'Gómez',
+  lastname: 'Gómez',
   email: 'ana@example.com',
   country_id: 1,
   country: { id: 1, name: 'Colombia', code: 'CO', phone_code: '+57' },
