@@ -98,17 +98,6 @@ export const useAuthStore = defineStore('auth', () => {
       // Clear feature stores that cache user-specific data.
       // Each store must be imported lazily here (not at module level) to avoid
       // circular dependency issues between store files.
-      const petsStore = usePetsStore()
-      petsStore.setPets([])
-      petsStore.clearSelectedPet()
-      const remindersStore = useRemindersStore()
-      remindersStore.clearReminders()
-      const medicalStore = useMedicalStore()
-      medicalStore.clearMedicalRecords()
-      const sheltersStore = useSheltersStore()
-      sheltersStore.clearShelters()
-      const proStore = useProStore()
-      proStore.clearPro()
       const adminStore = useAdminStore()
       adminStore.clearAdmin()
       const statsStore = useStatsStore()

@@ -28,27 +28,17 @@ interface KpiCard {
 }
 
 const kpiRow1: KpiCard[] = [
-  { icon: '👥', label: 'Usuarios registrados', value: () => statsStore.overview?.users.total ?? 0, color: 'primary' },
-  { icon: '🐾', label: 'Mascotas registradas', value: () => statsStore.overview?.content.total_pets ?? 0, color: 'success' },
-  { icon: '🏠', label: 'Refugios activos', value: () => statsStore.overview?.shelters.active ?? 0, color: 'info' },
-  { icon: '🏥', label: 'Clínicas registradas', value: () => statsStore.overview?.clinics.total ?? 0, color: 'warning' },
+  { icon: 'group', label: 'Usuarios registrados', value: () => statsStore.overview?.users.total ?? 0, color: 'primary' },
+  { icon: 'pets', label: 'Mascotas registradas', value: () => statsStore.overview?.content.total_pets ?? 0, color: 'success' },
+  { icon: 'home_health', label: 'Refugios activos', value: () => statsStore.overview?.shelters.active ?? 0, color: 'info' },
+  { icon: 'medical_services', label: 'Clínicas registradas', value: () => statsStore.overview?.clinics.total ?? 0, color: 'warning' },
 ]
 
 const kpiRow2: KpiCard[] = [
-  { icon: '🛍️', label: 'Tiendas pet-friendly', value: () => statsStore.overview?.stores.total ?? 0, color: 'secondary' },
-  { icon: '🐶', label: 'Adopciones procesadas', value: () => statsStore.overview?.content.active_adoption_listings ?? 0, color: 'success' },
-  { icon: '⭐', label: 'Suscripciones PRO', value: () => statsStore.overview?.users.pro_active ?? 0, color: 'warning' },
-  { icon: '💝', label: 'Donaciones realizadas', value: () => statsStore.overview?.donations_cop.total_count ?? 0, color: 'danger' },
-]
-
-// ── Quick navigation links ──────────────────────────────────
-
-const quickNavLinks = [
-  { label: 'Gestionar Usuarios', to: '/admin/users', icon: '👥' },
-  { label: 'Gestionar Refugios', to: '/admin/shelters', icon: '🏠' },
-  { label: 'Gestionar Tiendas', to: '/admin/stores', icon: '🛍️' },
-  { label: 'Gestionar Clínicas', to: '/admin/clinics', icon: '🏥' },
-  { label: 'Estadísticas del Sistema', to: '/admin/stats', icon: '📊' },
+  { icon: 'storefront', label: 'Tiendas pet-friendly', value: () => statsStore.overview?.stores.total ?? 0, color: 'secondary' },
+  { icon: 'volunteer_activism', label: 'Adopciones procesadas', value: () => statsStore.overview?.content.active_adoption_listings ?? 0, color: 'success' },
+  { icon: 'star', label: 'Suscripciones PRO', value: () => statsStore.overview?.users.pro_active ?? 0, color: 'warning' },
+  { icon: 'favorite', label: 'Donaciones realizadas', value: () => statsStore.overview?.donations_cop.total_count ?? 0, color: 'danger' },
 ]
 
 // ── Lifecycle ──────────────────────────────────────────────
@@ -66,7 +56,7 @@ onMounted(async () => {
       class="alert alert-danger d-flex align-items-center gap-2 mb-4"
       role="alert"
     >
-      <span aria-hidden="true">⚠</span>
+      <span class="material-symbols-outlined" aria-hidden="true">warning</span>
       {{ error }}
     </div>
 
@@ -82,7 +72,7 @@ onMounted(async () => {
           :key="n"
           class="col-6 col-md-3"
         >
-          <div class="card border-0 shadow-sm p-3 admin-skeleton">
+          <div class="admin-stat-card">
             <div class="skeleton-pulse rounded mb-2 admin-skeleton__icon" />
             <div class="skeleton-pulse rounded admin-skeleton__number" />
             <div class="skeleton-pulse rounded mt-2 admin-skeleton__label" />
@@ -100,19 +90,12 @@ onMounted(async () => {
           :key="card.label"
           class="col-6 col-md-3"
         >
-          <div
-            class="card border-0 shadow-sm h-100 text-center p-3"
-            :class="`border-top border-4 border-${card.color}`"
-            style="border-top-width: 4px !important;"
-          >
-            <div class="fs-2 mb-1" aria-hidden="true">{{ card.icon }}</div>
-            <div
-              class="display-6 fw-bold"
-              :class="`text-${card.color}`"
-            >
+          <div class="admin-stat-card h-100">
+            <span class="material-symbols-outlined admin-stat-card__icon" aria-hidden="true">{{ card.icon }}</span>
+            <div class="admin-stat-card__value">
               {{ card.value().toLocaleString('es-CO') }}
             </div>
-            <div class="text-muted small mt-1 fw-semibold text-uppercase" style="letter-spacing: 0.04em;">
+            <div class="admin-stat-card__label">
               {{ card.label }}
             </div>
           </div>
@@ -126,19 +109,12 @@ onMounted(async () => {
           :key="card.label"
           class="col-6 col-md-3"
         >
-          <div
-            class="card border-0 shadow-sm h-100 text-center p-3"
-            :class="`border-top border-4 border-${card.color}`"
-            style="border-top-width: 4px !important;"
-          >
-            <div class="fs-2 mb-1" aria-hidden="true">{{ card.icon }}</div>
-            <div
-              class="display-6 fw-bold"
-              :class="`text-${card.color}`"
-            >
+          <div class="admin-stat-card h-100">
+            <span class="material-symbols-outlined admin-stat-card__icon" aria-hidden="true">{{ card.icon }}</span>
+            <div class="admin-stat-card__value">
               {{ card.value().toLocaleString('es-CO') }}
             </div>
-            <div class="text-muted small mt-1 fw-semibold text-uppercase" style="letter-spacing: 0.04em;">
+            <div class="admin-stat-card__label">
               {{ card.label }}
             </div>
           </div>
@@ -148,11 +124,11 @@ onMounted(async () => {
       <!-- Revenue section -->
       <div class="row g-4 mb-5">
         <div class="col-12 col-md-6">
-          <div class="card border-0 shadow-sm p-4 admin-revenue-card">
+          <div class="admin-stat-card admin-revenue-card">
             <div class="d-flex align-items-center gap-3">
-              <div class="admin-revenue-card__icon fs-1" aria-hidden="true">📅</div>
+              <span class="material-symbols-outlined" style="font-size: 2rem; opacity: 0.6;" aria-hidden="true">date_range</span>
               <div>
-                <div class="text-muted small fw-semibold text-uppercase mb-1" style="letter-spacing: 0.04em;">
+                <div class="admin-stat-card__label mb-1">
                   Ingresos del periodo
                 </div>
                 <div class="h4 fw-bold text-success mb-0">
@@ -163,11 +139,11 @@ onMounted(async () => {
           </div>
         </div>
         <div class="col-12 col-md-6">
-          <div class="card border-0 shadow-sm p-4 admin-revenue-card">
+          <div class="admin-stat-card admin-revenue-card">
             <div class="d-flex align-items-center gap-3">
-              <div class="admin-revenue-card__icon fs-1" aria-hidden="true">💰</div>
+              <span class="material-symbols-outlined" style="font-size: 2rem; opacity: 0.6;" aria-hidden="true">account_balance</span>
               <div>
-                <div class="text-muted small fw-semibold text-uppercase mb-1" style="letter-spacing: 0.04em;">
+                <div class="admin-stat-card__label mb-1">
                   Ingresos totales
                 </div>
                 <div class="h4 fw-bold text-primary mb-0">
@@ -179,31 +155,14 @@ onMounted(async () => {
         </div>
       </div>
 
+      <!-- Event Stats -->
+      <div class="mb-5">
+        <AdminEventStats />
+      </div>
+
       <!-- System status & maintenance toggle -->
       <div class="mb-4">
         <MaintenanceToggle />
-      </div>
-
-      <!-- Quick navigation -->
-      <div class="card border-0 shadow-sm">
-        <div class="card-header bg-transparent border-bottom">
-          <h2 class="h6 fw-bold mb-0">
-            <span aria-hidden="true">🗂️</span> Gestión rápida
-          </h2>
-        </div>
-        <div class="list-group list-group-flush" role="list">
-          <NuxtLink
-            v-for="link in quickNavLinks"
-            :key="link.to"
-            :to="link.to"
-            class="list-group-item list-group-item-action d-flex align-items-center gap-3 py-3"
-            role="listitem"
-          >
-            <span class="fs-5" aria-hidden="true">{{ link.icon }}</span>
-            <span class="fw-semibold">{{ link.label }}</span>
-            <span class="ms-auto text-muted" aria-hidden="true">&rsaquo;</span>
-          </NuxtLink>
-        </div>
       </div>
     </template>
 
@@ -212,7 +171,7 @@ onMounted(async () => {
       v-else-if="!statsStore.isLoading"
       class="text-center py-5"
     >
-      <div class="fs-1" aria-hidden="true">📊</div>
+      <span class="material-symbols-outlined" style="font-size: 2.5rem; opacity: 0.5;" aria-hidden="true">leaderboard</span>
       <h2 class="h5 fw-bold mt-4 mb-2">No se pudieron cargar las estadísticas</h2>
       <p class="text-muted mb-4">
         Verifica tu conexión e intenta de nuevo.
@@ -229,37 +188,7 @@ onMounted(async () => {
 </template>
 
 <style scoped lang="scss">
-// ── Revenue cards ─────────────────────────────────────────────
-.admin-revenue-card {
-  border-left: 4px solid var(--bs-primary);
-
-  &__icon {
-    line-height: 1;
-  }
-}
-
 // ── Skeleton shimmer ──────────────────────────────────────────
-.skeleton-pulse {
-  background: linear-gradient(
-    90deg,
-    var(--bs-secondary-bg) 25%,
-    var(--bs-tertiary-bg, #e8e8e8) 50%,
-    var(--bs-secondary-bg) 75%
-  );
-  background-size: 200% 100%;
-  animation: skeleton-shimmer 1.4s ease-in-out infinite;
-
-  @media (prefers-reduced-motion: reduce) {
-    animation: none;
-    background: var(--bs-secondary-bg);
-  }
-}
-
-@keyframes skeleton-shimmer {
-  0% { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
-}
-
 .admin-skeleton {
   &__icon {
     height: 2rem;

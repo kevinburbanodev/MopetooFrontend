@@ -5,7 +5,7 @@
 
 import type { AdminFilters } from '../types'
 
-const { fetchPetshops, activateStore, deactivateStore, setStorePlan, error, adminStore } = useAdmin()
+const { fetchPetshops, activateStore, deactivateStore, setStorePlan, verifyStore, error, adminStore } = useAdmin()
 
 // ── Filters ────────────────────────────────────────────────
 const searchQuery = ref('')
@@ -87,7 +87,7 @@ onMounted(async () => {
       <div class="flex-grow-1" style="min-width: 200px; max-width: 360px;">
         <label for="store-search" class="visually-hidden">Buscar tienda</label>
         <div class="input-group">
-          <span class="input-group-text bg-transparent border-end-0" aria-hidden="true">🔍</span>
+          <span class="input-group-text bg-transparent border-end-0" aria-hidden="true"><span class="material-symbols-outlined" style="font-size: 1.1rem;">search</span></span>
           <input
             id="store-search"
             v-model="searchQuery"
@@ -115,7 +115,7 @@ onMounted(async () => {
       class="alert alert-danger d-flex align-items-center gap-2 mb-4"
       role="alert"
     >
-      <span aria-hidden="true">⚠</span>
+      <span class="material-symbols-outlined" style="font-size: 1.1rem;" aria-hidden="true">warning</span>
       {{ error }}
     </div>
 
@@ -129,6 +129,7 @@ onMounted(async () => {
               <th scope="col">Ciudad</th>
               <th scope="col">Contacto</th>
               <th scope="col" class="text-center">Plan</th>
+              <th scope="col" class="text-center">Verificado</th>
               <th scope="col" class="text-center">Activo</th>
               <th scope="col">Registro</th>
               <th scope="col" class="text-end">Acciones</th>
@@ -143,6 +144,7 @@ onMounted(async () => {
                 <td><div class="skeleton-pulse rounded admin-table-skeleton__email" /></td>
                 <td class="text-center"><div class="skeleton-pulse rounded admin-table-skeleton__badge mx-auto" /></td>
                 <td class="text-center"><div class="skeleton-pulse rounded admin-table-skeleton__badge mx-auto" /></td>
+                <td class="text-center"><div class="skeleton-pulse rounded admin-table-skeleton__badge mx-auto" /></td>
                 <td><div class="skeleton-pulse rounded admin-table-skeleton__date" /></td>
                 <td><div class="skeleton-pulse rounded admin-table-skeleton__actions ms-auto" /></td>
               </tr>
@@ -152,7 +154,7 @@ onMounted(async () => {
             <template v-else-if="adminStore.petshops.length > 0">
               <tr v-for="store in adminStore.petshops" :key="store.id">
                 <td class="fw-semibold">{{ store.name }}</td>
-                <td class="text-muted small">{{ store.city }}</td>
+                <td class="text-muted small">{{ store.city?.name }}</td>
                 <td class="text-muted small">
                   <div v-if="store.email">{{ store.email }}</div>
                   <div v-if="store.phone">{{ store.phone }}</div>
@@ -161,10 +163,26 @@ onMounted(async () => {
                 <td class="text-center">
                   <span
                     class="badge"
-                    :class="planBadgeClass(store.plan)"
-                    :aria-label="`Plan: ${planLabel(store.plan)}`"
+                    :class="planBadgeClass(store.subscription_plan)"
+                    :aria-label="`Plan: ${planLabel(store.subscription_plan)}`"
                   >
-                    {{ planLabel(store.plan) }}
+                    {{ planLabel(store.subscription_plan) }}
+                  </span>
+                </td>
+                <td class="text-center">
+                  <span
+                    v-if="store.verified"
+                    class="badge bg-success"
+                    aria-label="Tienda verificada"
+                  >
+                    Verificado
+                  </span>
+                  <span
+                    v-else
+                    class="text-muted small"
+                    aria-label="Tienda no verificada"
+                  >
+                    No
                   </span>
                 </td>
                 <td class="text-center">
@@ -186,11 +204,21 @@ onMounted(async () => {
                 <td class="text-muted small">{{ formatDate(store.created_at) }}</td>
                 <td class="text-end">
                   <div class="d-flex justify-content-end gap-1 flex-wrap">
+                    <!-- Verificar / Revocar verificación -->
+                    <button
+                      type="button"
+                      class="btn btn-sm"
+                      :class="store.verified ? 'btn-outline-warning' : 'btn-outline-success'"
+                      :aria-label="store.verified ? `Revocar verificación de ${store.name}` : `Verificar ${store.name}`"
+                      @click="verifyStore(store.id, !store.verified)"
+                    >
+                      {{ store.verified ? 'Revocar' : 'Verificar' }}
+                    </button>
                     <!-- Plan selector -->
                     <select
                       class="form-select form-select-sm"
                       style="width: auto; min-width: 100px;"
-                      :value="store.plan"
+                      :value="store.subscription_plan"
                       :aria-label="`Cambiar plan de ${store.name}`"
                       @change="setStorePlan(store.id, ($event.target as HTMLSelectElement).value as 'free' | 'featured')"
                     >
@@ -214,8 +242,8 @@ onMounted(async () => {
 
             <!-- Empty state -->
             <tr v-else>
-              <td colspan="7" class="text-center py-5 text-muted">
-                <div class="fs-2 mb-2" aria-hidden="true">🛍️</div>
+              <td colspan="8" class="text-center py-5 text-muted">
+                <span class="material-symbols-outlined" style="font-size: 2rem;" aria-hidden="true">storefront</span>
                 No se encontraron tiendas con los filtros actuales.
               </td>
             </tr>

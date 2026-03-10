@@ -1,16 +1,14 @@
 // ============================================================
 // BlogCategoryFilter.test.ts
-// Tests for the BlogCategoryFilter component.
-//
-// Strategy: mountSuspended resolves Nuxt auto-imports. The component
-// receives all data via props and emits events — no store or HTTP calls.
+// Tests for the BlogCategoryFilter component (Stitch redesign).
 //
 // Key design points:
 //   - "Todos" button is always rendered and emits null when clicked.
-//   - One button per category in the categories prop.
-//   - Active state uses btn-primary; inactive uses btn-outline-secondary.
-//   - Badge with post count is shown via categoryCounts prop.
-//   - Accessibility: role="tablist" on container, role="tab" on each button.
+//   - One pill per category in the categories prop.
+//   - Active state uses blog-filter-pill--active class.
+//   - Count badges removed in Stitch design.
+//   - Accessibility: role="tablist" on container, role="tab" on each pill.
+//   - Desktop scroll arrow buttons (not counted as category buttons).
 // ============================================================
 
 import { describe, it, expect } from 'vitest'
@@ -22,6 +20,11 @@ import BlogCategoryFilter from './BlogCategoryFilter.vue'
 const catA = { value: 'salud', label: 'Salud' }
 const catB = { value: 'nutricion', label: 'Nutrición' }
 const catC = { value: 'cuidados', label: 'Cuidados' }
+
+// Helper: get only the pill buttons (role="tab"), excluding arrow buttons
+function getPills(wrapper: any) {
+  return wrapper.findAll('[role="tab"]')
+}
 
 // ── Suite ─────────────────────────────────────────────────────
 
@@ -36,28 +39,27 @@ describe('BlogCategoryFilter', () => {
       expect(wrapper.text()).toContain('Todos')
     })
 
-    it('"Todos" button has btn-primary class when activeCategory is null', async () => {
+    it('"Todos" button has blog-filter-pill--active class when activeCategory is null', async () => {
       const wrapper = await mountSuspended(BlogCategoryFilter, {
         props: { categories: [catA], activeCategory: null },
       })
-      const todosBtn = wrapper.findAll('button').find(b => b.text().trim().startsWith('Todos'))
-      expect(todosBtn?.classes()).toContain('btn-primary')
+      const todosBtn = getPills(wrapper).find((b: any) => b.text().trim().startsWith('Todos'))
+      expect(todosBtn?.classes()).toContain('blog-filter-pill--active')
     })
 
-    it('"Todos" button has btn-outline-secondary class when activeCategory is non-null', async () => {
+    it('"Todos" button does NOT have blog-filter-pill--active class when activeCategory is non-null', async () => {
       const wrapper = await mountSuspended(BlogCategoryFilter, {
         props: { categories: [catA], activeCategory: 'salud' },
       })
-      const todosBtn = wrapper.findAll('button').find(b => b.text().trim().startsWith('Todos'))
-      expect(todosBtn?.classes()).toContain('btn-outline-secondary')
-      expect(todosBtn?.classes()).not.toContain('btn-primary')
+      const todosBtn = getPills(wrapper).find((b: any) => b.text().trim().startsWith('Todos'))
+      expect(todosBtn?.classes()).not.toContain('blog-filter-pill--active')
     })
 
     it('clicking "Todos" emits "select" with null', async () => {
       const wrapper = await mountSuspended(BlogCategoryFilter, {
         props: { categories: [catA], activeCategory: 'salud' },
       })
-      const todosBtn = wrapper.findAll('button').find(b => b.text().trim().startsWith('Todos'))
+      const todosBtn = getPills(wrapper).find((b: any) => b.text().trim().startsWith('Todos'))
       await todosBtn!.trigger('click')
       expect(wrapper.emitted('select')).toBeTruthy()
       expect(wrapper.emitted('select')![0]).toEqual([null])
@@ -67,12 +69,12 @@ describe('BlogCategoryFilter', () => {
   // ── Category buttons ───────────────────────────────────────
 
   describe('category buttons', () => {
-    it('renders one button per category in the categories prop', async () => {
+    it('renders one pill per category in the categories prop', async () => {
       const wrapper = await mountSuspended(BlogCategoryFilter, {
         props: { categories: [catA, catB], activeCategory: null },
       })
-      // Total buttons = 1 ("Todos") + 2 (categories)
-      expect(wrapper.findAll('button')).toHaveLength(3)
+      // Total pills = 1 ("Todos") + 2 (categories)
+      expect(getPills(wrapper)).toHaveLength(3)
     })
 
     it('renders the category label in each category button', async () => {
@@ -83,29 +85,28 @@ describe('BlogCategoryFilter', () => {
       expect(wrapper.text()).toContain('Nutrición')
     })
 
-    it('a category button has btn-primary when its value matches activeCategory', async () => {
+    it('a category button has blog-filter-pill--active when its value matches activeCategory', async () => {
       const wrapper = await mountSuspended(BlogCategoryFilter, {
         props: { categories: [catA, catB], activeCategory: 'salud' },
       })
-      const buttons = wrapper.findAll('button')
-      expect(buttons[1].classes()).toContain('btn-primary')
+      const pills = getPills(wrapper)
+      expect(pills[1].classes()).toContain('blog-filter-pill--active')
     })
 
-    it('a category button has btn-outline-secondary when its value does NOT match', async () => {
+    it('a category button does NOT have blog-filter-pill--active when its value does NOT match', async () => {
       const wrapper = await mountSuspended(BlogCategoryFilter, {
         props: { categories: [catA, catB], activeCategory: 'salud' },
       })
-      const buttons = wrapper.findAll('button')
-      expect(buttons[2].classes()).toContain('btn-outline-secondary')
-      expect(buttons[2].classes()).not.toContain('btn-primary')
+      const pills = getPills(wrapper)
+      expect(pills[2].classes()).not.toContain('blog-filter-pill--active')
     })
 
     it('clicking a category button emits "select" with the category value', async () => {
       const wrapper = await mountSuspended(BlogCategoryFilter, {
         props: { categories: [catA, catB], activeCategory: null },
       })
-      const buttons = wrapper.findAll('button')
-      await buttons[1].trigger('click') // catA — 'salud'
+      const pills = getPills(wrapper)
+      await pills[1].trigger('click') // catA — 'salud'
       expect(wrapper.emitted('select')).toBeTruthy()
       expect(wrapper.emitted('select')![0]).toEqual(['salud'])
     })
@@ -114,53 +115,7 @@ describe('BlogCategoryFilter', () => {
       const wrapper = await mountSuspended(BlogCategoryFilter, {
         props: { categories: [], activeCategory: null },
       })
-      expect(wrapper.findAll('button')).toHaveLength(1)
-    })
-  })
-
-  // ── categoryCounts badge ───────────────────────────────────
-
-  describe('categoryCounts badge', () => {
-    it('shows the badge when categoryCounts provides a count for the category', async () => {
-      const wrapper = await mountSuspended(BlogCategoryFilter, {
-        props: { categories: [catA], activeCategory: null, categoryCounts: { salud: 3 } },
-      })
-      const badge = wrapper.find('.blog-category-filter__count')
-      expect(badge.exists()).toBe(true)
-      expect(badge.text()).toBe('3')
-    })
-
-    it('hides the badge when categoryCounts is undefined', async () => {
-      const wrapper = await mountSuspended(BlogCategoryFilter, {
-        props: { categories: [catA], activeCategory: null },
-      })
-      const badge = wrapper.find('.blog-category-filter__count')
-      expect(badge.exists()).toBe(false)
-    })
-
-    it('hides the badge when categoryCounts has no entry for the category', async () => {
-      const wrapper = await mountSuspended(BlogCategoryFilter, {
-        props: { categories: [catA], activeCategory: null, categoryCounts: { nutricion: 5 } },
-      })
-      const badge = wrapper.find('.blog-category-filter__count')
-      expect(badge.exists()).toBe(false)
-    })
-
-    it('badge has bg-white text-primary class when the category is active', async () => {
-      const wrapper = await mountSuspended(BlogCategoryFilter, {
-        props: { categories: [catA], activeCategory: 'salud', categoryCounts: { salud: 3 } },
-      })
-      const badge = wrapper.find('.blog-category-filter__count')
-      expect(badge.classes()).toContain('bg-white')
-      expect(badge.classes()).toContain('text-primary')
-    })
-
-    it('badge has bg-primary-subtle class when the category is inactive', async () => {
-      const wrapper = await mountSuspended(BlogCategoryFilter, {
-        props: { categories: [catA], activeCategory: null, categoryCounts: { salud: 3 } },
-      })
-      const badge = wrapper.find('.blog-category-filter__count')
-      expect(badge.classes()).toContain('bg-primary-subtle')
+      expect(getPills(wrapper)).toHaveLength(1)
     })
   })
 
@@ -174,7 +129,7 @@ describe('BlogCategoryFilter', () => {
       expect(wrapper.find('[role="tablist"]').exists()).toBe(true)
     })
 
-    it('each button has role="tab"', async () => {
+    it('each pill has role="tab"', async () => {
       const wrapper = await mountSuspended(BlogCategoryFilter, {
         props: { categories: [catA, catB], activeCategory: null },
       })
@@ -185,7 +140,7 @@ describe('BlogCategoryFilter', () => {
       const wrapper = await mountSuspended(BlogCategoryFilter, {
         props: { categories: [catA], activeCategory: null },
       })
-      const todosBtn = wrapper.findAll('button').find(b => b.text().trim().startsWith('Todos'))
+      const todosBtn = getPills(wrapper).find((b: any) => b.text().trim().startsWith('Todos'))
       expect(todosBtn?.attributes('aria-selected')).toBe('true')
     })
 
@@ -193,16 +148,16 @@ describe('BlogCategoryFilter', () => {
       const wrapper = await mountSuspended(BlogCategoryFilter, {
         props: { categories: [catA, catB], activeCategory: 'salud' },
       })
-      const buttons = wrapper.findAll('button')
-      expect(buttons[1].attributes('aria-selected')).toBe('true')
+      const pills = getPills(wrapper)
+      expect(pills[1].attributes('aria-selected')).toBe('true')
     })
 
     it('inactive category button has aria-selected="false"', async () => {
       const wrapper = await mountSuspended(BlogCategoryFilter, {
         props: { categories: [catA, catB], activeCategory: 'salud' },
       })
-      const buttons = wrapper.findAll('button')
-      expect(buttons[2].attributes('aria-selected')).toBe('false')
+      const pills = getPills(wrapper)
+      expect(pills[2].attributes('aria-selected')).toBe('false')
     })
   })
 })

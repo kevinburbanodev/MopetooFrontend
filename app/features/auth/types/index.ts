@@ -3,6 +3,8 @@
 // Aligned with Mopetoo backend API (Go + Gin)
 // ============================================================
 
+import type { Country, City } from '../../shared/types/api.types'
+
 // ── Entity type discriminator ──────────────────────────────
 export type EntityType = 'user' | 'shelter' | 'store' | 'clinic'
 
@@ -10,11 +12,12 @@ export type EntityType = 'user' | 'shelter' | 'store' | 'clinic'
 export interface User {
   id: number
   name: string
-  last_name: string
+  lastname: string
   email: string
-  country: string
-  city: string
-  phone_country_code: string
+  country_id: number
+  country?: Country
+  city_id: number
+  city?: City
   phone: string
   profile_picture_url?: string
   birth_date?: string
@@ -30,9 +33,10 @@ export interface AuthShelter {
   organization_name: string
   email: string
   description: string
-  country: string
-  city: string
-  phone_country_code: string
+  country_id: number
+  country?: Country
+  city_id: number
+  city?: City
   phone: string
   logo_url?: string
   website?: string
@@ -49,9 +53,10 @@ export interface AuthStore {
   email: string
   description?: string
   logo_url?: string
-  country: string
-  city: string
-  phone_country_code: string
+  country_id: number
+  country?: Country
+  city_id: number
+  city?: City
   phone: string
   whatsapp_link?: string
   website?: string
@@ -67,11 +72,12 @@ export interface AuthClinic {
   id: number
   name: string
   email: string
-  phone_country_code: string
   phone: string
   address?: string
-  city: string
-  country: string
+  country_id: number
+  country?: Country
+  city_id: number
+  city?: City
   description?: string
   specialties: string[]
   services: string[]
@@ -114,66 +120,30 @@ export interface ClinicLoginResponse {
   clinic: AuthClinic
 }
 
-// ── Registration payloads ──────────────────────────────────
-export interface RegisterPayload {
-  name: string
-  last_name: string
-  email: string
-  password: string
-  country: string
-  city: string
-  phone_country_code: string
-  phone: string
-  birth_date?: string
-}
-
-export interface RegisterShelterPayload {
-  organization_name: string
-  email: string
-  password: string
-  description: string
-  country: string
-  city: string
-  phone_country_code: string
-  phone: string
-}
-
-export interface RegisterStorePayload {
-  name: string
-  email: string
-  password: string
-  description: string
-  country: string
-  city: string
-  phone_country_code: string
-  phone: string
-}
-
-export interface RegisterClinicPayload {
-  name: string
-  email: string
-  password: string
-  phone_country_code: string
-  phone: string
-  address: string
-  city: string
-  country: string
-  description: string
-}
-
 // ── Profile update ─────────────────────────────────────────
 // Used for PATCH /api/{entity-type}/:id — all fields optional
 export interface UpdateProfileDTO {
   name?: string
   last_name?: string
   email?: string
-  country?: string
-  city?: string
-  phone_country_code?: string
+  country_id?: number
+  city_id?: number
   phone?: string
   birth_date?: string
   current_password?: string
   new_password?: string
+}
+
+// ── Email verification ───────────────────────────────────
+export interface VerifyEmailPayload {
+  email: string
+  code: string
+  entity_type: EntityType
+}
+
+export interface ResendVerificationPayload {
+  email: string
+  entity_type: EntityType
 }
 
 // ── Password recovery ──────────────────────────────────────

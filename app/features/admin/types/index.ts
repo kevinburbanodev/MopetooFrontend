@@ -4,16 +4,20 @@
 // RF-1000 to RF-1009
 // ============================================================
 
+import type { Country, City } from '../../shared/types/api.types'
+
 // ── Users ──────────────────────────────────────────────────
 
 /** Admin view of a registered user. */
 export interface AdminUser {
   id: number
   name: string
-  last_name: string
+  lastname: string
   email: string
-  country: string
-  city: string
+  country_id: number
+  country?: Country
+  city_id: number
+  city?: City
   phone?: string
   profile_picture_url?: string
   is_pro: boolean
@@ -28,7 +32,7 @@ export interface AdminUserFilters {
   search?: string
   plan?: string
   active?: boolean
-  country?: string
+  country_id?: number
   page?: number
   limit?: number
 }
@@ -45,12 +49,14 @@ export interface AdminUsersResponse {
 /** Admin view of a shelter entity. */
 export interface AdminShelter {
   id: number
-  name: string
-  city: string
-  country?: string
+  organization_name: string
+  country_id: number
+  country?: Country
+  city_id: number
+  city?: City
   email?: string
   phone?: string
-  is_verified: boolean
+  verified: boolean
   is_active: boolean
   pets_count: number
   created_at: string
@@ -69,11 +75,15 @@ export interface AdminSheltersResponse {
 export interface AdminPetshop {
   id: number
   name: string
-  city: string
+  country_id: number
+  country?: Country
+  city_id: number
+  city?: City
   email?: string
   phone?: string
+  verified: boolean
   is_active: boolean
-  plan: 'free' | 'featured'
+  subscription_plan: 'free' | 'featured'
   created_at: string
 }
 
@@ -90,12 +100,15 @@ export interface AdminPetshopsResponse {
 export interface AdminClinic {
   id: number
   name: string
-  city: string
+  country_id: number
+  country?: Country
+  city_id: number
+  city?: City
   email?: string
   phone?: string
-  is_verified: boolean
+  verified: boolean
   is_active: boolean
-  plan: 'free' | 'pro'
+  subscription_plan: 'free' | 'pro'
   specialties?: string[]
   created_at: string
 }
@@ -144,12 +157,20 @@ export interface AdminTransactionsResponse {
 /** Donation record (separate from subscription transactions). */
 export interface AdminDonation {
   id: number
-  user_id: number
+  donor_entity_type: string
+  donor_entity_id: number
   shelter_id: number
-  amount_cop: number
+  amount: number
+  platform_fee: number
+  shelter_amount: number
+  payout_status: string
+  payment_method: string
   status: TransactionStatus
-  reference: string
   created_at: string
+  donor_name: string
+  donor_email: string
+  donor_label: string
+  shelter_name: string
 }
 
 export interface AdminDonationFilters {
@@ -167,6 +188,37 @@ export interface AdminDonationsResponse {
   total: number
   page: number
   limit: number
+}
+
+// ── Verification Requests ─────────────────────────────────
+
+export type VerificationRequestStatus = 'pending' | 'approved' | 'rejected'
+
+export interface VerificationRequest {
+  id: number
+  shelter_id: number
+  shelter_name?: string
+  status: VerificationRequestStatus
+  document_url?: string
+  admin_id?: number
+  rejection_reason?: string
+  created_at: string
+  updated_at: string
+}
+
+export interface VerificationRequestsResponse {
+  requests: VerificationRequest[]
+  total: number
+}
+
+// ── Event Stats ──────────────────────────────────────────
+
+export interface EventStats {
+  total_events: number
+  upcoming: number
+  active: number
+  finished: number
+  events_in_period: number
 }
 
 // ── Shared filter type ─────────────────────────────────────

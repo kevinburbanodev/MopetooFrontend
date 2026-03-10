@@ -1,14 +1,6 @@
 <script setup lang="ts">
-definePageMeta({
-  middleware: 'guest',
-})
-
-useSeoMeta({
-  title: 'Iniciar sesión — Mopetoo',
-  description: 'Accede a tu cuenta Mopetoo y gestiona el cuidado de tus mascotas.',
-  ogTitle: 'Iniciar sesión — Mopetoo',
-  ogDescription: 'Accede a tu cuenta Mopetoo y gestiona el cuidado de tus mascotas.',
-})
+definePageMeta({ middleware: 'guest' })
+useSeoMeta({ title: 'Iniciar sesion - Mopetoo' })
 </script>
 
 <template>

@@ -1,10 +1,8 @@
 <script setup lang="ts">
-// Blog article detail page — thin wrapper.
-// Public route; no auth middleware required.
-// Fetches the post by slug on mount (client-side) so that SSR-rendered
-// dynamic SEO tags are populated once the post is available.
-// The blog/[slug] routeRule in nuxt.config.ts caches responses for 1 hour,
-// so the SSR hit rate is amortised across requests.
+import type { BlogPost } from '~/features/blog/types'
+
+// Blog article detail page — SSR-rendered for SEO.
+// Uses useAsyncData so crawlers receive fully rendered HTML.
 
 definePageMeta({
   name: 'blog-article',
@@ -12,24 +10,34 @@ definePageMeta({
 
 const route = useRoute()
 const slug = computed(() => route.params.slug as string)
+const config = useRuntimeConfig()
+const baseURL = (config.public.apiBase as string) ?? ''
 
-// Guard: only request the backend when the slug has a valid format.
-// Prevents path traversal / unexpected API calls from crafted URLs like
-// /blog/../admin or /blog/%2F%2Fevil.com
 const SLUG_RE = /^[\w-]{1,100}$/
 
-const { fetchPostBySlug, error, blogStore } = useBlog()
+const { data: post, error } = useAsyncData<BlogPost>(
+  `blog-post-${slug.value}`,
+  () => {
+    if (!SLUG_RE.test(slug.value)) {
+      throw createError({ statusCode: 404, message: 'Slug invalido' })
+    }
+    return $fetch<BlogPost>(`${baseURL}/blog/posts/${slug.value}`)
+  },
+  { watch: [slug] },
+)
 
-// ── Dynamic SEO — updates once the post loads ─────────────────
-const post = computed(() => blogStore.selectedPost)
+// Sync to store for client-side navigation cache
+const { blogStore } = useBlog()
+watch(post, (p) => {
+  if (p) blogStore.setSelectedPost(p)
+}, { immediate: true })
 
 useSeoMeta({
-  title: () => post.value ? `${post.value.title} — Mopetoo` : 'Artículo — Mopetoo',
-  description: () => post.value ? post.value.content.substring(0, 160).trim() : 'Lee este artículo en el blog de Mopetoo.',
-  ogTitle: () => post.value?.title ?? 'Artículo — Mopetoo',
-  ogDescription: () => post.value ? post.value.content.substring(0, 160).trim() : 'Lee este artículo en el blog de Mopetoo.',
+  title: () => post.value ? `${post.value.title} - Mopetoo` : 'Articulo - Mopetoo',
+  description: () => post.value ? post.value.content.substring(0, 160).trim() : 'Lee este articulo en el blog de Mopetoo.',
+  ogTitle: () => post.value?.title ?? 'Articulo - Mopetoo',
+  ogDescription: () => post.value ? post.value.content.substring(0, 160).trim() : 'Lee este articulo en el blog de Mopetoo.',
   ogType: 'article',
-  // Only set ogImage when the cover_image_url passes the URL safety check
   ogImage: () => {
     const img = post.value?.cover_image_url
     if (!img) return undefined
@@ -42,58 +50,31 @@ useSeoMeta({
     }
   },
   twitterCard: 'summary_large_image',
-  twitterTitle: () => post.value?.title ?? 'Artículo — Mopetoo',
-  twitterDescription: () => post.value ? post.value.content.substring(0, 160).trim() : 'Lee este artículo en el blog de Mopetoo.',
-})
-
-// ── Fetch on client mount ──────────────────────────────────────
-// onMounted is used (not useAsyncData) to keep the page as a thin wrapper
-// consistent with the rest of the codebase. The composable handles the
-// store cache check internally, so navigating list → detail is instant
-// when the post is already in the store.
-onMounted(async () => {
-  if (!SLUG_RE.test(slug.value)) return
-  await fetchPostBySlug(slug.value)
-})
-
-// Clear selection when leaving the page to prevent stale data
-// appearing briefly if the user navigates to a different article
-onUnmounted(() => {
-  blogStore.clearSelectedPost()
+  twitterTitle: () => post.value?.title ?? 'Articulo - Mopetoo',
+  twitterDescription: () => post.value ? post.value.content.substring(0, 160).trim() : 'Lee este articulo en el blog de Mopetoo.',
 })
 </script>
 
 <template>
-  <div class="container py-5">
-    <!-- Breadcrumb -->
-    <nav aria-label="Migas de pan" class="mb-4">
-      <ol class="breadcrumb">
-        <li class="breadcrumb-item">
-          <NuxtLink to="/">Inicio</NuxtLink>
-        </li>
-        <li class="breadcrumb-item">
-          <NuxtLink to="/blog">Blog</NuxtLink>
-        </li>
-        <li class="breadcrumb-item active" aria-current="page">
-          {{ post?.title ?? 'Artículo' }}
-        </li>
-      </ol>
-    </nav>
-
+  <div class="blog-article-page">
     <!-- Error state -->
     <div
-      v-if="error && !blogStore.isLoading"
-      class="alert alert-danger d-flex align-items-center gap-2 mb-4"
-      role="alert"
+      v-if="error"
+      class="container py-5"
     >
-      <span aria-hidden="true">⚠</span>
-      {{ error }}
-    </div>
-
-    <div class="row justify-content-center">
-      <div class="col-12 col-lg-8">
-        <BlogArticle />
+      <div class="alert alert-danger d-flex align-items-center gap-2" role="alert">
+        <span aria-hidden="true">&#9888;</span>
+        Articulo no encontrado
       </div>
     </div>
+
+    <BlogArticle />
   </div>
 </template>
+
+<style scoped>
+.blog-article-page {
+  background: #f8f6f6;
+  min-height: 100vh;
+}
+</style>

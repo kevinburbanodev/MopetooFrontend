@@ -77,7 +77,22 @@ export function useApi() {
     })
   }
 
-  return { get, post, put, patch, del }
+  /**
+   * Authenticated file upload (multipart/form-data)
+   */
+  async function upload<T>(path: string, formData: FormData): Promise<T> {
+    const token = getToken()
+    const headers: Record<string, string> = {}
+    if (token) headers['Authorization'] = `Bearer ${token}`
+    return await $fetch<T>(`${baseURL}${path}`, {
+      method: 'POST',
+      headers,
+      body: formData,
+      onResponse: onResponseCheck,
+    })
+  }
+
+  return { get, post, put, patch, del, upload }
 }
 
 // ── Helpers ─────────────────────────────────────────────────

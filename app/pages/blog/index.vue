@@ -18,7 +18,16 @@ useSeoMeta({
 </script>
 
 <template>
-  <div class="container py-5">
-    <BlogList />
+  <div class="blog-page">
+    <div class="container py-5">
+      <BlogList />
+    </div>
   </div>
 </template>
+
+<style scoped>
+.blog-page {
+  background: #f8f6f6;
+  min-height: 100vh;
+}
+</style>

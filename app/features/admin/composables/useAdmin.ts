@@ -26,6 +26,9 @@ import type {
   AdminFilters,
   AdminTransactionFilters,
   AdminDonationFilters,
+  VerificationRequest,
+  VerificationRequestsResponse,
+  EventStats,
 } from '../types'
 import { extractErrorMessage } from '../../shared/utils/extractErrorMessage'
 
@@ -54,7 +57,7 @@ export function useAdmin() {
       if (filters?.search) params.set('search', filters.search)
       if (filters?.plan) params.set('plan', filters.plan)
       if (filters?.active !== undefined) params.set('active', String(filters.active))
-      if (filters?.country) params.set('country', filters.country)
+      if (filters?.country_id) params.set('country_id', String(filters.country_id))
       if (filters?.page) params.set('page', String(filters.page))
       if (filters?.limit) params.set('limit', String(filters.limit))
       const qs = params.toString()
@@ -153,12 +156,12 @@ export function useAdmin() {
     finally { adminStore.setLoading(false) }
   }
 
-  async function verifyShelter(id: number): Promise<boolean> {
+  async function verifyShelter(id: number, verified: boolean = true): Promise<boolean> {
     if (!isValidId(id)) { error.value = 'ID de refugio inválido.'; return false }
     error.value = null
     try {
-      await patch<{ message: string }>(`/api/admin/shelters/${id}/verify`, {})
-      adminStore.updateShelter(id, { is_verified: true })
+      await patch<{ message: string }>(`/api/admin/shelters/${id}/verify`, { verified })
+      adminStore.updateShelter(id, { verified })
       return true
     } catch (err: unknown) { error.value = extractErrorMessage(err); return false }
   }
@@ -228,7 +231,7 @@ export function useAdmin() {
     error.value = null
     try {
       await patch<{ message: string }>(`/api/admin/stores/${id}/plan`, { plan })
-      adminStore.updatePetshop(id, { plan })
+      adminStore.updatePetshop(id, { subscription_plan: plan })
       return true
     } catch (err: unknown) { error.value = extractErrorMessage(err); return false }
   }
@@ -253,12 +256,12 @@ export function useAdmin() {
     finally { adminStore.setLoading(false) }
   }
 
-  async function verifyClinic(id: number): Promise<boolean> {
+  async function verifyClinic(id: number, verified: boolean = true): Promise<boolean> {
     if (!isValidId(id)) { error.value = 'ID de clínica inválido.'; return false }
     error.value = null
     try {
-      await patch<{ message: string }>(`/api/admin/clinics/${id}/verify`, {})
-      adminStore.updateAdminClinic(id, { is_verified: true })
+      await patch<{ message: string }>(`/api/admin/clinics/${id}/verify`, { verified })
+      adminStore.updateAdminClinic(id, { verified })
       return true
     } catch (err: unknown) { error.value = extractErrorMessage(err); return false }
   }
@@ -288,7 +291,7 @@ export function useAdmin() {
     error.value = null
     try {
       await patch<{ message: string }>(`/api/admin/clinics/${id}/plan`, { plan })
-      adminStore.updateAdminClinic(id, { plan })
+      adminStore.updateAdminClinic(id, { subscription_plan: plan })
       return true
     } catch (err: unknown) { error.value = extractErrorMessage(err); return false }
   }
@@ -341,6 +344,66 @@ export function useAdmin() {
     finally { adminStore.setLoading(false) }
   }
 
+  // ── Verification Requests ─────────────────────────────────
+
+  async function fetchVerificationRequests(status?: string): Promise<VerificationRequest[]> {
+    error.value = null
+    try {
+      const params = new URLSearchParams()
+      if (status) params.set('status', status)
+      const qs = params.toString()
+      const path = qs ? `/api/admin/verifications?${qs}` : '/api/admin/verifications'
+      const response = await get<VerificationRequestsResponse>(path)
+      return response.requests ?? []
+    }
+    catch (err: unknown) { error.value = extractErrorMessage(err); return [] }
+  }
+
+  async function approveVerification(id: number): Promise<boolean> {
+    if (!isValidId(id)) { error.value = 'ID invalido.'; return false }
+    error.value = null
+    try {
+      await patch<{ message: string }>(`/api/admin/verifications/${id}/approve`, {})
+      return true
+    } catch (err: unknown) { error.value = extractErrorMessage(err); return false }
+  }
+
+  async function rejectVerification(id: number, reason: string): Promise<boolean> {
+    if (!isValidId(id)) { error.value = 'ID invalido.'; return false }
+    error.value = null
+    try {
+      await patch<{ message: string }>(`/api/admin/verifications/${id}/reject`, { reason })
+      return true
+    } catch (err: unknown) { error.value = extractErrorMessage(err); return false }
+  }
+
+  // ── Event Stats ─────────────────────────────────────────
+
+  async function fetchEventStats(from?: string, to?: string): Promise<EventStats | null> {
+    error.value = null
+    try {
+      const params = new URLSearchParams()
+      if (from) params.set('from', from)
+      if (to) params.set('to', to)
+      const qs = params.toString()
+      const path = qs ? `/api/admin/stats/events?${qs}` : '/api/admin/stats/events'
+      return await get<EventStats>(path)
+    }
+    catch (err: unknown) { error.value = extractErrorMessage(err); return null }
+  }
+
+  // ── Store Verification ──────────────────────────────────
+
+  async function verifyStore(id: number, verified: boolean): Promise<boolean> {
+    if (!isValidId(id)) { error.value = 'ID de tienda invalido.'; return false }
+    error.value = null
+    try {
+      await patch<{ message: string }>(`/api/admin/stores/${id}/verify`, { verified })
+      adminStore.updatePetshop(id, { verified })
+      return true
+    } catch (err: unknown) { error.value = extractErrorMessage(err); return false }
+  }
+
   return {
     error,
     adminStore,
@@ -371,6 +434,14 @@ export function useAdmin() {
     // Transactions & Donations
     fetchTransactions,
     fetchDonations,
+    // Verification Requests
+    fetchVerificationRequests,
+    approveVerification,
+    rejectVerification,
+    // Event Stats
+    fetchEventStats,
+    // Store Verification
+    verifyStore,
   }
 }
 

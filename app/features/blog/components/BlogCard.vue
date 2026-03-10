@@ -1,9 +1,7 @@
 <script setup lang="ts">
-// BlogCard — compact card for a single blog post in the listing.
-// Shows: cover image (with safe-URL guard + pet SVG fallback),
-// category badge, title, excerpt (derived from content),
-// and published date in Spanish.
-// Entire card links to /blog/:slug via NuxtLink.
+// BlogCard — Stitch-style card for a single blog post.
+// Image with 4:3 aspect ratio, orange category badge, title (2-line clamp),
+// excerpt (2-line clamp), date + read time. Hover: translateY + shadow.
 
 import type { BlogPost } from '../types'
 import { BLOG_CATEGORIES } from '../types'
@@ -13,7 +11,6 @@ const props = defineProps<{
 }>()
 
 // ── URL safety guard ──────────────────────────────────────────
-// Rejects javascript:, data:, vbscript: and any other unexpected scheme.
 function isSafeImageUrl(url: string | undefined): boolean {
   if (!url) return false
   if (url.startsWith('blob:')) return true
@@ -38,7 +35,6 @@ function onImgError(): void {
   imgError.value = true
 }
 
-// Reset imgError when the prop changes (e.g. list re-renders with different posts)
 watch(() => props.post.cover_image_url, () => {
   imgError.value = false
 })
@@ -51,21 +47,24 @@ const categoryLabel = computed(() =>
 // ── Excerpt derived from content ────────────────────────────────
 const excerpt = computed(() => {
   const raw = props.post.content
-  if (raw.length <= 150) return raw
-  return raw.substring(0, 150).trim() + '...'
+  if (raw.length <= 120) return raw
+  return raw.substring(0, 120).trim() + '...'
+})
+
+// ── Read time estimate ─────────────────────────────────────────
+const readTime = computed(() => {
+  const words = props.post.content.split(/\s+/).length
+  const minutes = Math.max(1, Math.ceil(words / 200))
+  return `${minutes} min lectura`
 })
 
 // ── Date formatting ────────────────────────────────────────────
-/**
- * Format ISO date string to Spanish long date, e.g. "14 de febrero de 2025".
- * Using `Intl.DateTimeFormat` is SSR-safe — no `window` / `document` access.
- */
 function formatDate(isoString: string): string {
   try {
     const date = new Date(isoString)
     return new Intl.DateTimeFormat('es-ES', {
       day: 'numeric',
-      month: 'long',
+      month: 'short',
       year: 'numeric',
     }).format(date)
   }
@@ -82,7 +81,7 @@ const formattedDate = computed(() => {
 
 <template>
   <article
-    class="card h-100 border-0 shadow-sm blog-card"
+    class="blog-card"
     :aria-label="`Artículo: ${post.title}`"
   >
     <!-- Cover image / SVG fallback -->
@@ -93,12 +92,12 @@ const formattedDate = computed(() => {
         :alt="`Imagen de portada: ${post.title}`"
         class="blog-card__image"
         width="600"
-        height="300"
+        height="450"
         loading="lazy"
         @error="onImgError"
       />
 
-      <!-- SVG placeholder — inline, no external request, no XSS surface -->
+      <!-- SVG placeholder -->
       <div
         v-else
         class="blog-card__placeholder d-flex align-items-center justify-content-center"
@@ -111,7 +110,6 @@ const formattedDate = computed(() => {
           aria-hidden="true"
           focusable="false"
         >
-          <!-- Paw print illustration -->
           <circle cx="40" cy="48" r="18" fill="#c8e6d4" />
           <circle cx="24" cy="30" r="8" fill="#c8e6d4" />
           <circle cx="56" cy="30" r="8" fill="#c8e6d4" />
@@ -120,62 +118,68 @@ const formattedDate = computed(() => {
         </svg>
       </div>
 
-      <!-- Category badge — overlaid on image -->
+      <!-- Category badge — orange overlay -->
       <span
-        class="badge bg-primary blog-card__category-badge"
+        class="blog-card__category-badge"
         :aria-label="`Categoría: ${categoryLabel}`"
       >
         {{ categoryLabel }}
       </span>
     </div>
 
-    <div class="card-body d-flex flex-column gap-2 p-3">
+    <div class="blog-card__body">
       <!-- Title -->
-      <h3 class="h6 fw-bold mb-0 blog-card__title">
+      <h3 class="blog-card__title">
         <NuxtLink
           :to="`/blog/${post.slug}`"
-          class="stretched-link text-body text-decoration-none blog-card__title-link"
+          class="blog-card__title-link"
         >
           {{ post.title }}
         </NuxtLink>
       </h3>
 
-      <!-- Excerpt — derived from content, 3-line clamp -->
-      <p class="blog-card__excerpt text-muted small mb-0">
+      <!-- Excerpt -->
+      <p class="blog-card__excerpt">
         {{ excerpt }}
       </p>
-    </div>
 
-    <!-- Published date footer -->
-    <div class="card-footer bg-transparent border-top-0 px-3 pb-3 pt-0">
-      <time
-        v-if="post.published_at"
-        :datetime="post.published_at"
-        class="text-muted small"
-      >
-        {{ formattedDate }}
-      </time>
+      <!-- Meta: date + read time -->
+      <div class="blog-card__meta">
+        <time
+          v-if="post.published_at"
+          :datetime="post.published_at"
+        >
+          {{ formattedDate }}
+        </time>
+        <span class="blog-card__meta-dot"></span>
+        <span>{{ readTime }}</span>
+      </div>
     </div>
   </article>
 </template>
 
 <style scoped lang="scss">
 .blog-card {
-  border-radius: var(--bs-border-radius-lg);
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  background: #fff;
+  border-radius: 1rem;
+  overflow: hidden;
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
 
   &:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 0.5rem 1.5rem rgba(0, 0, 0, 0.12) !important;
+    transform: translateY(-4px);
+    box-shadow: 0 12px 24px rgba(0, 0, 0, 0.1);
   }
 
   // ── Image area ─────────────────────────────────────────────
   &__image-wrap {
     position: relative;
     overflow: hidden;
-    border-radius: var(--bs-border-radius-lg) var(--bs-border-radius-lg) 0 0;
-    height: 180px;
-    background-color: var(--bs-secondary-bg);
+    aspect-ratio: 4 / 3;
+    background-color: #dff0e8;
   }
 
   &__image {
@@ -183,12 +187,17 @@ const formattedDate = computed(() => {
     height: 100%;
     object-fit: cover;
     display: block;
+    transition: transform 0.4s ease;
+  }
+
+  &:hover &__image {
+    transform: scale(1.1);
   }
 
   &__placeholder {
     width: 100%;
     height: 100%;
-    background-color: #dff0e8; // brand-green tint
+    background-color: #dff0e8;
   }
 
   &__placeholder-svg {
@@ -197,18 +206,36 @@ const formattedDate = computed(() => {
     opacity: 0.6;
   }
 
-  // ── Category badge ─────────────────────────────────────────
+  // ── Category badge — orange ────────────────────────────────
   &__category-badge {
     position: absolute;
-    top: 0.5rem;
-    left: 0.5rem;
+    top: 0.75rem;
+    left: 0.75rem;
+    background-color: #F97316;
+    color: #fff;
     font-size: 0.7rem;
-    letter-spacing: 0.03em;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    padding: 0.3em 0.7em;
+    border-radius: 0.5rem;
+  }
+
+  // ── Body ───────────────────────────────────────────────────
+  &__body {
+    padding: 1.25rem;
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    gap: 0.5rem;
   }
 
   // ── Title ──────────────────────────────────────────────────
   &__title {
-    // Allow up to 2 lines then ellipsis
+    font-size: 1rem;
+    font-weight: 700;
+    line-height: 1.4;
+    margin: 0;
     display: -webkit-box;
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
@@ -216,18 +243,54 @@ const formattedDate = computed(() => {
   }
 
   &__title-link {
+    color: #111827;
+    text-decoration: none;
+    transition: color 0.2s ease;
+
+    &::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+    }
+
     &:hover {
-      color: var(--bs-primary) !important;
+      color: #10B981;
     }
   }
 
-  // ── Excerpt — 3-line clamp ─────────────────────────────────
+  // ── Excerpt ────────────────────────────────────────────────
   &__excerpt {
+    font-size: 0.875rem;
+    line-height: 1.6;
+    color: #6b7280;
+    margin: 0;
     display: -webkit-box;
-    -webkit-line-clamp: 3;
+    -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;
-    line-height: 1.5;
+    flex: 1;
   }
+
+  // ── Meta ───────────────────────────────────────────────────
+  &__meta {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.8rem;
+    color: #9ca3af;
+    margin-top: auto;
+    padding-top: 0.5rem;
+  }
+
+  &__meta-dot {
+    width: 3px;
+    height: 3px;
+    border-radius: 50%;
+    background-color: #d1d5db;
+    flex-shrink: 0;
+  }
+
+  // Make the whole card clickable via stretched link
+  position: relative;
 }
 </style>

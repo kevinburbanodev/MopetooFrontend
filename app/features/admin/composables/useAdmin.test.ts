@@ -38,8 +38,10 @@ vi.mock('../../shared/composables/useApi', () => ({
 
 function makeUser(overrides: Partial<AdminUser> = {}): AdminUser {
   return {
-    id: 1, name: 'Juan', last_name: 'Pérez', email: 'juan@example.com',
-    country: 'Colombia', city: 'Bogotá', is_pro: false, is_admin: false,
+    id: 1, name: 'Juan', lastname: 'Pérez', email: 'juan@example.com',
+    country_id: 1, country: { id: 1, name: 'Colombia', code: 'CO', phone_code: '+57' },
+    city_id: 1, city: { id: 1, name: 'Bogotá', country_id: 1 },
+    is_pro: false, is_admin: false,
     is_active: true, pets_count: 2,
     created_at: '2024-01-01T00:00:00Z', updated_at: '2024-01-01T00:00:00Z',
     ...overrides,
@@ -48,24 +50,27 @@ function makeUser(overrides: Partial<AdminUser> = {}): AdminUser {
 
 function makeShelter(overrides: Partial<AdminShelter> = {}): AdminShelter {
   return {
-    id: 1, name: 'Refugio Los Amigos', city: 'Bogotá',
-    is_verified: false, is_active: true, pets_count: 5,
+    id: 1, organization_name: 'Refugio Los Amigos',
+    city_id: 1, city: { id: 1, name: 'Bogotá', country_id: 1 },
+    verified: false, is_active: true, pets_count: 5,
     created_at: '2024-01-01T00:00:00Z', ...overrides,
   }
 }
 
 function makePetshop(overrides: Partial<AdminPetshop> = {}): AdminPetshop {
   return {
-    id: 1, name: 'Tienda Mascota Feliz', city: 'Medellín',
-    is_active: true, plan: 'free', created_at: '2024-01-01T00:00:00Z',
+    id: 1, name: 'Tienda Mascota Feliz',
+    city_id: 2, city: { id: 2, name: 'Medellín', country_id: 1 },
+    verified: false, is_active: true, subscription_plan: 'free', created_at: '2024-01-01T00:00:00Z',
     ...overrides,
   }
 }
 
 function makeClinic(overrides: Partial<AdminClinic> = {}): AdminClinic {
   return {
-    id: 1, name: 'Clínica Vet Norte', city: 'Cali',
-    is_verified: false, is_active: true, plan: 'free',
+    id: 1, name: 'Clínica Vet Norte',
+    city_id: 3, city: { id: 3, name: 'Cali', country_id: 1 },
+    verified: false, is_active: true, subscription_plan: 'free',
     specialties: ['Cirugía'], created_at: '2024-01-01T00:00:00Z',
     ...overrides,
   }
@@ -81,9 +86,12 @@ function makeTransaction(overrides: Partial<AdminTransaction> = {}): AdminTransa
 
 function makeDonation(overrides: Partial<AdminDonation> = {}): AdminDonation {
   return {
-    id: 1, user_id: 1, shelter_id: 1, amount_cop: 25000,
-    status: 'approved', reference: 'DON-001',
-    created_at: '2024-02-01T10:00:00Z', ...overrides,
+    id: 1, donor_entity_type: 'user', donor_entity_id: 1, shelter_id: 1,
+    amount: 25000, platform_fee: 1250, shelter_amount: 23750,
+    payout_status: 'pending', payment_method: 'nequi',
+    status: 'approved', created_at: '2024-02-01T10:00:00Z',
+    donor_name: 'Juan Perez', donor_email: 'juan@test.com',
+    donor_label: 'Usuario', shelter_name: 'Refugio Test', ...overrides,
   }
 }
 
@@ -141,11 +149,11 @@ describe('useAdmin', () => {
       expect(mockGet).toHaveBeenCalledWith('/api/admin/users?active=true')
     })
 
-    it('appends country filter to query string', async () => {
+    it('appends country_id filter to query string', async () => {
       mockGet.mockResolvedValueOnce({ users: [], total: 0 })
       const { useAdmin } = await import('./useAdmin')
-      await useAdmin().fetchUsers({ country: 'Colombia' })
-      expect(mockGet).toHaveBeenCalledWith('/api/admin/users?country=Colombia')
+      await useAdmin().fetchUsers({ country_id: 1 })
+      expect(mockGet).toHaveBeenCalledWith('/api/admin/users?country_id=1')
     })
 
     it('appends page and limit to query string', async () => {
@@ -396,20 +404,27 @@ describe('useAdmin', () => {
   // ── Shelter PATCH actions ──────────────────────────────────
 
   describe('verifyShelter()', () => {
-    it('calls PATCH /api/admin/shelters/:id/verify', async () => {
+    it('calls PATCH /api/admin/shelters/:id/verify with verified: true', async () => {
       mockPatch.mockResolvedValueOnce({ message: 'ok' })
       const { useAdmin } = await import('./useAdmin')
       await useAdmin().verifyShelter(1)
-      expect(mockPatch).toHaveBeenCalledWith('/api/admin/shelters/1/verify', {})
+      expect(mockPatch).toHaveBeenCalledWith('/api/admin/shelters/1/verify', { verified: true })
     })
 
-    it('updates store with is_verified: true', async () => {
+    it('calls PATCH with verified: false to revoke', async () => {
+      mockPatch.mockResolvedValueOnce({ message: 'ok' })
+      const { useAdmin } = await import('./useAdmin')
+      await useAdmin().verifyShelter(1, false)
+      expect(mockPatch).toHaveBeenCalledWith('/api/admin/shelters/1/verify', { verified: false })
+    })
+
+    it('updates store with verified value', async () => {
       mockPatch.mockResolvedValueOnce({ message: 'ok' })
       adminStore.setShelters([shelterA], 1)
       const updateSpy = vi.spyOn(adminStore, 'updateShelter')
       const { useAdmin } = await import('./useAdmin')
       await useAdmin().verifyShelter(1)
-      expect(updateSpy).toHaveBeenCalledWith(1, { is_verified: true })
+      expect(updateSpy).toHaveBeenCalledWith(1, { verified: true })
     })
 
     it('returns false for invalid id', async () => {
@@ -544,7 +559,7 @@ describe('useAdmin', () => {
       const updateSpy = vi.spyOn(adminStore, 'updatePetshop')
       const { useAdmin } = await import('./useAdmin')
       await useAdmin().setStorePlan(1, 'featured')
-      expect(updateSpy).toHaveBeenCalledWith(1, { plan: 'featured' })
+      expect(updateSpy).toHaveBeenCalledWith(1, { subscription_plan: 'featured' })
     })
 
     it('returns false for invalid id', async () => {
@@ -596,20 +611,27 @@ describe('useAdmin', () => {
   // ── Clinic PATCH actions ───────────────────────────────────
 
   describe('verifyClinic()', () => {
-    it('calls PATCH /api/admin/clinics/:id/verify', async () => {
+    it('calls PATCH /api/admin/clinics/:id/verify with verified: true', async () => {
       mockPatch.mockResolvedValueOnce({ message: 'ok' })
       const { useAdmin } = await import('./useAdmin')
       await useAdmin().verifyClinic(1)
-      expect(mockPatch).toHaveBeenCalledWith('/api/admin/clinics/1/verify', {})
+      expect(mockPatch).toHaveBeenCalledWith('/api/admin/clinics/1/verify', { verified: true })
     })
 
-    it('updates store with is_verified: true', async () => {
+    it('calls PATCH with verified: false to revoke', async () => {
+      mockPatch.mockResolvedValueOnce({ message: 'ok' })
+      const { useAdmin } = await import('./useAdmin')
+      await useAdmin().verifyClinic(1, false)
+      expect(mockPatch).toHaveBeenCalledWith('/api/admin/clinics/1/verify', { verified: false })
+    })
+
+    it('updates store with verified value', async () => {
       mockPatch.mockResolvedValueOnce({ message: 'ok' })
       adminStore.setAdminClinics([clinicA], 1)
       const updateSpy = vi.spyOn(adminStore, 'updateAdminClinic')
       const { useAdmin } = await import('./useAdmin')
       await useAdmin().verifyClinic(1)
-      expect(updateSpy).toHaveBeenCalledWith(1, { is_verified: true })
+      expect(updateSpy).toHaveBeenCalledWith(1, { verified: true })
     })
 
     it('returns false for invalid id', async () => {
@@ -668,7 +690,7 @@ describe('useAdmin', () => {
       const updateSpy = vi.spyOn(adminStore, 'updateAdminClinic')
       const { useAdmin } = await import('./useAdmin')
       await useAdmin().setClinicPlan(1, 'pro')
-      expect(updateSpy).toHaveBeenCalledWith(1, { plan: 'pro' })
+      expect(updateSpy).toHaveBeenCalledWith(1, { subscription_plan: 'pro' })
     })
 
     it('returns false for invalid id', async () => {

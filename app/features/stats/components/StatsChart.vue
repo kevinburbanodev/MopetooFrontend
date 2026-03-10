@@ -54,7 +54,7 @@ function formatDateLabel(date: string): string {
 <template>
   <section aria-label="Gráfico de ingresos por mes">
     <h2 class="h5 fw-bold mb-3">
-      <span aria-hidden="true">📈</span> Ingresos por Mes
+      <span class="material-symbols-outlined" style="font-size: 1.25rem; vertical-align: text-bottom;" aria-hidden="true">trending_up</span> Ingresos por Mes
     </h2>
 
     <!-- Loading skeleton -->
@@ -119,7 +119,7 @@ function formatDateLabel(date: string): string {
       v-else
       class="text-center py-4 text-muted"
     >
-      <div class="fs-2 mb-2" aria-hidden="true">📈</div>
+      <span class="material-symbols-outlined" style="font-size: 2rem;" aria-hidden="true">trending_up</span>
       <p class="mb-0">No hay datos de ingresos disponibles aún.</p>
     </div>
   </section>

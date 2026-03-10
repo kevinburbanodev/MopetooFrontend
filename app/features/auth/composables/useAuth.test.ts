@@ -86,11 +86,12 @@ const FAKE_JWT = makeFakeJwt({
 const mockUser: User = {
   id: 1,
   name: 'Ana',
-  last_name: 'Gómez',
+  lastname: 'Gómez',
   email: 'ana@example.com',
-  country: 'CO',
-  city: 'Bogotá',
-  phone_country_code: '+57',
+  country_id: 1,
+  country: { id: 1, name: 'Colombia', code: 'CO', phone_code: '+57' },
+  city_id: 1,
+  city: { id: 1, name: 'Bogotá', country_id: 1 },
   phone: '3001234567',
   is_pro: false,
   is_admin: false,
@@ -101,17 +102,6 @@ const mockUser: User = {
 const mockLoginResponse: LoginResponse = {
   token: FAKE_JWT,
   user: mockUser,
-}
-
-const minimalRegisterPayload = {
-  name: 'Ana',
-  last_name: 'Gómez',
-  email: 'ana@example.com',
-  password: 'Secret123!',
-  country: 'CO',
-  city: 'Bogotá',
-  phone_country_code: '+57',
-  phone: '3001234567',
 }
 
 // ── Helper ───────────────────────────────────────────────────
@@ -194,14 +184,14 @@ describe('useAuth', () => {
       })
     })
 
-    it('navigates to /dashboard after successful login', async () => {
+    it('navigates to /admin after successful login', async () => {
       apiPostMock.mockResolvedValueOnce(mockLoginResponse)
       const { useAuth } = await import('./useAuth')
       const { login } = useAuth()
 
       await login('ana@example.com', 'Secret123!')
 
-      expect(routerPushMock).toHaveBeenCalledWith('/dashboard')
+      expect(routerPushMock).toHaveBeenCalledWith('/admin')
     })
 
     it('clears error before the request', async () => {
@@ -257,69 +247,6 @@ describe('useAuth', () => {
     })
   })
 
-  // ── register ───────────────────────────────────────────────
-
-  describe('register()', () => {
-    it('calls $fetch with FormData when no photo is provided', async () => {
-      fetchMock.mockResolvedValueOnce(undefined) // POST /users multipart
-      apiPostMock.mockResolvedValueOnce(mockLoginResponse) // POST /login (auto-login)
-
-      const { useAuth } = await import('./useAuth')
-      const { register } = useAuth()
-
-      await register(minimalRegisterPayload)
-
-      expect(fetchMock).toHaveBeenCalledWith(
-        'http://localhost:4000/users',
-        expect.objectContaining({
-          method: 'POST',
-          body: expect.any(FormData),
-        }),
-      )
-    })
-
-    it('calls $fetch with FormData when a photo file is provided', async () => {
-      fetchMock.mockResolvedValueOnce(undefined) // POST /users multipart
-      apiPostMock.mockResolvedValueOnce(mockLoginResponse) // auto-login
-
-      const { useAuth } = await import('./useAuth')
-      const { register } = useAuth()
-      const photo = makeFile()
-
-      await register(minimalRegisterPayload, photo)
-
-      expect(fetchMock).toHaveBeenCalledWith(
-        'http://localhost:4000/users',
-        expect.objectContaining({
-          method: 'POST',
-          body: expect.any(FormData),
-        }),
-      )
-    })
-
-    it('does NOT call useApi.post when a photo is provided', async () => {
-      fetchMock.mockResolvedValueOnce(undefined)
-      apiPostMock.mockResolvedValueOnce(mockLoginResponse)
-
-      const { useAuth } = await import('./useAuth')
-      const { register } = useAuth()
-
-      await register(minimalRegisterPayload, makeFile())
-
-      expect(apiPostMock).not.toHaveBeenCalledWith('/users', expect.anything())
-    })
-
-    it('sets error on failure', async () => {
-      apiPostMock.mockRejectedValueOnce({ data: { error: 'Email ya registrado' } })
-      const { useAuth } = await import('./useAuth')
-      const { register, error } = useAuth()
-
-      await register(minimalRegisterPayload)
-
-      expect(error.value).toBe('Email ya registrado')
-    })
-  })
-
   // ── logout ─────────────────────────────────────────────────
 
   describe('logout()', () => {
@@ -333,87 +260,13 @@ describe('useAuth', () => {
       expect(clearSessionSpy).toHaveBeenCalledOnce()
     })
 
-    it('pushes to /login route', async () => {
+    it('pushes to / route', async () => {
       const { useAuth } = await import('./useAuth')
       const { logout } = useAuth()
 
       logout()
 
-      expect(routerPushMock).toHaveBeenCalledWith('/login')
-    })
-  })
-
-  // ── forgotPassword ─────────────────────────────────────────
-
-  describe('forgotPassword()', () => {
-    it('calls POST /forgot-password with the email', async () => {
-      apiPostMock.mockResolvedValueOnce(undefined)
-      const { useAuth } = await import('./useAuth')
-      const { forgotPassword } = useAuth()
-
-      await forgotPassword('ana@example.com')
-
-      expect(apiPostMock).toHaveBeenCalledWith('/forgot-password', {
-        email: 'ana@example.com',
-      })
-    })
-
-    it('sets pending to false after the request completes', async () => {
-      apiPostMock.mockResolvedValueOnce(undefined)
-      const { useAuth } = await import('./useAuth')
-      const { forgotPassword, pending } = useAuth()
-
-      await forgotPassword('ana@example.com')
-
-      expect(pending.value).toBe(false)
-    })
-
-    it('sets error on API failure', async () => {
-      apiPostMock.mockRejectedValueOnce({ data: { error: 'Usuario no encontrado' } })
-      const { useAuth } = await import('./useAuth')
-      const { forgotPassword, error } = useAuth()
-
-      await forgotPassword('noexiste@example.com')
-
-      expect(error.value).toBe('Usuario no encontrado')
-    })
-  })
-
-  // ── resetPassword ──────────────────────────────────────────
-
-  describe('resetPassword()', () => {
-    it('calls POST /reset-password with token and password', async () => {
-      apiPostMock.mockResolvedValueOnce(undefined)
-      const { useAuth } = await import('./useAuth')
-      const { resetPassword } = useAuth()
-
-      await resetPassword('reset-token-abc', 'NewSecret123!')
-
-      expect(apiPostMock).toHaveBeenCalledWith('/reset-password', {
-        token: 'reset-token-abc',
-        password: 'NewSecret123!',
-      })
-    })
-
-    it('navigates to /login after a successful reset', async () => {
-      apiPostMock.mockResolvedValueOnce(undefined)
-      const { useAuth } = await import('./useAuth')
-      const { resetPassword } = useAuth()
-
-      await resetPassword('reset-token-abc', 'NewSecret123!')
-
-      expect(routerPushMock).toHaveBeenCalledWith('/login')
-    })
-
-    it('sets error on failure and does not navigate', async () => {
-      apiPostMock.mockRejectedValueOnce({ data: { error: 'Token expirado' } })
-      const { useAuth } = await import('./useAuth')
-      const { resetPassword, error } = useAuth()
-
-      await resetPassword('expired-token', 'NewSecret123!')
-
-      expect(error.value).toBe('Token expirado')
-      expect(routerPushMock).not.toHaveBeenCalled()
+      expect(routerPushMock).toHaveBeenCalledWith('/')
     })
   })
 

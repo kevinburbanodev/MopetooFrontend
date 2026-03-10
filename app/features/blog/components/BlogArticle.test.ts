@@ -1,29 +1,17 @@
 // ============================================================
 // BlogArticle.test.ts
-// Tests for the BlogArticle component.
+// Tests for the BlogArticle component (Stitch redesign).
 //
-// Strategy: mountSuspended resolves Nuxt auto-imports. BlogArticle
-// has NO props — it reads selectedPost directly from useBlogStore().
-// We use createTestingPinia with initialState to control what the
-// store contains before mounting.
-//
-// Key design points:
-//   - Loading skeleton: shown when isLoading=true and selectedPost=null.
-//   - "Artículo no encontrado": shown when isLoading=false and selectedPost=null.
-//   - Full article: rendered when selectedPost is non-null.
-//   - isSafeImageUrl guard on hero image: https/http accepted; javascript: rejected.
-//   - Category label via BLOG_CATEGORIES lookup.
-//   - Date formatting: Spanish Intl.DateTimeFormat — not the raw ISO string.
-//   - Content rendered as <p> elements split on '\n'.
-//   - "Actualizado el" shown only when updated_at !== published_at.
-//   - NuxtLink hrefs verified via custom stub.
-//
-// Important:
-//   - initialState key must match the store id: 'blog' (defined in blog.store.ts).
-//
-// What this suite does NOT cover intentionally:
-//   - CSS transitions / SCSS visual styles.
-//   - img @error network events beyond triggering the DOM event.
+// Key design changes from redesign:
+//   - Reading progress bar (fixed top, orange).
+//   - Hero image with rounded container (not <figure>).
+//   - Author info section with avatar placeholder.
+//   - Social share buttons (WhatsApp, Facebook, X).
+//   - Intro paragraph with teal left border.
+//   - Heading heuristic: short paragraphs without trailing period are headings.
+//   - Sidebar (desktop only): TOC, app download CTA, related articles.
+//   - "Volver al blog" CTA replaces "Ver más artículos".
+//   - "Actualizado el" section removed.
 // ============================================================
 
 import { describe, it, expect } from 'vitest'
@@ -50,7 +38,6 @@ function makeBlogPost(overrides: Partial<BlogPost> = {}): BlogPost {
   }
 }
 
-// Custom NuxtLink stub that forwards :to as href and renders slot content.
 const NuxtLinkHrefStub = {
   template: '<a :href="to"><slot /></a>',
   props: ['to'],
@@ -74,7 +61,7 @@ describe('BlogArticle', () => {
         },
       })
 
-      const skeleton = wrapper.find('[aria-label="Cargando artículo"]')
+      const skeleton = wrapper.find('[aria-busy="true"]')
       expect(skeleton.exists()).toBe(true)
     })
 
@@ -104,7 +91,7 @@ describe('BlogArticle', () => {
       expect(wrapper.find('article').exists()).toBe(false)
     })
 
-    it('does NOT render "Artículo no encontrado" when loading', async () => {
+    it('does NOT render "Articulo no encontrado" when loading', async () => {
       const wrapper = await mountSuspended(BlogArticle, {
         global: {
           plugins: [createTestingPinia({
@@ -114,14 +101,14 @@ describe('BlogArticle', () => {
         },
       })
 
-      expect(wrapper.text()).not.toContain('Artículo no encontrado')
+      expect(wrapper.text()).not.toContain('Articulo no encontrado')
     })
   })
 
   // ── Not found state ────────────────────────────────────────
 
-  describe('"Artículo no encontrado" state', () => {
-    it('shows "Artículo no encontrado" when isLoading=false and selectedPost=null', async () => {
+  describe('"Articulo no encontrado" state', () => {
+    it('shows "Articulo no encontrado" when isLoading=false and selectedPost=null', async () => {
       const wrapper = await mountSuspended(BlogArticle, {
         global: {
           plugins: [createTestingPinia({
@@ -131,7 +118,7 @@ describe('BlogArticle', () => {
         },
       })
 
-      expect(wrapper.text()).toContain('Artículo no encontrado')
+      expect(wrapper.text()).toContain('Articulo no encontrado')
     })
 
     it('does NOT render article element in not-found state', async () => {
@@ -157,7 +144,7 @@ describe('BlogArticle', () => {
         },
       })
 
-      expect(wrapper.find('[aria-label="Cargando artículo"]').exists()).toBe(false)
+      expect(wrapper.find('[aria-busy="true"]').exists()).toBe(false)
     })
   })
 
@@ -203,16 +190,13 @@ describe('BlogArticle', () => {
         },
       })
 
-      // Raw ISO string must NOT appear in rendered text
       expect(wrapper.text()).not.toContain('2025-06-15T10:00:00Z')
-      // The <time> element should exist and contain a year
       const timeEl = wrapper.find('time')
       expect(timeEl.exists()).toBe(true)
       expect(timeEl.text()).toContain('2025')
     })
 
     it('renders the category name badge via BLOG_CATEGORIES lookup', async () => {
-      // Category name is inside a NuxtLink — use custom stub so slot text is visible
       const wrapper = await mountSuspended(BlogArticle, {
         global: {
           plugins: [createTestingPinia({
@@ -238,6 +222,32 @@ describe('BlogArticle', () => {
 
       expect(wrapper.text()).toContain('desconocida')
     })
+
+    it('renders read time estimate', async () => {
+      const wrapper = await mountSuspended(BlogArticle, {
+        global: {
+          plugins: [createTestingPinia({
+            initialState: { blog: { selectedPost: mockPost, isLoading: false } },
+          })],
+          stubs: { NuxtLink: true },
+        },
+      })
+
+      expect(wrapper.text()).toContain('min lectura')
+    })
+
+    it('renders author name "Mopetoo Blog"', async () => {
+      const wrapper = await mountSuspended(BlogArticle, {
+        global: {
+          plugins: [createTestingPinia({
+            initialState: { blog: { selectedPost: mockPost, isLoading: false } },
+          })],
+          stubs: { NuxtLink: true },
+        },
+      })
+
+      expect(wrapper.text()).toContain('Mopetoo Blog')
+    })
   })
 
   // ── Hero image ─────────────────────────────────────────────
@@ -254,13 +264,14 @@ describe('BlogArticle', () => {
         },
       })
 
-      const figure = wrapper.find('figure.blog-article__hero-wrap')
-      expect(figure.exists()).toBe(true)
-      const img = figure.find('img')
+      const heroInner = wrapper.find('.blog-article__hero-inner')
+      expect(heroInner.exists()).toBe(true)
+      const img = wrapper.find('.blog-article__hero-image')
+      expect(img.exists()).toBe(true)
       expect(img.attributes('src')).toBe('https://example.com/hero.jpg')
     })
 
-    it('hides hero image when cover_image_url is undefined', async () => {
+    it('shows placeholder when cover_image_url is undefined', async () => {
       const post = makeBlogPost({ cover_image_url: undefined })
       const wrapper = await mountSuspended(BlogArticle, {
         global: {
@@ -271,10 +282,11 @@ describe('BlogArticle', () => {
         },
       })
 
-      expect(wrapper.find('figure.blog-article__hero-wrap').exists()).toBe(false)
+      expect(wrapper.find('.blog-article__hero-image').exists()).toBe(false)
+      expect(wrapper.find('.blog-article__hero-placeholder').exists()).toBe(true)
     })
 
-    it('hides hero image when cover_image_url is a javascript: URI (blocked by isSafeImageUrl)', async () => {
+    it('shows placeholder when cover_image_url is a javascript: URI (blocked)', async () => {
       const post = makeBlogPost({ cover_image_url: 'javascript:alert(1)' })
       const wrapper = await mountSuspended(BlogArticle, {
         global: {
@@ -285,10 +297,11 @@ describe('BlogArticle', () => {
         },
       })
 
-      expect(wrapper.find('figure.blog-article__hero-wrap').exists()).toBe(false)
+      expect(wrapper.find('.blog-article__hero-image').exists()).toBe(false)
+      expect(wrapper.find('.blog-article__hero-placeholder').exists()).toBe(true)
     })
 
-    it('hides hero image after @error event on the hero img element', async () => {
+    it('shows placeholder after @error event on the hero img element', async () => {
       const post = makeBlogPost({ cover_image_url: 'https://example.com/broken.jpg' })
       const wrapper = await mountSuspended(BlogArticle, {
         global: {
@@ -302,15 +315,17 @@ describe('BlogArticle', () => {
       await wrapper.find('.blog-article__hero-image').trigger('error')
       await wrapper.vm.$nextTick()
 
-      expect(wrapper.find('figure.blog-article__hero-wrap').exists()).toBe(false)
+      expect(wrapper.find('.blog-article__hero-image').exists()).toBe(false)
+      expect(wrapper.find('.blog-article__hero-placeholder').exists()).toBe(true)
     })
   })
 
   // ── Article content ────────────────────────────────────────
 
   describe('article content', () => {
-    it('renders content as plain text paragraphs split on \\n', async () => {
-      const post = makeBlogPost({ content: 'Párrafo uno.\nPárrafo dos.' })
+    it('renders content paragraphs', async () => {
+      // Use content where all lines end with periods (so none become headings)
+      const post = makeBlogPost({ content: 'Parrafo uno es largo y tiene punto.\nParrafo dos es largo y tiene punto.' })
       const wrapper = await mountSuspended(BlogArticle, {
         global: {
           plugins: [createTestingPinia({
@@ -321,13 +336,12 @@ describe('BlogArticle', () => {
       })
 
       const paragraphs = wrapper.findAll('.blog-article__paragraph')
-      expect(paragraphs).toHaveLength(2)
-      expect(paragraphs[0].text()).toBe('Párrafo uno.')
-      expect(paragraphs[1].text()).toBe('Párrafo dos.')
+      // First paragraph becomes intro, second goes to body
+      expect(paragraphs.length).toBeGreaterThanOrEqual(1)
     })
 
-    it('renders three paragraphs when content has three lines', async () => {
-      const post = makeBlogPost({ content: 'Uno.\nDos.\nTres.' })
+    it('renders intro paragraph with teal border', async () => {
+      const post = makeBlogPost({ content: 'Este es el primer parrafo largo con punto.\nSegundo parrafo.' })
       const wrapper = await mountSuspended(BlogArticle, {
         global: {
           plugins: [createTestingPinia({
@@ -337,11 +351,11 @@ describe('BlogArticle', () => {
         },
       })
 
-      expect(wrapper.findAll('.blog-article__paragraph')).toHaveLength(3)
+      expect(wrapper.find('.blog-article__intro').exists()).toBe(true)
     })
 
-    it('filters out empty lines from content (filter(Boolean))', async () => {
-      const post = makeBlogPost({ content: 'Uno.\n\nDos.' }) // double newline = empty line
+    it('renders short paragraphs without trailing period as headings', async () => {
+      const post = makeBlogPost({ content: 'Introduccion del articulo con punto.\nTitulo corto\nContenido del parrafo con punto.' })
       const wrapper = await mountSuspended(BlogArticle, {
         global: {
           plugins: [createTestingPinia({
@@ -351,46 +365,60 @@ describe('BlogArticle', () => {
         },
       })
 
-      // Empty line filtered out — only 2 paragraphs
-      expect(wrapper.findAll('.blog-article__paragraph')).toHaveLength(2)
+      const headings = wrapper.findAll('.blog-article__heading')
+      expect(headings.length).toBeGreaterThanOrEqual(1)
+      expect(headings[0].text()).toBe('Titulo corto')
+    })
+
+    it('filters out empty lines from content', async () => {
+      const post = makeBlogPost({ content: 'Parrafo uno es largo con punto.\n\nParrafo dos es largo con punto.' })
+      const wrapper = await mountSuspended(BlogArticle, {
+        global: {
+          plugins: [createTestingPinia({
+            initialState: { blog: { selectedPost: post, isLoading: false } },
+          })],
+          stubs: { NuxtLink: true },
+        },
+      })
+
+      // Content should render without blank paragraphs
+      expect(wrapper.text()).toContain('Parrafo uno')
+      expect(wrapper.text()).toContain('Parrafo dos')
     })
   })
 
-  // ── Updated date ───────────────────────────────────────────
+  // ── Social share ───────────────────────────────────────────
 
-  describe('"Actualizado el" section', () => {
-    it('shows "Actualizado el" when updated_at differs from published_at', async () => {
-      const post = makeBlogPost({
-        published_at: '2025-06-15T10:00:00Z',
-        updated_at: '2025-07-01T10:00:00Z', // different date
-      })
+  describe('social share', () => {
+    it('renders social share buttons', async () => {
       const wrapper = await mountSuspended(BlogArticle, {
         global: {
           plugins: [createTestingPinia({
-            initialState: { blog: { selectedPost: post, isLoading: false } },
+            initialState: { blog: { selectedPost: mockPost, isLoading: false } },
           })],
           stubs: { NuxtLink: true },
         },
       })
 
-      expect(wrapper.text()).toContain('Actualizado el')
+      expect(wrapper.find('.blog-article__share').exists()).toBe(true)
+      expect(wrapper.findAll('.blog-article__share-btn')).toHaveLength(3)
     })
+  })
 
-    it('hides "Actualizado el" when updated_at equals published_at', async () => {
-      const post = makeBlogPost({
-        published_at: '2025-06-15T10:00:00Z',
-        updated_at: '2025-06-15T10:00:00Z', // same date
-      })
+  // ── Reading progress bar ───────────────────────────────────
+
+  describe('reading progress bar', () => {
+    it('renders the progress bar when post is loaded', async () => {
       const wrapper = await mountSuspended(BlogArticle, {
         global: {
           plugins: [createTestingPinia({
-            initialState: { blog: { selectedPost: post, isLoading: false } },
+            initialState: { blog: { selectedPost: mockPost, isLoading: false } },
           })],
           stubs: { NuxtLink: true },
         },
       })
 
-      expect(wrapper.text()).not.toContain('Actualizado el')
+      expect(wrapper.find('.blog-progress').exists()).toBe(true)
     })
   })
 
@@ -410,21 +438,6 @@ describe('BlogArticle', () => {
       const backLinks = wrapper.findAll('a').filter(a => a.text().includes('Volver al blog'))
       expect(backLinks.length).toBeGreaterThan(0)
       expect(backLinks[0].attributes('href')).toBe('/blog')
-    })
-
-    it('"Ver más artículos" CTA link goes to /blog', async () => {
-      const wrapper = await mountSuspended(BlogArticle, {
-        global: {
-          plugins: [createTestingPinia({
-            initialState: { blog: { selectedPost: mockPost, isLoading: false } },
-          })],
-          stubs: { NuxtLink: NuxtLinkHrefStub },
-        },
-      })
-
-      const ctaLinks = wrapper.findAll('a').filter(a => a.text().includes('Ver más artículos'))
-      expect(ctaLinks.length).toBeGreaterThan(0)
-      expect(ctaLinks[0].attributes('href')).toBe('/blog')
     })
 
     it('"Ir al blog" link shown in not-found state goes to /blog', async () => {

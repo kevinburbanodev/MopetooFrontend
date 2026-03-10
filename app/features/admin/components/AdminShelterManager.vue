@@ -76,7 +76,7 @@ onMounted(async () => {
       <div class="flex-grow-1" style="min-width: 200px; max-width: 360px;">
         <label for="shelter-search" class="visually-hidden">Buscar refugio</label>
         <div class="input-group">
-          <span class="input-group-text bg-transparent border-end-0" aria-hidden="true">🔍</span>
+          <span class="input-group-text bg-transparent border-end-0" aria-hidden="true"><span class="material-symbols-outlined" style="font-size: 1.1rem;">search</span></span>
           <input
             id="shelter-search"
             v-model="searchQuery"
@@ -104,7 +104,7 @@ onMounted(async () => {
       class="alert alert-danger d-flex align-items-center gap-2 mb-4"
       role="alert"
     >
-      <span aria-hidden="true">⚠</span>
+      <span class="material-symbols-outlined" style="font-size: 1.1rem;" aria-hidden="true">warning</span>
       {{ error }}
     </div>
 
@@ -142,8 +142,8 @@ onMounted(async () => {
             <!-- Data rows -->
             <template v-else-if="adminStore.shelters.length > 0">
               <tr v-for="shelter in adminStore.shelters" :key="shelter.id">
-                <td class="fw-semibold">{{ shelter.name }}</td>
-                <td class="text-muted small">{{ shelter.city }}</td>
+                <td class="fw-semibold">{{ shelter.organization_name }}</td>
+                <td class="text-muted small">{{ shelter.city?.name }}</td>
                 <td class="text-muted small">
                   <div v-if="shelter.email">{{ shelter.email }}</div>
                   <div v-if="shelter.phone">{{ shelter.phone }}</div>
@@ -151,7 +151,7 @@ onMounted(async () => {
                 </td>
                 <td class="text-center">
                   <span
-                    v-if="shelter.is_verified"
+                    v-if="shelter.verified"
                     class="badge bg-success"
                     aria-label="Refugio verificado"
                   >
@@ -185,22 +185,22 @@ onMounted(async () => {
                 <td class="text-muted small">{{ formatDate(shelter.created_at) }}</td>
                 <td class="text-end">
                   <div class="d-flex justify-content-end gap-1 flex-wrap">
-                    <!-- Verificar (only shown when not verified) -->
+                    <!-- Verificar / Revocar verificación -->
                     <button
-                      v-if="!shelter.is_verified"
                       type="button"
-                      class="btn btn-sm btn-outline-success"
-                      :aria-label="`Verificar ${shelter.name}`"
-                      @click="verifyShelter(shelter.id)"
+                      class="btn btn-sm"
+                      :class="shelter.verified ? 'btn-outline-warning' : 'btn-outline-success'"
+                      :aria-label="shelter.verified ? `Revocar verificación de ${shelter.organization_name}` : `Verificar ${shelter.organization_name}`"
+                      @click="verifyShelter(shelter.id, !shelter.verified)"
                     >
-                      Verificar
+                      {{ shelter.verified ? 'Revocar' : 'Verificar' }}
                     </button>
                     <!-- Activar / Desactivar -->
                     <button
                       type="button"
                       class="btn btn-sm"
                       :class="shelter.is_active ? 'btn-outline-secondary' : 'btn-outline-success'"
-                      :aria-label="shelter.is_active ? `Desactivar ${shelter.name}` : `Activar ${shelter.name}`"
+                      :aria-label="shelter.is_active ? `Desactivar ${shelter.organization_name}` : `Activar ${shelter.organization_name}`"
                       @click="shelter.is_active ? deactivateShelter(shelter.id) : activateShelter(shelter.id)"
                     >
                       {{ shelter.is_active ? 'Desactivar' : 'Activar' }}
@@ -213,7 +213,7 @@ onMounted(async () => {
             <!-- Empty state -->
             <tr v-else>
               <td colspan="8" class="text-center py-5 text-muted">
-                <div class="fs-2 mb-2" aria-hidden="true">🏠</div>
+                <span class="material-symbols-outlined" style="font-size: 2rem;" aria-hidden="true">home_health</span>
                 No se encontraron refugios con los filtros actuales.
               </td>
             </tr>

@@ -2,7 +2,8 @@
 // Mopetoo – Main SCSS entry point
 // 1. Variable overrides (must come first)
 // 2. Bootstrap full import
-// 3. Global custom styles
+// 3. Admin dark theme (scoped to .admin-layout)
+// 5. Global custom styles
 // ============================================================
 
 // 1. Override Bootstrap variables before they are used
@@ -13,7 +14,13 @@
 // 2. Import all of Bootstrap
 @import 'bootstrap/scss/bootstrap';
 
-// 3. Global custom styles
+// 3. Admin dark theme (scoped to .admin-layout)
+@import 'admin';
+
+// 4. Landing page shared styles
+@import 'landing';
+
+// 5. Global custom styles
 html,
 body {
   min-height: 100vh;

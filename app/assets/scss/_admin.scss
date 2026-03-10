@@ -1,0 +1,929 @@
+// ============================================================
+// Admin Dark Theme — Stitch Design System
+// Scoped to .admin-layout to avoid affecting landing/blog/pet pages.
+// ============================================================
+
+// ── Variables ─────────────────────────────────────────────────
+$admin-bg: #080d0a;
+$admin-bg-sidebar: #102216;
+$admin-primary: #10b748;
+$admin-glass-bg: rgba(16, 34, 22, 0.6);
+$admin-glass-border: rgba(16, 183, 72, 0.1);
+$admin-text: #e2e8f0;
+$admin-text-muted: #94a3b8;
+$admin-font: 'Inter', system-ui, -apple-system, sans-serif;
+$admin-sidebar-width: 16rem; // w-64
+
+// ── Root layout ──────────────────────────────────────────────
+.admin-layout {
+  display: flex;
+  min-height: 100vh;
+  background: $admin-bg;
+  color: $admin-text;
+  font-family: $admin-font;
+}
+
+// ── Sidebar ──────────────────────────────────────────────────
+.admin-sidebar {
+  width: $admin-sidebar-width;
+  min-height: 100vh;
+  background: $admin-bg-sidebar;
+  border-right: 1px solid $admin-glass-border;
+  display: flex;
+  flex-direction: column;
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 1040;
+  transition: transform 0.25s ease;
+
+  &__brand {
+    padding: 1.5rem 1.25rem;
+    border-bottom: 1px solid $admin-glass-border;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    text-decoration: none;
+
+    .material-symbols-outlined {
+      font-size: 1.75rem;
+      color: $admin-primary;
+    }
+  }
+
+  &__brand-text {
+    font-weight: 700;
+    font-size: 1.25rem;
+    color: $admin-text;
+    line-height: 1.2;
+  }
+
+  &__brand-label {
+    font-size: 0.65rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: $admin-primary;
+    background: rgba($admin-primary, 0.15);
+    padding: 0.1rem 0.4rem;
+    border-radius: 0.25rem;
+    margin-left: 0.25rem;
+  }
+
+  &__nav {
+    flex: 1;
+    padding: 1rem 0;
+    overflow-y: auto;
+  }
+
+  &__nav-label {
+    padding: 0.5rem 1.25rem;
+    font-size: 0.65rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: $admin-text-muted;
+  }
+
+  &__profile {
+    padding: 1rem 1.25rem;
+    border-top: 1px solid $admin-glass-border;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  &__avatar {
+    width: 2.25rem;
+    height: 2.25rem;
+    border-radius: 50%;
+    background: rgba($admin-primary, 0.2);
+    color: $admin-primary;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 0.85rem;
+    flex-shrink: 0;
+  }
+
+  &__profile-info {
+    flex: 1;
+    min-width: 0;
+  }
+
+  &__profile-name {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: $admin-text;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  &__profile-role {
+    font-size: 0.7rem;
+    color: $admin-text-muted;
+  }
+}
+
+// ── Nav links ────────────────────────────────────────────────
+.admin-nav-link {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.6rem 1.25rem;
+  color: $admin-text-muted;
+  text-decoration: none;
+  font-size: 0.85rem;
+  font-weight: 500;
+  transition: all 0.15s ease;
+  border-left: 3px solid transparent;
+
+  .material-symbols-outlined {
+    font-size: 1.25rem;
+  }
+
+  &:hover {
+    color: $admin-text;
+    background: rgba($admin-primary, 0.08);
+  }
+
+  &--active {
+    color: $admin-primary;
+    background: rgba($admin-primary, 0.12);
+    border-left-color: $admin-primary;
+    font-weight: 600;
+
+    .material-symbols-outlined {
+      color: $admin-primary;
+    }
+  }
+}
+
+// ── Main content area ────────────────────────────────────────
+.admin-main {
+  flex: 1;
+  margin-left: $admin-sidebar-width;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.admin-header {
+  position: sticky;
+  top: 0;
+  z-index: 1030;
+  background: rgba($admin-bg, 0.85);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid $admin-glass-border;
+  padding: 0.75rem 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+
+  &__title {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: $admin-text;
+    margin: 0;
+  }
+
+  &__search {
+    margin-left: auto;
+    position: relative;
+    max-width: 280px;
+    width: 100%;
+
+    .material-symbols-outlined {
+      position: absolute;
+      left: 0.75rem;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 1.1rem;
+      color: $admin-text-muted;
+    }
+
+    input {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid $admin-glass-border;
+      border-radius: 0.5rem;
+      color: $admin-text;
+      padding: 0.4rem 0.75rem 0.4rem 2.25rem;
+      font-size: 0.85rem;
+      width: 100%;
+
+      &::placeholder {
+        color: $admin-text-muted;
+      }
+
+      &:focus {
+        outline: none;
+        border-color: rgba($admin-primary, 0.4);
+        box-shadow: 0 0 0 2px rgba($admin-primary, 0.1);
+      }
+    }
+  }
+
+  &__actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  &__icon-btn {
+    background: none;
+    border: none;
+    color: $admin-text-muted;
+    padding: 0.375rem;
+    border-radius: 0.375rem;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    display: flex;
+    align-items: center;
+
+    &:hover {
+      color: $admin-text;
+      background: rgba(255, 255, 255, 0.06);
+    }
+
+    .material-symbols-outlined {
+      font-size: 1.25rem;
+    }
+  }
+}
+
+.admin-content {
+  flex: 1;
+  padding: 1.5rem;
+}
+
+// ── Glass card ───────────────────────────────────────────────
+.admin-glass {
+  background: $admin-glass-bg;
+  backdrop-filter: blur(12px);
+  border: 1px solid $admin-glass-border;
+  border-radius: 0.75rem;
+}
+
+// ── Stat cards (KPI) ─────────────────────────────────────────
+.admin-stat-card {
+  @extend .admin-glass;
+  padding: 1.25rem;
+  position: relative;
+  overflow: hidden;
+
+  &__icon {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    font-size: 1.5rem;
+    opacity: 0.3;
+    color: $admin-primary;
+  }
+
+  &__value {
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: $admin-text;
+    line-height: 1.2;
+  }
+
+  &__label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: $admin-text-muted;
+    margin-top: 0.25rem;
+  }
+
+  &__change {
+    font-size: 0.75rem;
+    font-weight: 600;
+    margin-top: 0.5rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.15rem 0.5rem;
+    border-radius: 1rem;
+
+    &--up {
+      color: $admin-primary;
+      background: rgba($admin-primary, 0.12);
+    }
+
+    &--down {
+      color: #ef4444;
+      background: rgba(239, 68, 68, 0.12);
+    }
+  }
+}
+
+// ── Admin tables ─────────────────────────────────────────────
+.admin-table-card {
+  @extend .admin-glass;
+  overflow: hidden;
+}
+
+.admin-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 0;
+
+  th {
+    background: rgba(255, 255, 255, 0.03);
+    color: $admin-text-muted;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid $admin-glass-border;
+    white-space: nowrap;
+  }
+
+  td {
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    font-size: 0.85rem;
+    color: $admin-text;
+    vertical-align: middle;
+  }
+
+  tbody tr {
+    transition: background 0.15s ease;
+
+    &:hover {
+      background: rgba(255, 255, 255, 0.03);
+    }
+
+    &:last-child td {
+      border-bottom: none;
+    }
+  }
+
+  .text-muted {
+    color: $admin-text-muted !important;
+  }
+}
+
+// ── Admin badges ─────────────────────────────────────────────
+.admin-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.25rem 0.65rem;
+  border-radius: 1rem;
+
+  &::before {
+    content: '';
+    width: 0.4rem;
+    height: 0.4rem;
+    border-radius: 50%;
+  }
+
+  &--success {
+    color: $admin-primary;
+    background: rgba($admin-primary, 0.12);
+    &::before { background: $admin-primary; }
+  }
+
+  &--warning {
+    color: #f59e0b;
+    background: rgba(245, 158, 11, 0.12);
+    &::before { background: #f59e0b; }
+  }
+
+  &--danger {
+    color: #ef4444;
+    background: rgba(239, 68, 68, 0.12);
+    &::before { background: #ef4444; }
+  }
+
+  &--info {
+    color: #3b82f6;
+    background: rgba(59, 130, 246, 0.12);
+    &::before { background: #3b82f6; }
+  }
+
+  &--secondary {
+    color: $admin-text-muted;
+    background: rgba(148, 163, 184, 0.12);
+    &::before { background: $admin-text-muted; }
+  }
+
+  &--pro {
+    color: #f59e0b;
+    background: rgba(245, 158, 11, 0.12);
+    &::before { background: #f59e0b; }
+  }
+}
+
+// ── Admin buttons ────────────────────────────────────────────
+.admin-btn {
+  font-size: 0.8rem;
+  font-weight: 500;
+  padding: 0.35rem 0.75rem;
+  border-radius: 0.375rem;
+  border: 1px solid $admin-glass-border;
+  background: rgba(255, 255, 255, 0.04);
+  color: $admin-text;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.15);
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  &--primary {
+    background: $admin-primary;
+    border-color: $admin-primary;
+    color: #fff;
+
+    &:hover {
+      background: lighten($admin-primary, 5%);
+    }
+  }
+
+  &--danger {
+    border-color: rgba(239, 68, 68, 0.3);
+    color: #ef4444;
+
+    &:hover {
+      background: rgba(239, 68, 68, 0.12);
+    }
+  }
+
+  &--success {
+    border-color: rgba($admin-primary, 0.3);
+    color: $admin-primary;
+
+    &:hover {
+      background: rgba($admin-primary, 0.12);
+    }
+  }
+
+  &--warning {
+    border-color: rgba(245, 158, 11, 0.3);
+    color: #f59e0b;
+
+    &:hover {
+      background: rgba(245, 158, 11, 0.12);
+    }
+  }
+}
+
+// ── Admin form controls ──────────────────────────────────────
+.admin-layout {
+  .admin-input,
+  .admin-select {
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid $admin-glass-border;
+    border-radius: 0.375rem;
+    color: $admin-text;
+    font-size: 0.85rem;
+    padding: 0.4rem 0.75rem;
+
+    &::placeholder {
+      color: $admin-text-muted;
+    }
+
+    &:focus {
+      outline: none;
+      border-color: rgba($admin-primary, 0.4);
+      box-shadow: 0 0 0 2px rgba($admin-primary, 0.1);
+    }
+  }
+
+  .admin-select {
+    cursor: pointer;
+    appearance: auto;
+  }
+
+  // Override Bootstrap form controls inside admin layout
+  .form-control,
+  .form-select {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: $admin-glass-border;
+    color: $admin-text;
+
+    &::placeholder {
+      color: $admin-text-muted;
+    }
+
+    &:focus {
+      background: rgba(255, 255, 255, 0.08);
+      border-color: rgba($admin-primary, 0.4);
+      box-shadow: 0 0 0 2px rgba($admin-primary, 0.1);
+      color: $admin-text;
+    }
+  }
+
+  .form-select {
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%2394a3b8' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e");
+
+    option {
+      background: #fff;
+      color: #212529;
+    }
+  }
+
+  .input-group-text {
+    background: rgba(255, 255, 255, 0.04);
+    border-color: $admin-glass-border;
+    color: $admin-text-muted;
+  }
+
+  .form-check-input {
+    background-color: rgba(255, 255, 255, 0.1);
+    border-color: $admin-glass-border;
+
+    &:checked {
+      background-color: $admin-primary;
+      border-color: $admin-primary;
+    }
+  }
+
+  .form-label {
+    color: $admin-text-muted;
+  }
+}
+
+// ── Admin alert overrides ────────────────────────────────────
+.admin-layout {
+  .alert-danger {
+    background: rgba(239, 68, 68, 0.1);
+    border-color: rgba(239, 68, 68, 0.2);
+    color: #fca5a5;
+  }
+
+  .alert-info {
+    background: rgba(59, 130, 246, 0.1);
+    border-color: rgba(59, 130, 246, 0.2);
+    color: #93c5fd;
+  }
+
+  .alert-secondary {
+    background: rgba(148, 163, 184, 0.1);
+    border-color: rgba(148, 163, 184, 0.2);
+    color: $admin-text-muted;
+  }
+}
+
+// ── Admin card overrides ─────────────────────────────────────
+.admin-layout {
+  .card {
+    background: $admin-glass-bg;
+    border: 1px solid $admin-glass-border;
+    color: $admin-text;
+
+    .card-header {
+      background: rgba(255, 255, 255, 0.03);
+      border-color: $admin-glass-border;
+      color: $admin-text;
+    }
+
+    .card-footer {
+      background: rgba(255, 255, 255, 0.02);
+      border-color: $admin-glass-border;
+    }
+  }
+
+  // Override Bootstrap table classes
+  .table {
+    color: $admin-text;
+    --bs-table-color: #{$admin-text};
+    --bs-table-bg: transparent;
+    --bs-table-hover-bg: rgba(255, 255, 255, 0.03);
+
+    > thead {
+      th {
+        background: rgba(255, 255, 255, 0.03);
+        color: $admin-text-muted;
+        font-size: 0.75rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        border-bottom-color: $admin-glass-border;
+      }
+
+      .table-light th {
+        background: rgba(255, 255, 255, 0.03);
+        color: $admin-text-muted;
+        border-bottom-color: $admin-glass-border;
+      }
+    }
+
+    > tbody > tr {
+      > td {
+        border-bottom-color: rgba(255, 255, 255, 0.04);
+      }
+    }
+
+    > tfoot {
+      .table-light td {
+        background: rgba(255, 255, 255, 0.03);
+        color: $admin-text;
+        border-top-color: $admin-glass-border;
+      }
+    }
+  }
+
+  // List group overrides
+  .list-group-item {
+    background: transparent;
+    border-color: $admin-glass-border;
+    color: $admin-text;
+
+    &.list-group-item-action:hover {
+      background: rgba(255, 255, 255, 0.04);
+      color: $admin-primary;
+    }
+  }
+
+  // Button overrides
+  .btn-primary {
+    background-color: $admin-primary;
+    border-color: $admin-primary;
+    color: #fff;
+
+    &:hover {
+      background-color: lighten($admin-primary, 5%);
+      border-color: lighten($admin-primary, 5%);
+    }
+  }
+
+  .btn-outline-secondary {
+    border-color: $admin-glass-border;
+    color: $admin-text-muted;
+
+    &:hover {
+      background: rgba(255, 255, 255, 0.06);
+      color: $admin-text;
+      border-color: rgba(255, 255, 255, 0.15);
+    }
+
+    &:disabled {
+      border-color: $admin-glass-border;
+      color: rgba($admin-text-muted, 0.5);
+    }
+  }
+
+  .btn-outline-warning {
+    border-color: rgba(245, 158, 11, 0.3);
+    color: #f59e0b;
+
+    &:hover {
+      background: rgba(245, 158, 11, 0.12);
+      color: #f59e0b;
+      border-color: rgba(245, 158, 11, 0.5);
+    }
+  }
+
+  .btn-outline-danger {
+    border-color: rgba(239, 68, 68, 0.3);
+    color: #ef4444;
+
+    &:hover {
+      background: rgba(239, 68, 68, 0.12);
+      color: #ef4444;
+      border-color: rgba(239, 68, 68, 0.5);
+    }
+  }
+
+  .btn-outline-success {
+    border-color: rgba($admin-primary, 0.3);
+    color: $admin-primary;
+
+    &:hover {
+      background: rgba($admin-primary, 0.12);
+      color: $admin-primary;
+      border-color: rgba($admin-primary, 0.5);
+    }
+  }
+
+  .btn-outline-primary {
+    border-color: rgba($admin-primary, 0.3);
+    color: $admin-primary;
+
+    &:hover {
+      background: rgba($admin-primary, 0.12);
+      color: $admin-primary;
+      border-color: rgba($admin-primary, 0.5);
+    }
+  }
+
+  .btn-success {
+    background-color: $admin-primary;
+    border-color: $admin-primary;
+    color: #fff;
+  }
+
+  .btn-danger {
+    background: rgba(239, 68, 68, 0.15);
+    border-color: rgba(239, 68, 68, 0.3);
+    color: #ef4444;
+
+    &:hover {
+      background: rgba(239, 68, 68, 0.25);
+    }
+  }
+
+  .btn-link {
+    color: $admin-primary;
+  }
+
+  // Badge overrides
+  .badge {
+    &.bg-success {
+      background-color: rgba($admin-primary, 0.15) !important;
+      color: $admin-primary;
+    }
+
+    &.bg-warning {
+      background-color: rgba(245, 158, 11, 0.15) !important;
+      color: #f59e0b;
+
+      &.text-dark {
+        color: #f59e0b !important;
+      }
+    }
+
+    &.bg-danger {
+      background-color: rgba(239, 68, 68, 0.15) !important;
+      color: #ef4444;
+    }
+
+    &.bg-secondary {
+      background-color: rgba(148, 163, 184, 0.12) !important;
+      color: $admin-text-muted;
+    }
+
+    &.bg-info {
+      background-color: rgba(59, 130, 246, 0.15) !important;
+      color: #3b82f6;
+
+      &.text-dark {
+        color: #3b82f6 !important;
+      }
+    }
+
+    &.bg-primary {
+      background-color: rgba($admin-primary, 0.15) !important;
+      color: $admin-primary;
+    }
+  }
+
+  // Progress bar overrides
+  .progress {
+    background-color: rgba(255, 255, 255, 0.06);
+    border-radius: 0.375rem;
+
+    .progress-bar.bg-primary {
+      background: linear-gradient(90deg, $admin-primary, lighten($admin-primary, 10%)) !important;
+    }
+  }
+
+  // Spinner overrides
+  .spinner-border.text-primary {
+    color: $admin-primary !important;
+  }
+
+  // Text color overrides
+  .text-primary { color: $admin-primary !important; }
+  .text-success { color: $admin-primary !important; }
+  .text-muted { color: $admin-text-muted !important; }
+  .text-body { color: $admin-text !important; }
+
+  // Modal overrides
+  .modal-content {
+    background: lighten($admin-bg-sidebar, 3%);
+    border: 1px solid $admin-glass-border;
+    color: $admin-text;
+
+    .modal-header {
+      border-color: $admin-glass-border;
+    }
+
+    .modal-footer {
+      border-color: $admin-glass-border;
+    }
+
+    .btn-close {
+      filter: invert(1) grayscale(100%) brightness(200%);
+    }
+  }
+}
+
+// ── Skeleton shimmer — dark theme ────────────────────────────
+.admin-layout {
+  .skeleton-pulse {
+    background: linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0.04) 25%,
+      rgba(255, 255, 255, 0.08) 50%,
+      rgba(255, 255, 255, 0.04) 75%
+    );
+    background-size: 200% 100%;
+    animation: admin-skeleton-shimmer 1.4s ease-in-out infinite;
+
+    @media (prefers-reduced-motion: reduce) {
+      animation: none;
+      background: rgba(255, 255, 255, 0.04);
+    }
+  }
+}
+
+@keyframes admin-skeleton-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+// ── Pagination footer ────────────────────────────────────────
+.admin-layout {
+  .card-footer {
+    background: rgba(255, 255, 255, 0.02) !important;
+    border-color: $admin-glass-border !important;
+  }
+}
+
+// ── Mobile sidebar toggle ────────────────────────────────────
+.admin-sidebar-toggle {
+  display: none;
+  background: none;
+  border: none;
+  color: $admin-text;
+  padding: 0.375rem;
+  cursor: pointer;
+
+  .material-symbols-outlined {
+    font-size: 1.5rem;
+  }
+}
+
+.admin-sidebar-overlay {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 1035;
+}
+
+@media (max-width: 991.98px) {
+  .admin-sidebar {
+    transform: translateX(-100%);
+
+    &--open {
+      transform: translateX(0);
+    }
+  }
+
+  .admin-sidebar-toggle {
+    display: flex;
+  }
+
+  .admin-sidebar-overlay {
+    &--visible {
+      display: block;
+    }
+  }
+
+  .admin-main {
+    margin-left: 0;
+  }
+}
+
+// ── Admin logout button ──────────────────────────────────────
+.admin-logout-btn {
+  background: none;
+  border: none;
+  color: $admin-text-muted;
+  padding: 0.375rem;
+  border-radius: 0.375rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: flex;
+  align-items: center;
+
+  &:hover {
+    color: #ef4444;
+    background: rgba(239, 68, 68, 0.1);
+  }
+
+  .material-symbols-outlined {
+    font-size: 1.15rem;
+  }
+}

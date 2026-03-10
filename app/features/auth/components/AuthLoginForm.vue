@@ -1,9 +1,6 @@
 <script setup lang="ts">
-import type { EntityType } from '../types'
+const { login, pending, error, verificationPending } = useAuth()
 
-const { login, pending, error } = useAuth()
-
-const entityType = ref<EntityType>('user')
 const email = ref('')
 const password = ref('')
 
@@ -13,34 +10,28 @@ const submitted = ref(false)
 const emailInvalid = computed(() => submitted.value && !email.value.trim())
 const passwordInvalid = computed(() => submitted.value && !password.value)
 
-const subtitles: Record<EntityType, string> = {
-  user: 'Inicia sesión para cuidar a tus mascotas',
-  shelter: 'Inicia sesión como refugio',
-  store: 'Inicia sesión como tienda',
-  clinic: 'Inicia sesión como clínica veterinaria',
-}
-
 async function handleSubmit(): Promise<void> {
   submitted.value = true
   if (emailInvalid.value || passwordInvalid.value) return
-  await login(email.value.trim(), password.value, entityType.value)
+  await login(email.value.trim(), password.value)
 }
 </script>
 
 <template>
-  <div class="row justify-content-center">
+  <!-- Email verification form (shown after 403 email_not_verified) -->
+  <AuthVerifyEmailForm v-if="verificationPending" />
+
+  <!-- Login form -->
+  <div v-else class="row justify-content-center">
     <div class="col-12 col-sm-10 col-md-8 col-lg-5">
       <div class="card shadow border-0 login-card">
         <div class="card-body p-4 p-md-5">
           <!-- Header -->
           <div class="text-center mb-4">
             <div class="brand-icon mb-2" aria-hidden="true">🐾</div>
-            <h1 class="h4 fw-bold text-dark">Bienvenido de vuelta</h1>
-            <p class="text-muted small mb-0">{{ subtitles[entityType] }}</p>
+            <h1 class="h4 fw-bold text-dark">Panel Administrativo</h1>
+            <p class="text-muted small mb-0">Inicia sesion para acceder al panel</p>
           </div>
-
-          <!-- Entity type selector -->
-          <AuthEntityTypeSelector v-model="entityType" />
 
           <!-- API error alert -->
           <div
@@ -80,16 +71,10 @@ async function handleSubmit(): Promise<void> {
 
             <!-- Password -->
             <div class="mb-4">
-              <div class="d-flex justify-content-between align-items-center mb-1">
+              <div class="mb-1">
                 <label for="login-password" class="form-label fw-semibold mb-0">
                   Contraseña
                 </label>
-                <NuxtLink
-                  to="/forgot-password"
-                  class="small text-primary text-decoration-none"
-                >
-                  ¿Olvidaste tu contraseña?
-                </NuxtLink>
               </div>
               <input
                 id="login-password"
@@ -125,16 +110,6 @@ async function handleSubmit(): Promise<void> {
             </button>
           </form>
 
-          <!-- Register link -->
-          <p class="text-center mt-4 mb-0 small text-muted">
-            ¿No tienes cuenta?
-            <NuxtLink
-              to="/register"
-              class="text-primary fw-semibold text-decoration-none"
-            >
-              Regístrate gratis
-            </NuxtLink>
-          </p>
         </div>
       </div>
     </div>

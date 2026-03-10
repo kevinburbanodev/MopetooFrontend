@@ -122,7 +122,7 @@ describe('AdminDashboard', () => {
     it('renders 8 skeleton cards', async () => {
       mockStatsStore.isLoading = true
       const wrapper = await mountDashboard()
-      const skeletonCards = wrapper.findAll('.admin-skeleton')
+      const skeletonCards = wrapper.findAll('.admin-stat-card')
       expect(skeletonCards).toHaveLength(8)
     })
 
@@ -209,43 +209,7 @@ describe('AdminDashboard', () => {
     })
   })
 
-  // ── Quick nav links ─────────────────────────────────────────
-
-  describe('quick navigation links', () => {
-    beforeEach(() => {
-      mockStatsStore.overview = makeOverview()
-    })
-
-    it('shows the "Gestión rápida" heading', async () => {
-      const wrapper = await mountDashboard()
-      expect(wrapper.text()).toContain('Gestión rápida')
-    })
-
-    it('renders the "Gestionar Usuarios" nav link', async () => {
-      const wrapper = await mountDashboard()
-      expect(wrapper.text()).toContain('Gestionar Usuarios')
-    })
-
-    it('renders the "Gestionar Refugios" nav link', async () => {
-      const wrapper = await mountDashboard()
-      expect(wrapper.text()).toContain('Gestionar Refugios')
-    })
-
-    it('renders the "Gestionar Tiendas" nav link', async () => {
-      const wrapper = await mountDashboard()
-      expect(wrapper.text()).toContain('Gestionar Tiendas')
-    })
-
-    it('renders the "Gestionar Clínicas" nav link', async () => {
-      const wrapper = await mountDashboard()
-      expect(wrapper.text()).toContain('Gestionar Clínicas')
-    })
-
-    it('renders the "Estadísticas del Sistema" nav link', async () => {
-      const wrapper = await mountDashboard()
-      expect(wrapper.text()).toContain('Estadísticas del Sistema')
-    })
-  })
+  // ── Quick nav links (removed — sidebar handles navigation now) ──
 
   // ── Empty / error fallback state ────────────────────────────
 

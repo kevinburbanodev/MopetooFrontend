@@ -1,267 +1,165 @@
 <template>
-  <section ref="sectionRef" class="how" :class="{ 'is-visible': isVisible }">
+  <section id="shelters" class="shelters-stitch landing-section">
     <div class="container">
+      <div class="row g-5 align-items-center">
+        <!-- Left: Content -->
+        <div class="col-12 col-lg-6">
+          <span class="shelters-stitch__badge">100% GRATUITO</span>
+          <h2 class="shelters-stitch__title">
+            Dale visibilidad a tu refugio y salva mas vidas.
+          </h2>
+          <p class="shelters-stitch__subtitle">
+            Entendemos el trabajo de los refugios. Mopetoo ofrece herramientas
+            profesionales sin costo para que te enfoques en lo que importa: rescatar.
+          </p>
 
-      <div class="how__header">
-        <span class="how__eyebrow">Cómo funciona</span>
-        <h2 class="how__headline">Empezar es muy fácil</h2>
-        <p class="how__sub">Tres pasos simples para cuidar mejor a quienes más quieres.</p>
-      </div>
+          <ul class="shelters-stitch__features">
+            <li v-for="feat in features" :key="feat.title" class="shelters-stitch__feat">
+              <span class="shelters-stitch__check" aria-hidden="true">&#10003;</span>
+              <div>
+                <h5 class="shelters-stitch__feat-title">{{ feat.title }}</h5>
+                <p class="shelters-stitch__feat-text">{{ feat.desc }}</p>
+              </div>
+            </li>
+          </ul>
 
-      <div class="row g-4 g-lg-0 justify-content-center">
-        <div
-          v-for="(step, i) in steps"
-          :key="step.title"
-          class="col-12 col-md-4 how__col"
-          :style="`--delay: ${i * 0.13}s`"
-        >
-          <!-- Connector between steps -->
-          <div v-if="i < steps.length - 1" class="how__connector" aria-hidden="true">
-            <div class="how__connector-line" />
-            <div class="how__connector-arrow">→</div>
-          </div>
+          <a href="#" class="shelters-stitch__cta">Registrar mi Refugio</a>
+        </div>
 
-          <div class="how__step">
-            <div class="how__step-bg-num" aria-hidden="true">{{ String(i + 1).padStart(2, '0') }}</div>
-            <div class="how__step-icon-wrap">
-              <span class="how__step-icon" :aria-label="step.title">{{ step.icon }}</span>
-            </div>
-            <h3 class="how__step-title">{{ step.title }}</h3>
-            <p class="how__step-text">{{ step.desc }}</p>
+        <!-- Right: Image grid -->
+        <div class="col-12 col-lg-6">
+          <div class="shelters-stitch__images">
+            <img
+              alt="Shelter App"
+              class="shelters-stitch__img shelters-stitch__img--offset"
+              src="https://lh3.googleusercontent.com/aida-public/AB6AXuBTDX4gr6RCr1WR2HS5azvjiH5CJKbSElL0ON3Qq2zPg3QESOERkdKp5jmC0ktnkoK6wdITDu4Du69GXSJBO0cH5qEC9Rs3JmpCetnnOi38VUjI9qKXMF8Fagfd_2mqKlsYDEMw9nUnN-bAhgaiL4OZrjCETDsdusi5Gt2TE85bBzAfaOp2Zz76iYCzrsje0lAahhA4yDM5UirVvyLDKeZqSAeqZpCnAm4Piq7bz-QMyVjnQ8SNP4ecghLQSRv9Db1iHkqudelfCjft"
+            />
+            <img
+              alt="Shelter App"
+              class="shelters-stitch__img"
+              src="https://lh3.googleusercontent.com/aida-public/AB6AXuCms9-PqH7VuOrLBx_q8xbSEWX6qbjT6xcZjsSPTQzSpQfcr8wFSeGT7vYAHXkEixcZDdliJ-lDLPSQNqXaA4k10rlmb5LpFZiwiCgrx2fVelhg9nHl_WMRejGMgD64JOgSVU2E1o0X7XTKpHcXnOzUgoxGVScPMsJuvRQzphN43yP8FAnpF4s2powtXJ9xB1iPq6_mUVDz1HJJ3i7WogkBdsJQ9VC1LMIPpFp2RNlgcWhzcnlB3Ur6JYKTvXvSxFXm7WF8CX4TgjTj"
+            />
           </div>
         </div>
       </div>
-
-      <div class="how__cta">
-        <NuxtLink to="/register" class="how__btn">
-          Crear mi cuenta gratis
-        </NuxtLink>
-        <p class="how__cta-note">Sin tarjeta de crédito. Sin compromisos.</p>
-      </div>
-
     </div>
   </section>
 </template>
 
 <script setup lang="ts">
-const steps = [
+const features = [
   {
-    icon: '👤',
-    title: 'Crea tu cuenta',
-    desc: 'Regístrate gratis en menos de un minuto. Solo tu email y una contraseña.',
+    title: 'Mascotas en Adopcion',
+    desc: 'Crea perfiles atractivos con filtros para adoptantes potenciales.',
   },
   {
-    icon: '🐶',
-    title: 'Agrega tus mascotas',
-    desc: 'Crea perfiles con fotos, raza, edad y toda su información médica relevante.',
+    title: 'Donaciones Directas',
+    desc: 'Vincula tus cuentas de Nequi o Daviplata sin intermediarios.',
   },
   {
-    icon: '✨',
-    title: 'Organiza su cuidado',
-    desc: 'Activa recordatorios, lleva el historial médico y mantén todo al día.',
+    title: 'Verificacion Oficial',
+    desc: 'Obten la insignia de confianza para mayor seguridad de los donantes.',
   },
 ]
-
-const sectionRef = ref<HTMLElement | null>(null)
-const isVisible = ref(false)
-
-onMounted(() => {
-  if (!import.meta.client || !sectionRef.value) return
-  const observer = new IntersectionObserver(
-    ([entry]) => {
-      if (entry.isIntersecting) {
-        isVisible.value = true
-        observer.disconnect()
-      }
-    },
-    { threshold: 0.1 },
-  )
-  observer.observe(sectionRef.value)
-})
 </script>
 
 <style scoped>
-.how {
-  --green: #4caf82;
-  --green-dark: #3a9166;
-  --forest: #1e2a38;
-  --font-display: 'Fraunces', Georgia, serif;
-  --font-body: 'DM Sans', system-ui, sans-serif;
-
-  padding: 6rem 0;
-  background: var(--forest);
-  background-image: radial-gradient(rgba(76, 175, 130, 0.07) 1px, transparent 1px);
-  background-size: 32px 32px;
-  font-family: var(--font-body);
+.shelters-stitch {
+  background: #111827;
+  color: #fff;
+  overflow: hidden;
 }
 
-/* ── Header ─────────────────────────────────────────────────────── */
-.how__header {
-  text-align: center;
-  max-width: 500px;
-  margin: 0 auto 4rem;
-}
-
-.how__eyebrow {
+.shelters-stitch__badge {
   display: inline-block;
-  font-size: 0.78rem;
+  background: rgba(16, 185, 129, 0.2);
+  color: #10B981;
+  font-size: 0.8125rem;
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.09em;
-  color: var(--green);
+  padding: 0.25rem 0.75rem;
+  border-radius: 0.375rem;
   margin-bottom: 1rem;
 }
 
-.how__headline {
-  font-family: var(--font-display);
-  font-size: clamp(2rem, 4vw, 3rem);
+.shelters-stitch__title {
+  font-size: clamp(1.75rem, 3vw, 2.5rem);
   font-weight: 700;
-  color: #fff;
-  line-height: 1.1;
-  margin-bottom: 0.875rem;
-  letter-spacing: -0.01em;
+  line-height: 1.15;
+  margin-bottom: 1rem;
 }
 
-.how__sub {
-  font-size: 1rem;
-  color: rgba(255, 255, 255, 0.5);
+.shelters-stitch__subtitle {
+  font-size: 1.0625rem;
+  color: #9ca3af;
   line-height: 1.7;
-  margin: 0;
+  margin-bottom: 2.5rem;
 }
 
-/* ── Steps ──────────────────────────────────────────────────────── */
-.how__col {
-  position: relative;
-  opacity: 0;
-  transform: translateY(28px);
-  transition:
-    opacity 0.55s ease var(--delay),
-    transform 0.55s ease var(--delay);
-}
-
-.is-visible .how__col {
-  opacity: 1;
-  transform: translateY(0);
-}
-
-/* Desktop connector arrow between steps */
-.how__connector {
-  display: none;
-  position: absolute;
-  top: 88px;
-  right: -24px;
-  width: 48px;
-  height: 24px;
-  z-index: 2;
-  align-items: center;
-  justify-content: center;
-  pointer-events: none;
-}
-
-.how__connector-line {
-  display: none;
-}
-
-.how__connector-arrow {
-  color: rgba(76, 175, 130, 0.35);
-  font-size: 1.5rem;
-  line-height: 1;
-}
-
-@media (min-width: 768px) {
-  .how__connector {
-    display: flex;
-  }
-}
-
-.how__step {
-  text-align: center;
-  padding: 2rem 1.5rem;
-  position: relative;
-}
-
-.how__step-bg-num {
-  position: absolute;
-  top: -12px;
-  left: 50%;
-  transform: translateX(-50%);
-  font-family: var(--font-display);
-  font-size: clamp(5rem, 8vw, 8rem);
-  font-weight: 700;
-  line-height: 1;
-  color: rgba(255, 255, 255, 0.035);
-  pointer-events: none;
-  user-select: none;
-  white-space: nowrap;
-  letter-spacing: -0.02em;
-}
-
-.how__step-icon-wrap {
-  width: 76px;
-  height: 76px;
-  background: rgba(255, 255, 255, 0.055);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 20px;
+.shelters-stitch__features {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 2.5rem;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  margin: 0 auto 1.375rem;
-  position: relative;
+  flex-direction: column;
+  gap: 1.5rem;
 }
 
-.how__step-icon {
-  font-size: 2.25rem;
+.shelters-stitch__feat {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
 }
 
-.how__step-title {
-  font-family: var(--font-display);
-  font-size: 1.1875rem;
+.shelters-stitch__check {
+  color: #10B981;
+  font-size: 1rem;
+  margin-top: 0.25rem;
+  flex-shrink: 0;
+}
+
+.shelters-stitch__feat-title {
+  font-size: 1rem;
   font-weight: 700;
-  color: #fff;
-  margin-bottom: 0.75rem;
-  line-height: 1.25;
+  margin: 0 0 0.25rem;
 }
 
-.how__step-text {
-  font-size: 0.9rem;
-  color: rgba(255, 255, 255, 0.5);
-  line-height: 1.65;
+.shelters-stitch__feat-text {
+  font-size: 0.875rem;
+  color: #6b7280;
   margin: 0;
-  max-width: 28ch;
-  margin-inline: auto;
+  line-height: 1.5;
 }
 
-/* ── CTA ────────────────────────────────────────────────────────── */
-.how__cta {
-  text-align: center;
-  margin-top: 3.5rem;
-}
-
-.how__btn {
-  display: inline-flex;
-  align-items: center;
-  padding: 15px 36px;
-  background: var(--green);
+.shelters-stitch__cta {
+  display: inline-block;
+  padding: 0.875rem 2rem;
+  background: #10B981;
   color: #fff;
-  border-radius: 100px;
-  font-family: var(--font-body);
-  font-size: 0.9375rem;
-  font-weight: 600;
+  font-weight: 700;
+  border-radius: 0.75rem;
   text-decoration: none;
-  transition: background 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
-  box-shadow: 0 4px 24px rgba(76, 175, 130, 0.35);
+  transition: background 0.2s ease;
 }
 
-.how__btn:hover {
-  background: var(--green-dark);
+.shelters-stitch__cta:hover {
+  background: #059669;
   color: #fff;
-  transform: translateY(-3px);
-  box-shadow: 0 8px 36px rgba(76, 175, 130, 0.5);
 }
 
-.how__cta-note {
-  margin: 0.875rem 0 0;
-  font-size: 0.8125rem;
-  color: rgba(255, 255, 255, 0.3);
+/* Image grid */
+.shelters-stitch__images {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.shelters-stitch__img {
+  width: 100%;
+  border-radius: 1rem;
+  border: 1px solid #374151;
+}
+
+.shelters-stitch__img--offset {
+  margin-top: 3rem;
 }
 </style>

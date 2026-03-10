@@ -73,17 +73,17 @@ describe('BlogCard', () => {
       expect(wrapper.text()).toContain('Cuidado de perros en verano')
     })
 
-    it('renders the excerpt derived from content (first 150 chars + "...")', async () => {
+    it('renders the excerpt derived from content (first 120 chars + "...")', async () => {
       const longContent = 'A'.repeat(200)
       const post = makeBlogPost({ content: longContent })
       const wrapper = await mountSuspended(BlogCard, {
         props: { post },
         global: { stubs: { NuxtLink: NuxtLinkHrefStub } },
       })
-      expect(wrapper.text()).toContain('A'.repeat(150) + '...')
+      expect(wrapper.text()).toContain('A'.repeat(120) + '...')
     })
 
-    it('renders the full content as excerpt when content is 150 chars or less', async () => {
+    it('renders the full content as excerpt when content is 120 chars or less', async () => {
       const shortContent = 'Contenido corto.'
       const post = makeBlogPost({ content: shortContent })
       const wrapper = await mountSuspended(BlogCard, {

@@ -2,7 +2,7 @@
 // guest.test.ts — Route middleware: guest
 //
 // The middleware reads useAuthStore().isAuthenticated and calls
-// navigateTo('/dashboard') when the user already has an active session.
+// navigateTo('/admin') when the user already has an active session.
 // Unauthenticated users pass through (undefined return).
 //
 // Testing strategy mirrors auth.test.ts: pinia initialState controls
@@ -43,18 +43,18 @@ describe('guest middleware', () => {
       )
     })
 
-    it('calls navigateTo with /dashboard', async () => {
+    it('calls navigateTo with /admin', async () => {
       const middleware = (await import('./guest')).default as Function
       middleware({}, {})
 
-      expect(navigateToMock).toHaveBeenCalledWith('/dashboard')
+      expect(navigateToMock).toHaveBeenCalledWith('/admin')
     })
 
     it('returns the result of navigateTo (redirect signal)', async () => {
       const middleware = (await import('./guest')).default as Function
       const result = middleware({}, {})
 
-      expect(result).toEqual({ path: '/dashboard' })
+      expect(result).toEqual({ path: '/admin' })
     })
   })
 

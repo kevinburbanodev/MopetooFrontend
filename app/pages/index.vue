@@ -1,29 +1,22 @@
 <script setup lang="ts">
-definePageMeta({
-  middleware: 'guest',
-})
+definePageMeta({})
 
 useHead({
-  title: 'Mopetoo — Cuidá a tus mascotas como nunca',
-  link: [
-    { rel: 'preconnect', href: 'https://fonts.googleapis.com' },
-    { rel: 'preconnect', href: 'https://fonts.gstatic.com', crossorigin: '' },
-    {
-      rel: 'stylesheet',
-      href: 'https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,700;1,9..144,700&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&display=swap',
-    },
-  ],
+  title: 'Mopetoo — Cuida a tus mascotas como nunca',
 })
 </script>
 
 <template>
   <div>
     <HeroSection />
+    <EcosystemSection />
     <FeaturesSection />
     <HowItWorksSection />
-    <EcosystemSection />
+    <HowItWorksSteps />
+    <PricingSection />
     <DonationsSection />
-    <ProSection />
-    <CtaBand />
+    <BlogPreviewSection />
+    <TestimonialsSection />
+    <DownloadSection />
   </div>
 </template>

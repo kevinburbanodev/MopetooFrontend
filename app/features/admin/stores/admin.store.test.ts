@@ -29,10 +29,12 @@ function makeUser(overrides: Partial<AdminUser> = {}): AdminUser {
   return {
     id: 1,
     name: 'Juan',
-    last_name: 'Pérez',
+    lastname: 'Pérez',
     email: 'juan@example.com',
-    country: 'Colombia',
-    city: 'Bogotá',
+    country_id: 1,
+    country: { id: 1, name: 'Colombia', code: 'CO', phone_code: '+57' },
+    city_id: 1,
+    city: { id: 1, name: 'Bogotá', country_id: 1 },
     is_pro: false,
     is_admin: false,
     is_active: true,
@@ -46,10 +48,11 @@ function makeUser(overrides: Partial<AdminUser> = {}): AdminUser {
 function makeShelter(overrides: Partial<AdminShelter> = {}): AdminShelter {
   return {
     id: 1,
-    name: 'Refugio Los Amigos',
-    city: 'Bogotá',
+    organization_name: 'Refugio Los Amigos',
+    city_id: 1,
+    city: { id: 1, name: 'Bogotá', country_id: 1 },
     email: 'info@refugio.com',
-    is_verified: true,
+    verified: true,
     is_active: true,
     pets_count: 10,
     created_at: '2024-01-01T00:00:00Z',
@@ -61,10 +64,12 @@ function makePetshop(overrides: Partial<AdminPetshop> = {}): AdminPetshop {
   return {
     id: 1,
     name: 'Tienda Mascota Feliz',
-    city: 'Medellín',
+    city_id: 2,
+    city: { id: 2, name: 'Medellín', country_id: 1 },
     email: 'info@tienda.com',
+    verified: false,
     is_active: true,
-    plan: 'free',
+    subscription_plan: 'free',
     created_at: '2024-01-01T00:00:00Z',
     ...overrides,
   }
@@ -74,11 +79,12 @@ function makeClinic(overrides: Partial<AdminClinic> = {}): AdminClinic {
   return {
     id: 1,
     name: 'Clínica Vet Norte',
-    city: 'Cali',
+    city_id: 3,
+    city: { id: 3, name: 'Cali', country_id: 1 },
     email: 'info@clinica.com',
-    is_verified: true,
+    verified: true,
     is_active: true,
-    plan: 'free',
+    subscription_plan: 'free',
     specialties: ['Cirugía', 'Dermatología'],
     created_at: '2024-01-01T00:00:00Z',
     ...overrides,
@@ -101,24 +107,32 @@ function makeTransaction(overrides: Partial<AdminTransaction> = {}): AdminTransa
 function makeDonation(overrides: Partial<AdminDonation> = {}): AdminDonation {
   return {
     id: 1,
-    user_id: 1,
+    donor_entity_type: 'user',
+    donor_entity_id: 1,
     shelter_id: 1,
-    amount_cop: 25000,
+    amount: 25000,
+    platform_fee: 1250,
+    shelter_amount: 23750,
+    payout_status: 'pending',
+    payment_method: 'nequi',
     status: 'approved',
-    reference: 'DON-001',
     created_at: '2024-02-01T10:00:00Z',
+    donor_name: 'Juan Perez',
+    donor_email: 'juan@test.com',
+    donor_label: 'Usuario',
+    shelter_name: 'Refugio Test',
     ...overrides,
   }
 }
 
 const userA = makeUser({ id: 1, name: 'Ana', is_pro: false })
 const userB = makeUser({ id: 2, name: 'Carlos', is_pro: true })
-const shelterA = makeShelter({ id: 1, name: 'Refugio Norte', is_verified: false })
-const shelterB = makeShelter({ id: 2, name: 'Refugio Sur', is_active: false })
+const shelterA = makeShelter({ id: 1, organization_name: 'Refugio Norte', verified: false })
+const shelterB = makeShelter({ id: 2, organization_name: 'Refugio Sur', is_active: false })
 const petshopA = makePetshop({ id: 1, name: 'TiendaPets A' })
-const petshopB = makePetshop({ id: 2, name: 'TiendaPets B', plan: 'featured' })
+const petshopB = makePetshop({ id: 2, name: 'TiendaPets B', subscription_plan: 'featured' })
 const clinicA = makeClinic({ id: 1, name: 'Clínica Norte' })
-const clinicB = makeClinic({ id: 2, name: 'Clínica Sur', plan: 'pro' })
+const clinicB = makeClinic({ id: 2, name: 'Clínica Sur', subscription_plan: 'pro' })
 const txA = makeTransaction({ id: 1, plan: 'pro_monthly' })
 const txB = makeTransaction({ id: 2, plan: 'pro_annual' })
 const donA = makeDonation({ id: 1 })
@@ -336,14 +350,14 @@ describe('useAdminStore', () => {
     it('merges partial data into an existing shelter by id', () => {
       const store = useAdminStore()
       store.setShelters([shelterA], 1)
-      store.updateShelter(1, { is_verified: true })
-      expect(store.shelters[0].is_verified).toBe(true)
+      store.updateShelter(1, { verified: true })
+      expect(store.shelters[0].verified).toBe(true)
     })
 
     it('does nothing when shelter id is not found', () => {
       const store = useAdminStore()
       store.setShelters([shelterA], 1)
-      store.updateShelter(999, { is_verified: true })
+      store.updateShelter(999, { verified: true })
       expect(store.shelters[0]).toEqual(shelterA)
     })
 
@@ -379,8 +393,8 @@ describe('useAdminStore', () => {
     it('can update plan', () => {
       const store = useAdminStore()
       store.setPetshops([petshopA], 1)
-      store.updatePetshop(1, { plan: 'featured' })
-      expect(store.petshops[0].plan).toBe('featured')
+      store.updatePetshop(1, { subscription_plan: 'featured' })
+      expect(store.petshops[0].subscription_plan).toBe('featured')
     })
 
     it('does nothing when petshop id is not found', () => {
@@ -422,21 +436,21 @@ describe('useAdminStore', () => {
     it('can update plan', () => {
       const store = useAdminStore()
       store.setAdminClinics([clinicA], 1)
-      store.updateAdminClinic(1, { plan: 'pro' })
-      expect(store.clinics[0].plan).toBe('pro')
+      store.updateAdminClinic(1, { subscription_plan: 'pro' })
+      expect(store.clinics[0].subscription_plan).toBe('pro')
     })
 
     it('preserves non-updated fields', () => {
       const store = useAdminStore()
       store.setAdminClinics([clinicA], 1)
-      store.updateAdminClinic(1, { is_verified: false })
+      store.updateAdminClinic(1, { verified: false })
       expect(store.clinics[0].name).toBe('Clínica Norte')
     })
 
     it('does nothing when clinic id is not found', () => {
       const store = useAdminStore()
       store.setAdminClinics([clinicA], 1)
-      store.updateAdminClinic(999, { is_verified: false })
+      store.updateAdminClinic(999, { verified: false })
       expect(store.clinics[0]).toEqual(clinicA)
     })
   })
